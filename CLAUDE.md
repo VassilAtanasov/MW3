@@ -77,7 +77,11 @@ These run without a human gate and never block or reopen a feature:
 <!-- Filled by /adopt, /discover, and /kickoff. Every pipeline phase reads this section. -->
 - GitHub: VassilAtanasov/MW3 (public)
 - GitHub access: **no `gh` CLI on this machine** — use the `github` MCP server tools for issues,
-  PRs, projects, and CI status. Plain `git` handles branches, commits, and pushes.
+  PRs, and projects. Plain `git` handles branches, commits, and pushes.
+  **Known gap**: the MCP server exposes no Actions/workflow-run tools, so CI status cannot be read
+  programmatically. Definition-of-Done step 5 ("CI green") must be confirmed by the user from
+  https://github.com/VassilAtanasov/MW3/actions, or by installing `gh`
+  (`winget install GitHub.cli` + `gh auth login`), which restores automatic checking.
 - Stack: .NET end-to-end — game client and server both C#/.NET (SDK 10.0.301 locally). The client
   framework, server shape, data store, and hosting target are **open — decided during /discover**.
 - Workflowy root: (not yet set — `WORKFLOWY_API_KEY` missing; see below)
