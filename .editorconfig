@@ -138,9 +138,24 @@ dotnet_naming_style.suffix_async.capitalization = pascal_case
 
 #### Tests — same correctness rules, relaxed on the ones that fight test code ####
 
+# Two sections for one intent: a leading `**/` never matches zero directories in this engine, so
+# it cannot match a folder that is itself the first path segment (e.g. the top-level `tests/`
+# tree) — only nested cases like `src/Foo.Tests/*.cs`. The second section covers the top-level case.
 [**/{*Tests,*.Tests,*IntegrationTests,tests}/**/*.cs]
 dotnet_diagnostic.CA1062.severity = none       # arguments are test-controlled
 dotnet_diagnostic.CA2007.severity = none
 dotnet_diagnostic.CA1707.severity = none       # underscores in test method names are the convention
 dotnet_diagnostic.CA1861.severity = none       # inline arrays in test data
+# IDE0005 (remove unnecessary usings) hard-requires GenerateDocumentationFile=true to run at all
+# (https://github.com/dotnet/roslyn/issues/41640); Directory.Build.props deliberately turns that
+# off for .Tests/.IntegrationTests projects, so the two settings conflict unless IDE0005 is off here.
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_naming_rule.async_methods_end_in_async.severity = none
+
+[tests/**/*.cs]
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.IDE0005.severity = none
 dotnet_naming_rule.async_methods_end_in_async.severity = none
