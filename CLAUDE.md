@@ -38,6 +38,41 @@ and Projects for *execution*. Item names stay ≤ 15 words; detail goes in the i
 Writes need `WORKFLOWY_API_KEY` (from `.env`, never printed) and are dry-run until the user says
 go. Never delete, move, or complete a Workflowy node.
 
+## GitHub access (every skill, no exceptions)
+
+**There is no `gh` CLI on this machine.** Ivan 1.3.0's default is `gh`; this project substitutes:
+
+- **Issues, PRs, labels, repo reads** — the `github` MCP server tools.
+- **Branches, commits, pushes** — plain `git`.
+- **Projects v2 boards** — GraphQL at `https://api.github.com/graphql` with `GITHUB_CLASSIC_TOKEN`
+  from `.env` (scopes `repo`, `project`, `workflow`; never print it). `addProjectV2ItemById` adds
+  an issue; `updateProjectV2ItemFieldValue` with `singleSelectOptionId` sets Status from the IDs in
+  the Projects registry below.
+- **CI / workflow runs** — the MCP server exposes no Actions tools, so read them over REST:
+
+  ```powershell
+  $tok = ((Get-Content .env | Where-Object { $_ -match '^GITHUB_CLASSIC_TOKEN=' }) -replace '^GITHUB_CLASSIC_TOKEN=','').Trim()
+  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/VassilAtanasov/MW3/actions/runs?per_page=5' `
+       -Headers @{ Authorization = "token $tok"; 'User-Agent' = 'ivan'; Accept = 'application/vnd.github+json' }
+  $r.workflow_runs | ForEach-Object { "$($_.head_branch) $($_.status) $($_.conclusion)" }
+  ```
+
+  Definition-of-Done step 5 ("CI green") is checkable this way — verified working. There is no
+  blocking `gh run watch` equivalent, so poll this endpoint at a sane interval rather than tightly.
+
+The rules behind Ivan's `gh` guidance still bind, whatever the transport:
+
+1. **Always scope explicitly** to `VassilAtanasov/MW3` — never rely on the cwd's remote, because
+   worktrees and subagents don't share it.
+2. **Never parse human-facing output**; act on structured JSON fields only.
+3. **Always paginate deliberately** — MCP list tools default to small pages and truncate silently.
+4. **Never rediscover cached IDs** — board number, project ID, Status field ID and its option IDs
+   live in the Projects registry below. Only `/kickoff` writes them, once, when it creates a board.
+5. **Idempotent by construction** — check for an existing issue, label, or board before creating.
+
+PowerShell gotcha: **`$pid` is a read-only automatic variable** (the process ID) — never use it for
+a project id; the assignment fails silently in a pipeline and the id comes out wrong.
+
 ## Definition of Done (per feature issue)
 
 A feature is done only when ALL of these hold:
@@ -52,6 +87,26 @@ A feature is done only when ALL of these hold:
 6. Push notification sent to the user ("Feature #N complete: <title>").
 
 Never merge on red CI. Never close an issue by hand — the PR merge closes it.
+
+## Coding standards
+
+`docs/CONVENTIONS.md` holds this project's per-stack coding conventions — read it before writing
+code, and treat a violation as a defect, not a preference. It contains only judgements the tooling
+cannot make; formatting, style and analyzer rules are owned by `.editorconfig` +
+`Directory.Build.props` and enforced by `gate.ps1`, so never argue with them, fix the code.
+
+These hold in every stack:
+
+- Never weaken a check to make it pass. Suppressions (`#pragma`, `[SuppressMessage]`, `!`,
+  disabled lint rules, `NoWarn` additions, `-warnaserror` exclusions) require a comment naming the
+  concrete constraint that forces them — otherwise fix the underlying cause.
+- Model absence and failure in the type system rather than in comments or convention.
+- Validate anything crossing a trust boundary (network, form, file, env) at the boundary; never cast
+  untrusted data into shape.
+- No secrets in source, logs, or client-visible configuration.
+- Test behaviour, not implementation. A test asserting only that a mock was called is hollow.
+  Every bug fix lands with a test that fails without the fix.
+- Dead code is deleted, not commented out — git remembers it.
 
 ## Pipeline etiquette (build mode)
 
@@ -76,19 +131,9 @@ These run without a human gate and never block or reopen a feature:
 
 <!-- Filled by /adopt, /discover, and /kickoff. Every pipeline phase reads this section. -->
 - GitHub: VassilAtanasov/MW3 (public)
-- GitHub access: **no `gh` CLI on this machine.** Use the `github` MCP server tools for issues,
-  PRs, and projects; plain `git` for branches, commits, and pushes.
-  The MCP server exposes no Actions/workflow-run tools, so read **CI status** through the REST API
-  with `GITHUB_CLASSIC_TOKEN` from `.env` (never print the token):
-
-  ```powershell
-  $tok = ((Get-Content .env | Where-Object { $_ -match '^GITHUB_CLASSIC_TOKEN=' }) -replace '^GITHUB_CLASSIC_TOKEN=','').Trim()
-  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/VassilAtanasov/MW3/actions/runs?per_page=5' `
-       -Headers @{ Authorization = "token $tok"; 'User-Agent' = 'ivan'; Accept = 'application/vnd.github+json' }
-  $r.workflow_runs | ForEach-Object { "$($_.head_branch) $($_.status) $($_.conclusion)" }
-  ```
-
-  Definition-of-Done step 5 ("CI green") is checkable this way — verified working.
+- GitHub auth: verified 26-07-2026 — issues/PRs via the `github` MCP server, Projects v2 and
+  Actions via `GITHUB_CLASSIC_TOKEN`. No `gh` CLI; see **GitHub access** above for how each
+  operation is performed.
 - Stack: **MonoGame 3.8.5 on .NET 10** (SDK 10.0.301). Android-first, with a Windows DesktopGL head
   as the unattended QA surface. Rules live in an engine-free `MW3.Core` (`netstandard2.1`).
   No server, database, or auth until the multiplayer phase. See `docs/ARCHITECTURE.md` for the
@@ -99,12 +144,7 @@ These run without a human gate and never block or reopen a feature:
 - Active project: **Welcome screen** (`docs/welcome-screen/`)
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
   **full** node id. Reads accept either.
-- Board operations without `gh`: GitHub Projects v2 is GraphQL-only. Use
-  `https://api.github.com/graphql` with `GITHUB_CLASSIC_TOKEN` (scopes: `repo`, `project`,
-  `workflow`) — `addProjectV2ItemById` to add an issue, `updateProjectV2ItemFieldValue` with
-  `singleSelectOptionId` to set Status from the IDs in the registry table above.
-  PowerShell gotcha: **`$pid` is a read-only automatic variable** (the process ID) — never use it
-  for a project id; the assignment fails silently in a pipeline and the id comes out wrong.
+- Ivan plugin version: **1.3.0** (re-adopted 26-07-2026).
 
 ### Projects
 
@@ -125,7 +165,19 @@ Phase 1 features, in dependency order (`/kickoff` one at a time):
 
 ### Quality gate
 
-`./gate.ps1` — detects `*.sln` at the repo root or one level down (layout-agnostic until
-`/discover` settles it), then runs `dotnet build -warnaserror`, `dotnet format
---verify-no-changes`, and `dotnet test`. Passes trivially while no solution exists.
-CI runs the same script on `windows-latest`.
+`./gate.ps1` — detects `*.sln`/`*.slnx` at the repo root or one level down, then runs
+`dotnet format --verify-no-changes`, `dotnet build -warnaserror`, and `dotnet test`. Passes
+trivially while no solution exists. CI runs the same script on `windows-latest`.
+
+Style, naming and analyzer rules are **not** a separate gate step. `.editorconfig` at the repo root
+declares them; `Directory.Build.props` turns them into build diagnostics via
+`EnforceCodeStyleInBuild`, so `dotnet build -warnaserror` is what goes red on them. Judgement rules
+the tooling cannot check live in `docs/CONVENTIONS.md`.
+
+`Directory.Build.props` deliberately sets **no** `TargetFramework` — `MW3.Core` is
+`netstandard2.1` (D-2) while `MW3.Game` and the heads are `net10.0` (D-6), so each `.csproj`
+declares its own.
+
+Coverage: the test step collects line coverage automatically once a test project references
+`coverlet.collector`, and degrades to a plain `dotnet test` until then. It reports only; set
+`GATE_COVERAGE_MIN` to make the gate fail below a threshold once the suite is established.

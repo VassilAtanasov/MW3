@@ -16,7 +16,10 @@ try {
 
 # Source = anything the .NET build can see. Layout-agnostic on purpose: /discover settles the
 # directory structure, so match by file type rather than by top-level folder.
-$changes = git -C $repoRoot status --porcelain 2>$null
+# --untracked-files=all is load-bearing: plain --porcelain collapses a new untracked directory to a
+# single "?? src/" entry, so a brand-new project's .cs files would never match the filter below and
+# the gate would be silently skipped on exactly the turn that created them.
+$changes = git -C $repoRoot status --porcelain --untracked-files=all 2>$null
 $sourceChanged = $changes | Where-Object { $_ -match '\.(cs|csproj|fsproj|sln|slnx|props|targets|razor|axaml|xaml|resx)"?$' }
 if (-not $sourceChanged) { exit 0 }
 

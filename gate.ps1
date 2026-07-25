@@ -1,7 +1,10 @@
 # gate.ps1 — the single quality gate for MW3.
 # Run by: developers, Ivan (Claude Code), the Stop hook, and GitHub Actions CI.
 # Auto-detects project state: passes trivially until application code exists.
-# Stack is .NET end-to-end (game client + server), so there is a single solution leg.
+# Stack is .NET end-to-end (MonoGame client, no server yet), so there is a single solution leg.
+# Style and analyzer rules are NOT a separate step: .editorconfig severities become build
+# diagnostics via EnforceCodeStyleInBuild in Directory.Build.props, so `dotnet build -warnaserror`
+# below is what fails on them.
 # On success, writes .gate-stamp (a hash of the working tree) so the Stop hook can skip
 # re-running the gate when nothing changed since the last green run.
 # Compatible with Windows PowerShell 5.1 and PowerShell Core (pwsh, incl. Linux CI).
@@ -77,18 +80,60 @@ if (-not $solution) {
     exit 0
 }
 
-$legs = @(
-    @{
-        Name  = 'dotnet'
-        Steps = @(
-            @{ Name = 'dotnet build (warnings as errors)'; WorkDir = $repoRoot; Command = "dotnet build `"$($solution.FullName)`" -warnaserror --nologo" },
-            @{ Name = 'dotnet format (verify no changes)'; WorkDir = $repoRoot; Command = "dotnet format `"$($solution.FullName)`" --verify-no-changes --verbosity minimal" },
-            @{ Name = 'dotnet test'; WorkDir = $repoRoot; Command = "dotnet test `"$($solution.FullName)`" --nologo --no-build" }
-        )
-    }
+$sln = $solution.FullName
+
+$steps = @(
+    # Formatting drift fails here rather than depending on the PostToolUse hook having fired.
+    # Style/analyzer rules themselves are enforced by the build: .editorconfig severities are
+    # promoted to build diagnostics by EnforceCodeStyleInBuild in Directory.Build.props.
+    @{ Name = 'dotnet format (verify no changes)'; WorkDir = $repoRoot; Command = "dotnet format `"$sln`" --verify-no-changes --verbosity minimal" },
+    @{ Name = 'dotnet build (warnings as errors)'; WorkDir = $repoRoot; Command = "dotnet build `"$sln`" -warnaserror --nologo" }
 )
 
-$results = @(& $legRunner $legs[0].Name $legs[0].Steps)
+# Coverage runs only when the test projects actually reference coverlet.collector, so this
+# degrades to a plain `dotnet test` in projects that have not opted in.
+$projFiles = @(Get-ChildItem -Path $repoRoot -Filter '*.csproj' -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|artifacts)[\\/]' })
+$hasCoverlet = $false
+if ($projFiles.Count -gt 0) {
+    $hasCoverlet = [bool](Select-String -Path $projFiles.FullName -Pattern 'coverlet\.collector' -Quiet -ErrorAction SilentlyContinue)
+}
+
+# Minimum line coverage percentage. 0 = report only. Raise it via the environment (CI or shell)
+# once the suite is established; the gate then fails when coverage drops below it.
+$coverageMin = 0
+if ($env:GATE_COVERAGE_MIN) { $coverageMin = [double]$env:GATE_COVERAGE_MIN }
+
+if ($hasCoverlet) {
+    $coverageDir = Join-Path $repoRoot '.coverage'
+    # Note: the leg runner discards a step's collected output if the step throws, so the test
+    # transcript is carried in the exception message rather than written to the pipeline.
+    $coverageCmd = @'
+Remove-Item -Recurse -Force "__DIR__" -ErrorAction SilentlyContinue
+$testOut = @(dotnet test "__SLN__" --nologo --no-build --results-directory "__DIR__" --collect "XPlat Code Coverage" 2>&1 | ForEach-Object { "$_" })
+$testExit = $LASTEXITCODE
+function Fail([string]$Reason) { throw (($testOut + $Reason) -join "`n") }
+if ($testExit -ne 0) { Fail "dotnet test failed (exit $testExit)" }
+$reports = @(Get-ChildItem -Path "__DIR__" -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue)
+if ($reports.Count -eq 0) { Fail "coverage: no cobertura report was produced" }
+$covered = 0; $total = 0
+foreach ($r in $reports) {
+    $xml = [xml](Get-Content $r.FullName -Raw)
+    $covered += [int]$xml.coverage.GetAttribute('lines-covered')
+    $total   += [int]$xml.coverage.GetAttribute('lines-valid')
+}
+$pct = if ($total -gt 0) { [math]::Round(100.0 * $covered / $total, 2) } else { 0 }
+$summary = "coverage: $pct% ($covered/$total lines, minimum __MIN__%)"
+if ($pct -lt __MIN__) { Fail $summary }
+$testOut + $summary
+'@
+    $coverageCmd = $coverageCmd.Replace('__DIR__', $coverageDir).Replace('__SLN__', $sln).Replace('__MIN__', "$coverageMin")
+    $steps += @{ Name = "dotnet test (coverage, min ${coverageMin}%)"; WorkDir = $repoRoot; Command = $coverageCmd }
+} else {
+    $steps += @{ Name = 'dotnet test'; WorkDir = $repoRoot; Command = "dotnet test `"$sln`" --nologo --no-build" }
+}
+
+$results = @(& $legRunner 'dotnet' $steps)
 
 $failures = @()
 foreach ($result in $results) {
