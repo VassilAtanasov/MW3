@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    # windows-latest so any .NET UI/game target (including Windows-only ones) builds here.
+    # Revisit in /discover once the client framework is settled.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Quality gate
+        shell: pwsh
+        run: ./gate.ps1

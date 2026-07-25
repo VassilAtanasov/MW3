@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+*.db
+*.db-shm
+*.db-wal
+
+# Quality gate success stamp (local cache, machine-specific)
+.gate-stamp
+
+# Editors / OS
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local-only Claude settings (machine-specific overrides)
+.claude/settings.local.json
+
+# Secrets (WORKFLOWY_API_KEY lives here)
+.env
+.env.local
