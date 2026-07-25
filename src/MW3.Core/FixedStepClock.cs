@@ -33,6 +33,11 @@ public readonly struct FixedStepClock
     /// </summary>
     public (FixedStepClock Clock, long Ticks) Advance(long elapsedMilliseconds)
     {
+        if (TickDurationMilliseconds <= 0)
+        {
+            throw new InvalidOperationException("FixedStepClock must be constructed with a positive tick duration before calling Advance; the default(FixedStepClock) value is not usable.");
+        }
+
         if (elapsedMilliseconds < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds), elapsedMilliseconds, "Elapsed time cannot be negative.");

@@ -49,4 +49,12 @@ public class FixedStepClockTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new FixedStepClock(tickDurationMilliseconds: 0));
     }
+
+    [Fact]
+    public void Advance_DefaultConstructedClock_ThrowsInvalidOperation()
+    {
+        var clock = default(FixedStepClock);
+
+        Assert.Throws<InvalidOperationException>(() => clock.Advance(16));
+    }
 }

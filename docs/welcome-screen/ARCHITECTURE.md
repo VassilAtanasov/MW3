@@ -64,7 +64,8 @@ Desktop smoke check (unattended — one update/draw cycle, then exit 0):
 dotnet run --project src/MW3.Desktop -- --smoke
 ```
 
-Android (physical device with USB debugging enabled):
+Android (physical device with USB debugging enabled — ships with FR-2 `089cdeb5df53`;
+`src/MW3.Android` does not exist until then, so this block is not runnable on FR-1 alone):
 
 ```powershell
 dotnet workload install android
