@@ -76,15 +76,24 @@ These run without a human gate and never block or reopen a feature:
 
 <!-- Filled by /adopt, /discover, and /kickoff. Every pipeline phase reads this section. -->
 - GitHub: VassilAtanasov/MW3 (public)
-- GitHub access: **no `gh` CLI on this machine** — use the `github` MCP server tools for issues,
-  PRs, and projects. Plain `git` handles branches, commits, and pushes.
-  **Known gap**: the MCP server exposes no Actions/workflow-run tools, so CI status cannot be read
-  programmatically. Definition-of-Done step 5 ("CI green") must be confirmed by the user from
-  https://github.com/VassilAtanasov/MW3/actions, or by installing `gh`
-  (`winget install GitHub.cli` + `gh auth login`), which restores automatic checking.
+- GitHub access: **no `gh` CLI on this machine.** Use the `github` MCP server tools for issues,
+  PRs, and projects; plain `git` for branches, commits, and pushes.
+  The MCP server exposes no Actions/workflow-run tools, so read **CI status** through the REST API
+  with `GITHUB_CLASSIC_TOKEN` from `.env` (never print the token):
+
+  ```powershell
+  $tok = ((Get-Content .env | Where-Object { $_ -match '^GITHUB_CLASSIC_TOKEN=' }) -replace '^GITHUB_CLASSIC_TOKEN=','').Trim()
+  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/VassilAtanasov/MW3/actions/runs?per_page=5' `
+       -Headers @{ Authorization = "token $tok"; 'User-Agent' = 'ivan'; Accept = 'application/vnd.github+json' }
+  $r.workflow_runs | ForEach-Object { "$($_.head_branch) $($_.status) $($_.conclusion)" }
+  ```
+
+  Definition-of-Done step 5 ("CI green") is checkable this way — verified working.
 - Stack: .NET end-to-end — game client and server both C#/.NET (SDK 10.0.301 locally). The client
   framework, server shape, data store, and hosting target are **open — decided during /discover**.
-- Workflowy root: (not yet set — `WORKFLOWY_API_KEY` missing; see below)
+- Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
+  `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
+  the gitignored `.env`.
 - Active project: (set by /discover)
 
 ### Projects
