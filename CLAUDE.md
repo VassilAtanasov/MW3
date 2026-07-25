@@ -99,6 +99,12 @@ These run without a human gate and never block or reopen a feature:
 - Active project: **Welcome screen** (`docs/welcome-screen/`)
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
   **full** node id. Reads accept either.
+- Board operations without `gh`: GitHub Projects v2 is GraphQL-only. Use
+  `https://api.github.com/graphql` with `GITHUB_CLASSIC_TOKEN` (scopes: `repo`, `project`,
+  `workflow`) — `addProjectV2ItemById` to add an issue, `updateProjectV2ItemFieldValue` with
+  `singleSelectOptionId` to set Status from the IDs in the registry table above.
+  PowerShell gotcha: **`$pid` is a read-only automatic variable** (the process ID) — never use it
+  for a project id; the assignment fails silently in a pipeline and the id comes out wrong.
 
 ### Projects
 
@@ -106,13 +112,13 @@ These run without a human gate and never block or reopen a feature:
 
 | Project (Workflowy level 2) | wf short id | Docs folder | Board # | Project ID | Status field / Todo / In Progress / Done |
 |---|---|---|---|---|---|
-| Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | (set by /kickoff) | | |
+| Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` |
+| 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` (issue #1) |
 | 2 | Android head installs and launches on a physical device | `089cdeb5df53` |
 | 3 | Welcome screen with game title and inert entry point | `03845bfc494d` |
 | 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` |
