@@ -43,7 +43,23 @@ user and writes them into both the Workflowy note and the GitHub issue.
 FR-1 (wf: 3dae1956ad98): The developer can build and run a solution skeleton — engine-free
 `MW3.Core` rules library, xUnit test project, and a MonoGame DesktopGL head that opens a window —
 so that the quality gate has real code to check and stops passing trivially.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: `MW3.slnx` at the repo root contains exactly `src/MW3.Core`, `src/MW3.Game`,
+    `src/MW3.Desktop`, `tests/MW3.Core.Tests`.
+  - Acceptance: `MW3.Core` targets `netstandard2.1`; `MW3.Game` and `MW3.Desktop` target `net10.0`.
+  - Acceptance: `MW3.Core` has no MonoGame package reference, and no file under `src/MW3.Core`
+    contains the text `Microsoft.Xna` or `MonoGame`.
+  - Acceptance: `MW3.Core` contains a deterministic fixed-step game clock with no wall-clock or
+    platform dependency.
+  - Acceptance: `dotnet test MW3.slnx` runs at least three clock tests — whole ticks, remainder
+    carried to the next call, zero elapsed producing zero ticks — and all pass.
+  - Acceptance: `./gate.ps1` exits 0 and no longer prints "no application code yet".
+  - Acceptance: `dotnet build MW3.slnx -warnaserror` gives zero warnings and errors;
+    `dotnet format MW3.slnx --verify-no-changes` exits 0.
+  - Acceptance: `dotnet run --project src/MW3.Desktop` opens a window showing one solid clear
+    colour and no content, staying open until the user closes it.
+  - Acceptance: `dotnet run --project src/MW3.Desktop -- --smoke` runs one update/draw cycle and
+    exits 0 within 30 seconds with no user interaction.
+  - Acceptance: the commands in `ARCHITECTURE.md` §2a work verbatim on a clean clone.
 
 FR-2 (wf: 089cdeb5df53): The developer can install and launch the Android head on a physical
 device so that this phase's packaging and deployment risk is retired early rather than at the end.

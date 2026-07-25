@@ -46,10 +46,22 @@ knows nothing about MonoGame, rendering, or platforms.
 
 `qa-verifier` follows this section literally.
 
+One-time prerequisites on a clean machine:
+
+```powershell
+dotnet new install MonoGame.Templates.CSharp
+```
+
 Desktop (the routine QA path — no device or emulator required):
 
 ```powershell
 dotnet run --project src/MW3.Desktop
+```
+
+Desktop smoke check (unattended — one update/draw cycle, then exit 0):
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --smoke
 ```
 
 Android (physical device with USB debugging enabled):
@@ -121,6 +133,15 @@ authoritative server to reuse them.
 **D-5: original art only.** Mechanics may follow Mushroom Wars 2; all assets are recreated. The
 repository is public, and copied art assets — not cloned mechanics — are where the real IP
 exposure sits.
+
+**D-6: `MW3.Game` and the heads target `net10.0`.** Considered: pinning `net8.0` (the TFM MonoGame's
+own NuGet package is built for). Chosen because MonoGame documents .NET 9 as the recommended
+minimum SDK with **.NET 10 supported**, so `net10.0` is a supported configuration rather than a
+gamble, and it keeps one runtime version across the repo and CI. The package shipping `lib/net8.0`
+is not a conflict — package TFM and required SDK are different things, and the newer runtime
+consumes the older library normally. Fallback if a runtime problem appears on Android: drop the
+heads to `net8.0`; `MW3.Core` is unaffected either way.
+Source: https://docs.monogame.net/articles/tutorials/building_2d_games/02_getting_started/
 
 ## 5. Cross-cutting conventions
 
