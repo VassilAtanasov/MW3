@@ -89,12 +89,16 @@ These run without a human gate and never block or reopen a feature:
   ```
 
   Definition-of-Done step 5 ("CI green") is checkable this way — verified working.
-- Stack: .NET end-to-end — game client and server both C#/.NET (SDK 10.0.301 locally). The client
-  framework, server shape, data store, and hosting target are **open — decided during /discover**.
+- Stack: **MonoGame 3.8.5 on .NET 10** (SDK 10.0.301). Android-first, with a Windows DesktopGL head
+  as the unattended QA surface. Rules live in an engine-free `MW3.Core` (`netstandard2.1`).
+  No server, database, or auth until the multiplayer phase. See `docs/ARCHITECTURE.md` for the
+  standing decisions S-1..S-7 that bind every phase.
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: (set by /discover)
+- Active project: **Welcome screen** (`docs/welcome-screen/`)
+- Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
+  **full** node id. Reads accept either.
 
 ### Projects
 
@@ -102,7 +106,16 @@ These run without a human gate and never block or reopen a feature:
 
 | Project (Workflowy level 2) | wf short id | Docs folder | Board # | Project ID | Status field / Todo / In Progress / Done |
 |---|---|---|---|---|---|
-| | | | | | |
+| Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | (set by /kickoff) | | |
+
+Phase 1 features, in dependency order (`/kickoff` one at a time):
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` |
+| 2 | Android head installs and launches on a physical device | `089cdeb5df53` |
+| 3 | Welcome screen with game title and inert entry point | `03845bfc494d` |
+| 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` |
 
 ### Quality gate
 
