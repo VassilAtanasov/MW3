@@ -63,6 +63,11 @@ public sealed class WelcomeGame : Microsoft.Xna.Framework.Game
         {
             GraphicsDevice.SetRenderTarget(null);
             SaveScreenshot(_screenshotTarget, _screenshotPath!);
+
+            // One-shot: dispose and clear so later Draw calls render straight to the back buffer
+            // instead of re-capturing (and rewriting the file) on every frame.
+            _screenshotTarget.Dispose();
+            _screenshotTarget = null;
         }
 
         base.Draw(gameTime);
