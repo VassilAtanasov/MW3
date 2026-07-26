@@ -78,13 +78,33 @@ device so that this phase's packaging and deployment risk is retired early rathe
     concludes `success`.
   - Acceptance: with one device attached, the app installs and `adb shell pm list packages`
     includes `com.vassilatanasov.mw3`.
-  - Acceptance: `adb shell am start -n com.vassilatanasov.mw3/<activity>` prints `Status: ok`, and
-    `adb shell pidof com.vassilatanasov.mw3` returns a pid at least 10 seconds later.
+  - Acceptance: `adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity`
+    prints `Status: ok`, and `adb shell pidof com.vassilatanasov.mw3` returns a pid at least 10
+    seconds later.
   - Acceptance: the Android commands in `ARCHITECTURE.md` §2a work verbatim on a clean clone.
 
 FR-3 (wf: 03845bfc494d): The player can launch the app and see a welcome screen with the game
 title and one inert entry point, on both heads, so that the shell is visibly the beginning of MW3.
-  - Acceptance: (set by /kickoff)
+Depends on FR-2 being merged.
+  - Acceptance: the desktop head shows the title `MW3` and a button labelled `Play`, both fully
+    within the window, unclipped and non-overlapping.
+  - Acceptance: layout derives from the viewport — resizing the window or running at a different
+    aspect ratio keeps both elements fully visible and centred.
+  - Acceptance: clicking or tapping `Play` changes nothing; a screenshot after the click is
+    byte-identical to one taken before it, and the app keeps running.
+  - Acceptance: an `.mgcb` content project builds as part of the normal build — no manual content
+    step on a clean clone.
+  - Acceptance: the TTF behind the `SpriteFont` is committed with its licence file, and no
+    `.spritefont` references a font by machine-installed name only (D-9).
+  - Acceptance: `dotnet run --project src/MW3.Desktop -- --smoke --screenshot out.png` exits 0
+    within 30 seconds and writes a valid PNG matching the back-buffer dimensions with more than one
+    distinct colour.
+  - Acceptance: `--smoke` without `--screenshot` still exits 0 within 30 seconds and writes no file.
+  - Acceptance: `dotnet build MW3.slnx -warnaserror` and `./gate.ps1` both succeed.
+  - Acceptance: the Android manifest locks the activity to landscape.
+  - Acceptance: on an attached device, `adb shell screencap` shows the same title and button laid
+    out for the device's aspect ratio, and `pidof` still returns a pid ten seconds after launch.
+  - Acceptance: `ARCHITECTURE.md` §2a documents `--screenshot` and it works verbatim.
 
 FR-4 (wf: a536546adb60): The developer can download an installable APK from any CI run so that
 "it builds on my machine" stops being the standard of evidence.

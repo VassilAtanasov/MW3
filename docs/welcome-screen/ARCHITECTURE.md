@@ -69,6 +69,13 @@ Desktop smoke check (unattended — one update/draw cycle, then exit 0):
 dotnet run --project src/MW3.Desktop -- --smoke
 ```
 
+Visual check (ships with FR-3 `03845bfc494d`) — renders one frame to a PNG and exits 0. This is how
+`qa-verifier` asserts visual criteria; see D-9:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --smoke --screenshot out.png
+```
+
 Android (physical device with USB debugging enabled — ships with FR-2 `089cdeb5df53`;
 `src/MW3.Android` does not exist until then, so this block is not runnable on FR-1 alone):
 
@@ -168,6 +175,28 @@ process ten seconds later — the last one being the criterion that actually cat
 draw, which `am start` alone reports as success. This requires `MainActivity` to declare an explicit
 activity name: the generated hash-prefixed default is unstable across builds and would make the
 launch command unverifiable.
+
+**D-9: content pipeline with a bundled OFL font, and screenshots as the visual-QA mechanism.**
+Introduced by FR-3, the phase's first real asset. Considered: a runtime-loaded bitmap-font PNG that
+avoids MGCB entirely, and drawing the title as procedural shapes with no font. Rejected: the
+pipeline has to arrive with the first sprite regardless, and hand-rolled glyph layout is work that
+gets thrown away. Two constraints follow and bind every later asset:
+(a) **No `.spritefont` may reference a font by machine-installed name only.** CI has no such font,
+and D-5 requires assets we are entitled to ship — so the TTF (Open Sans, SIL OFL 1.1) is committed
+with its licence file.
+(b) **Visual criteria are verified by screenshot, not by eye.** Smoke mode gains
+`--screenshot <path>`: render one frame, write a PNG, exit 0. `qa-verifier` asserts the file's
+dimensions and that it contains more than one distinct colour — which is what catches a font that
+silently failed to load and left a flat clear colour. Every later visual feature reuses this rather
+than inventing its own check, and it is why Definition-of-Done step 4 stays automatic as the game
+becomes graphical.
+
+**D-10: the Android head is locked to landscape.** Considered: portrait, and full responsive
+rotation support. Chosen because an RTS board wants landscape and one fixed orientation means one
+layout; rotation and lifecycle handling were explicitly deferred out of FR-2, and locking the
+orientation is what keeps that deferral honest instead of quietly pulling the work forward. Layout
+is still derived from the viewport, so differing aspect ratios between the desktop window and the
+device are handled.
 
 **D-6: `MW3.Game` and the heads target `net10.0`.** Considered: pinning `net8.0` (the TFM MonoGame's
 own NuGet package is built for). Chosen because MonoGame documents .NET 9 as the recommended
