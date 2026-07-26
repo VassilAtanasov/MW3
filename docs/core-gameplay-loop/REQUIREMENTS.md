@@ -153,8 +153,12 @@ Only the ones that genuinely constrain design:
 - **A physical Android device is attached from FR-2 onward** (MI PAD 4, Android 11, 1920x1200 in
   the landscape lock), so device-dependent criteria are verified per feature and block the PR.
   Phase 1 deferred them to follow-up issue #7 for want of hardware; that deferral does not carry
-  into this phase. Android input is injected with `adb shell input tap` / `keyevent`, which is real
-  OS input and needs none of the D-17 seam.
+  into this phase (#7 was verified and closed on 26-07-2026). Android input is injected with
+  `adb shell input tap` / `keyevent`, which is real OS input and needs none of the D-17 seam.
+- **Launching for device checks uses plain `adb shell am start`, never `am start -W`.** `-W` waits
+  for `Activity.reportFullyDrawn()`, which MonoGame never calls; on the attached device it took
+  over two minutes (found while closing #7, commit `22a79a1`). Poll `adb shell pidof` for liveness
+  instead, and budget accordingly wherever `Status: ok` genuinely is the evidence wanted.
 - No auth, no persistence, no network, and no accessibility or performance targets this phase.
   Frame-rate work waits until there is art to slow it down.
 
