@@ -158,8 +158,8 @@ Phase 1 features, in dependency order (`/kickoff` one at a time):
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` (issue #1) |
-| 2 | Android head installs and launches on a physical device | `089cdeb5df53` |
+| 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` (issue #1, merged) |
+| 2 | Android head installs and launches on a physical device | `089cdeb5df53` (issue #3) |
 | 3 | Welcome screen with game title and inert entry point | `03845bfc494d` |
 | 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` |
 
