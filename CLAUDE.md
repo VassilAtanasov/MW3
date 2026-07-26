@@ -144,6 +144,11 @@ These run without a human gate and never block or reopen a feature:
 - Active project: **Core gameplay loop** (`docs/core-gameplay-loop/`). Phase 1 "Welcome screen" is
   shipped except FR-4 (`a536546adb60`, CI publishes the Android APK), which was never kicked off —
   finish it on board 18 before or alongside phase 2 rather than letting it rot.
+- Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200 in
+  the landscape lock. Device-dependent acceptance criteria are therefore **blocking** from phase 2
+  FR-2 onward, not deferred as they were for issues #3/#4 (see follow-up #7, now actionable).
+  Android input is injected with `adb shell input tap <x> <y>` and `adb shell input keyevent 4`.
+  Requires `C:\Program Files (x86)\Android\android-sdk\platform-tools` on `PATH`.
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
   **full** node id. Reads accept either.
 - Ivan plugin version: **1.3.0** (re-adopted 26-07-2026).
@@ -171,7 +176,7 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 | # | Feature | wf short id |
 |---|---|---|
 | 1 | Player, base ownership, and unit production in the core rules library | `50ae1a68b773` (issue #8) |
-| 2 | Play button opens a match screen and back returns to the welcome screen | `f68a4d876cb3` |
+| 2 | Play button opens a match screen and back returns to the welcome screen | `f68a4d876cb3` (issue #9) |
 | 3 | Match screen draws the map, bases, owners, and live garrison counts | `fc6dfb3d8695` |
 | 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` |
 | 5 | Tap and mouse input sends armies between bases on both heads | `06e4c2f2ddb8` |

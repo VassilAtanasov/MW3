@@ -78,8 +78,35 @@ that the game has a rules foundation before anything is drawn.
     `./gate.ps1` exits 0.
 
 FR-2 (wf: f68a4d876cb3): The player can press `Play` and arrive at a match screen, and return from
-it, so that the app has more than one destination and `Play` stops being inert.
-  - Acceptance: (set by /kickoff)
+it, so that the app has more than one destination and `Play` stops being inert. Independent of
+FR-1 — buildable in either order.
+  - Acceptance: `MW3.Game` defines an `IScreen` abstraction and a manager owning a screen stack;
+    the host game class routes lifecycle calls through it and no longer names `WelcomeScreen`
+    (D-16).
+  - Acceptance: the match screen draws a background colour different from the welcome screen's plus
+    the placeholder text `Match`, laid out from the viewport, adding no new content asset.
+  - Acceptance: press-and-release within the `Play` button pushes the match screen; a back request
+    pops it. Press inside and release outside does **not** navigate.
+  - Acceptance: a back request on the welcome screen exits with code 0 rather than popping an empty
+    stack.
+  - Acceptance: `MW3.Game` reads pointer position, pressed state, and back requests through one
+    interface — production wraps the platform APIs, a scripted implementation replays a file, and
+    no screen touches `Mouse`, `TouchPanel`, or `Keyboard` directly (D-17).
+  - Acceptance: `--script <file>` is accepted on both heads: one directive per line,
+    `<frame> <directive> [args]` where directives are `down x y`, `up x y`, `back`, `#` comments,
+    and pointer coordinates are normalized `0..1` so a script is resolution-independent.
+  - Acceptance: with `--script` the run ends a fixed 10 frames after the last directive, writing
+    the screenshot if asked and exiting 0; an unparseable script exits non-zero naming the line.
+  - Acceptance: committed scripts under `qa/scripts/` give byte-comparable evidence — tapping
+    `Play` yields a screenshot *not* identical to the welcome baseline; `Play` then `back`, a
+    press-then-drag-off, and five push/pop cycles each yield one that *is* byte-identical to it.
+  - Acceptance: phase 1's `--smoke` and `--smoke --screenshot` commands behave exactly as before.
+  - Acceptance: no file is added under `src/MW3.Core`; `dotnet build MW3.slnx -warnaserror -m:1`
+    and `./gate.ps1` both pass; §2a documents `--script` and works verbatim on a clean clone.
+  - Acceptance (device, blocking — a device is attached): `adb shell input tap` at the `Play`
+    button's normalized position scaled to the device resolution, then `screencap`, shows the match
+    screen; `adb shell input keyevent 4` returns to welcome with `pidof` still alive; a second
+    `keyevent 4` leaves the app without a crash dialog.
 
 FR-3 (wf: fc6dfb3d8695): The player can see the map, every base, who owns it, and its garrison
 count rising live, so that the match state is legible before it is interactive.
@@ -123,6 +150,11 @@ Only the ones that genuinely constrain design:
   aggregate (D-13).
 - **Cost and speed of the build/run loop** remain the primary constraint (S-5): `dotnet` commands
   only, free CI, no engine binary, no paid runner.
+- **A physical Android device is attached from FR-2 onward** (MI PAD 4, Android 11, 1920x1200 in
+  the landscape lock), so device-dependent criteria are verified per feature and block the PR.
+  Phase 1 deferred them to follow-up issue #7 for want of hardware; that deferral does not carry
+  into this phase. Android input is injected with `adb shell input tap` / `keyevent`, which is real
+  OS input and needs none of the D-17 seam.
 - No auth, no persistence, no network, and no accessibility or performance targets this phase.
   Frame-rate work waits until there is art to slow it down.
 
