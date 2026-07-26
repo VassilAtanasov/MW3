@@ -76,8 +76,8 @@ Visual check (ships with FR-3 `03845bfc494d`) — renders one frame to a PNG and
 dotnet run --project src/MW3.Desktop -- --smoke --screenshot out.png
 ```
 
-Android (physical device with USB debugging enabled — ships with FR-2 `089cdeb5df53`;
-`src/MW3.Android` does not exist until then, so this block is not runnable on FR-1 alone):
+Android (physical device with USB debugging enabled; requires the SDK platform-tools on `PATH`,
+see the prerequisites above):
 
 ```powershell
 adb devices

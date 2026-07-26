@@ -17,6 +17,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install android workload
+        run: dotnet workload install android
+
       - name: Quality gate
         shell: pwsh
         run: ./gate.ps1

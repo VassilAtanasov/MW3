@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MW3.Android/MW3.Android.csproj" />
     <Project Path="src/MW3.Core/MW3.Core.csproj" />
     <Project Path="src/MW3.Desktop/MW3.Desktop.csproj" />
     <Project Path="src/MW3.Game/MW3.Game.csproj" />
