@@ -97,3 +97,55 @@ Try next: add a second Android-specific integration point (e.g. reacting to `OnP
 deferred to a later feature) and write it using the same "which lifecycle hook actually fires when"
 question this feature's review raised — check the Android lifecycle docs before assuming `Dispose`
 covers a case.
+
+## 2026-07-26 — #4 Welcome screen with game title and inert entry point
+Concepts: viewport-derived layout math, RenderTarget2D for off-screen capture, one-shot resource disposal, shared MSBuild content pipeline, MSBuild build parallelism as a correctness hazard
+- **Deriving layout from `Viewport` instead of fixed pixels** — `WelcomeScreen.GetButtonBounds`
+  (`src/MW3.Game/WelcomeScreen.cs:83`) computes a `scale = viewport.Width / _referenceViewportWidth`
+  and multiplies every position/size by it, rather than hardcoding coordinates. Why here: the same
+  screen has to look right on the desktop window at any size *and* on an Android device with a
+  different aspect ratio, and QA specifically checks that resizing keeps things centred rather than
+  drifting. Pitfall: scaling only `X`/`Y`/width/height by one factor derived from *width* assumes a
+  roughly-fixed aspect ratio; a genuinely different aspect ratio (very tall/narrow) can still push
+  content off-screen even though every number is "viewport-derived" — the fix generalizes but
+  doesn't eliminate the need to think about aspect ratio, not just resolution.
+- **`RenderTarget2D` to capture a frame instead of what's on screen** — `WelcomeGame.LoadContent`
+  creates one sized to the back buffer only when a screenshot path is given
+  (`src/MW3.Game/WelcomeGame.cs:34`), and `Draw` redirects rendering into it via
+  `GraphicsDevice.SetRenderTarget` before drawing, then reads it back for `SaveAsPng`. Why here:
+  MonoGame's back buffer isn't directly readable as pixel data on every platform/driver combination,
+  so the standard pattern is to render into an off-screen texture you fully control instead.
+  Pitfall (the actual bug the reviewer caught): treating "capture once" as automatic just because
+  the call site happens to look like a one-off — nothing stopped `Draw` from re-capturing (and
+  rewriting the file, non-atomically) on every single frame until the code explicitly disposed and
+  nulled the render target after the first save (`WelcomeGame.cs:66`) to make that guaranteed.
+- **Disposing a field and setting it to `null` as a "done, don't do this again" signal** — the fix
+  above reuses the existing `_screenshotTarget is not null` checks already guarding the capture
+  logic, so disposing-then-nulling the field is simultaneously the cleanup *and* the one-shot latch,
+  with no extra boolean flag needed. Pitfall: this only works safely because every use of the field
+  is already null-checked; retrofitting this pattern onto a field that's dereferenced unconditionally
+  elsewhere would trade one bug (re-firing) for another (`NullReferenceException`).
+- **One `.mgcb` content project shared by two head projects** — `src/MW3.Game/Content/Content.mgcb`
+  is referenced via `<MonoGameContentReference>` from both `MW3.Desktop.csproj` and
+  `MW3.Android.csproj`, and `MonoGame.Content.Builder.Task` overrides the file's own
+  `/platform:DesktopGL` line with `/platform:$(MonoGamePlatform)` per consuming project. Why here:
+  avoids duplicating the same font/asset list per head while still producing a correctly
+  platform-compiled `.xnb` in each head's own output folder. Pitfall: this only works because each
+  head sets `$(MonoGamePlatform)` itself (via its `MonoGame.Framework.*` package reference) —
+  point two *differently-platformed* heads at the same `.mgcb` without that, and content silently
+  builds for the wrong platform.
+- **MSBuild's default parallelism as a correctness hazard, not just a speed knob** — building this
+  solution's default way (`dotnet build`, multiple MSBuild nodes) reliably crashed
+  `MonoGame.Content.Builder.Task` with a raw `IOException` once two independent head projects both
+  triggered content builds against the same shared `Content.mgcb` (a known upstream race,
+  MonoGame/MonoGame#7409); forcing a single node (`-m:1`, added to `gate.ps1`) made it deterministic.
+  Why here: MSBuild parallelizes *across projects* by default for speed, and that's normally safe
+  because projects' outputs don't collide — but a shared external resource (the content pipeline's
+  own intermediate-file bookkeeping) broke that assumption. Pitfall: `-m:1` is a solution-wide
+  sledgehammer; it fixed the actual collision but also serializes every other project in the
+  solution that had nothing to do with the race, which is a real (accepted) trade-off worth
+  revisiting if the solution grows enough for build time to matter.
+
+Try next: add a third platform-varying asset (e.g. a second `.spritefont` at a different size) to
+the same `Content.mgcb` and confirm both heads still pick it up automatically — this exercises the
+shared-content pattern again without the font-selection risk already covered here.
