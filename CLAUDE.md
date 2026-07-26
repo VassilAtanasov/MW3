@@ -166,8 +166,16 @@ Phase 1 features, in dependency order (`/kickoff` one at a time):
 ### Quality gate
 
 `./gate.ps1` — detects `*.sln`/`*.slnx` at the repo root or one level down, then runs
-`dotnet format --verify-no-changes`, `dotnet build -warnaserror`, and `dotnet test`. Passes
+`dotnet format --verify-no-changes`, `dotnet build -warnaserror -m:1`, and `dotnet test`. Passes
 trivially while no solution exists. CI runs the same script on `windows-latest`.
+
+**Always build this solution with `-m:1` (single MSBuild node), never the bare `dotnet build`.**
+Once `MW3.Game`'s two heads (`MW3.Desktop`, `MW3.Android`) both drive `MonoGame.Content.Builder.Task`
+against the shared `src/MW3.Game/Content/Content.mgcb`, the default parallel build reliably crashes
+with a raw `IOException` writing `.mgcontent` — a known upstream race, MonoGame/MonoGame#7409.
+`gate.ps1` already passes `-m:1`; if an acceptance criterion or a manual check quotes the bare
+`dotnet build MW3.slnx -warnaserror`, add `-m:1` yourself or just run `./gate.ps1` instead — the
+bare command is genuinely flaky on this repo since FR-3 (issue #4) added real content.
 
 Style, naming and analyzer rules are **not** a separate gate step. `.editorconfig` at the repo root
 declares them; `Directory.Build.props` turns them into build diagnostics via
