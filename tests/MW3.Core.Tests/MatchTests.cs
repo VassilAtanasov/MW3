@@ -28,6 +28,18 @@ public class MatchTests
     }
 
     [Fact]
+    public void Constructor_HumanBaseIsAtItsAgreedPosition_AndAiBaseIsAtItsAgreedPosition()
+    {
+        var match = new Match();
+
+        var humanBase = Assert.Single(match.Bases, b => b.Owner == match.HumanPlayer);
+        var aiBase = Assert.Single(match.Bases, b => b.Owner == match.AiPlayer);
+
+        Assert.Equal((0.12, 0.50), (humanBase.Position.X, humanBase.Position.Y));
+        Assert.Equal((0.88, 0.50), (aiBase.Position.X, aiBase.Position.Y));
+    }
+
+    [Fact]
     public void Constructor_EveryBasePositionIsWithinTheNormalizedRange()
     {
         var match = new Match();
