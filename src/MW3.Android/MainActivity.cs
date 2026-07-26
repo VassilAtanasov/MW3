@@ -12,6 +12,7 @@ namespace MW3.Android;
     Name = "com.vassilatanasov.mw3.MainActivity",
     Label = "MW3",
     MainLauncher = true,
+    ScreenOrientation = ScreenOrientation.Landscape,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.Keyboard | ConfigChanges.KeyboardHidden | ConfigChanges.ScreenSize)]
 public sealed class MainActivity : AndroidGameActivity
 {

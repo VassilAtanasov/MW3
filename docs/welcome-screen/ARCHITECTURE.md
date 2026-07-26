@@ -69,8 +69,8 @@ Desktop smoke check (unattended — one update/draw cycle, then exit 0):
 dotnet run --project src/MW3.Desktop -- --smoke
 ```
 
-Visual check (ships with FR-3 `03845bfc494d`) — renders one frame to a PNG and exits 0. This is how
-`qa-verifier` asserts visual criteria; see D-9:
+Visual check — renders one frame to a PNG and exits 0, writing no file if `--screenshot` is
+omitted. This is how `qa-verifier` asserts visual criteria; see D-9:
 
 ```powershell
 dotnet run --project src/MW3.Desktop -- --smoke --screenshot out.png
@@ -91,6 +91,13 @@ later, which is what distinguishes "Android started it" from "it did not crash")
 adb shell pm list packages com.vassilatanasov.mw3
 adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity
 adb shell pidof com.vassilatanasov.mw3
+```
+
+Android visual check (title and button, laid out for the device's aspect ratio):
+
+```powershell
+adb shell screencap -p /sdcard/mw3-screencap.png
+adb pull /sdcard/mw3-screencap.png
 ```
 
 Quality gate (build, format check, tests):
