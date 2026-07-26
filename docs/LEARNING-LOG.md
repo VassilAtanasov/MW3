@@ -49,3 +49,51 @@ Concepts: readonly struct, tuple returns, multi-targeting (netstandard2.1 vs net
 Try next: add a second `MW3.Core` type that composes `FixedStepClock` (e.g. a tick counter that
 accumulates total ticks over time) as a `readonly struct` too, and write a test that chains two
 `Advance` calls to confirm carry-over composes correctly across three or more calls, not just two.
+
+## 2026-07-26 — #3 Android head installs and launches on a physical device
+Concepts: MSBuild TargetFrameworks + per-TFM conditions, explicit component naming via attributes, Activity lifecycle vs IDisposable, CA1725 override parameter naming
+- **Multi-targeting one project across platforms with `<TargetFrameworks>`** — `MW3.Game.csproj`
+  switched from a single `<TargetFramework>net10.0</TargetFramework>` to
+  `<TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>`, with `Condition="'$(TargetFramework)'
+  == '...'"` on the `PropertyGroup`/`ItemGroup` that picks the right MonoGame package per platform
+  (`src/MW3.Game/MW3.Game.csproj`). Why here: the same C# source (`WelcomeGame.cs`) needs to compile
+  against two different platform-specific MonoGame packages (DesktopGL, Android) that both expose
+  the same `Microsoft.Xna.Framework` API surface, without duplicating the project. Pitfall: once a
+  project is multi-targeted, every `ProjectReference` *to* it (like `MW3.Desktop`'s reference to
+  `MW3.Game`) must resolve to exactly one of its TFMs — MSBuild does this automatically when the
+  referencing project's own TFM matches one of the referenced project's TFMs, but it silently
+  breaks if that match disappears (e.g. renaming a TFM on one side and not the other).
+- **Explicit native-component naming via an attribute** — `MainActivity` declares
+  `[Activity(Name = "com.vassilatanasov.mw3.MainActivity", ...)]`
+  (`src/MW3.Android/MainActivity.cs:11`) instead of leaving the name to be generated. Why here: the
+  Android tooling normally generates a hash-prefixed Activity name per build, which would make the
+  `adb shell am start -n com.vassilatanasov.mw3/...` command in `ARCHITECTURE.md` §2a break on every
+  rebuild (D-8) — an explicit `Name` pins a stable, scriptable identity instead of an
+  implementation-detail one. Pitfall: the string is not compiler-checked against the manifest's
+  `package` attribute — a typo here silently produces an app that installs fine but that no launch
+  command can find, since nothing cross-validates the two at build time.
+- **Two different "cleanup" hooks that are not interchangeable** — `MainActivity` overrides both
+  `OnDestroy()` and `Dispose(bool disposing)` (`MainActivity.cs`), each disposing the same
+  `WelcomeGame` field. Why here: this is the concrete bug the code-reviewer caught — `Dispose(bool)`
+  is the standard .NET `IDisposable` hook, but on an Android `Activity` it only fires reliably when
+  the *Java peer* is garbage-collected, which is not the same moment the user backs out of the app;
+  `OnDestroy()` is the actual Android lifecycle callback for that. The fix keeps both: `OnDestroy`
+  gives correct timing, `Dispose(bool)` keeps the `CA2213` analyzer satisfied (MonoGame's
+  `Game.Dispose` is idempotent, so calling it twice is safe). Pitfall: assuming a type that
+  implements `IDisposable` only needs the standard dispose pattern — framework base classes
+  (Activities, Forms controls, etc.) often have their own more specific lifecycle event that fires
+  earlier and more predictably than `Dispose`, and relying on `Dispose` alone can leave resources
+  live well past when the user thinks the screen is gone.
+- **`CA1725` — override parameter names must match the base method's** — `OnCreate` had to be
+  renamed from `OnCreate(Bundle? bundle)` to `OnCreate(Bundle? savedInstanceState)`
+  (`MainActivity.cs:20`) to match `AndroidGameActivity.OnCreate(Bundle savedInstanceState)`'s
+  declared parameter name exactly. Why here: this is purely a readability/consistency rule enforced
+  by the analyzer, not a compiler requirement — C# lets override parameter names differ from the
+  base method's. Pitfall: because the compiler doesn't enforce this, mismatched names only surface
+  as a build-breaking analyzer error under `-warnaserror`, which can be confusing the first time
+  since the method still overrides correctly either way.
+
+Try next: add a second Android-specific integration point (e.g. reacting to `OnPause`/`OnResume`,
+deferred to a later feature) and write it using the same "which lifecycle hook actually fires when"
+question this feature's review raised — check the Android lifecycle docs before assuming `Dispose`
+covers a case.
