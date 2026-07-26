@@ -27,6 +27,12 @@ public sealed class MainActivity : AndroidGameActivity
         _game.Run();
     }
 
+    protected override void OnDestroy()
+    {
+        _game?.Dispose();
+        base.OnDestroy();
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)

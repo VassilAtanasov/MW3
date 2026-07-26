@@ -8,7 +8,8 @@
 
   Deliberately NOT set here: TargetFramework. This repo is deliberately multi-targeted —
   MW3.Core is netstandard2.1 (standing decision S-2 / D-2, so a future Unity migration stays
-  possible) while MW3.Game and the platform heads are net10.0 (D-6). Each .csproj declares its own.
+  possible), MW3.Desktop is net10.0 (D-6), and MW3.Game multi-targets net10.0;net10.0-android with
+  MW3.Android at net10.0-android only (D-7). Each .csproj declares its own.
 -->
 <Project>
 
