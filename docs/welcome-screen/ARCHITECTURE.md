@@ -50,7 +50,12 @@ One-time prerequisites on a clean machine:
 
 ```powershell
 dotnet new install MonoGame.Templates.CSharp
+dotnet workload install android
 ```
+
+The `android` workload is required to build the solution at all, not only the Android head — see
+D-7. For the Android QA commands, the SDK platform-tools must also be on `PATH` (this machine:
+`C:\Program Files (x86)\Android\android-sdk\platform-tools`), so that `adb version` resolves.
 
 Desktop (the routine QA path — no device or emulator required):
 
@@ -68,8 +73,17 @@ Android (physical device with USB debugging enabled — ships with FR-2 `089cdeb
 `src/MW3.Android` does not exist until then, so this block is not runnable on FR-1 alone):
 
 ```powershell
-dotnet workload install android
+adb devices
 dotnet build src/MW3.Android -t:Run
+```
+
+Android launch check (what `qa-verifier` asserts — `Status: ok`, then a live process ten seconds
+later, which is what distinguishes "Android started it" from "it did not crash"):
+
+```powershell
+adb shell pm list packages com.vassilatanasov.mw3
+adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity
+adb shell pidof com.vassilatanasov.mw3
 ```
 
 Quality gate (build, format check, tests):
@@ -134,6 +148,26 @@ authoritative server to reuse them.
 **D-5: original art only.** Mechanics may follow Mushroom Wars 2; all assets are recreated. The
 repository is public, and copied art assets — not cloned mechanics — are where the real IP
 exposure sits.
+
+**D-7: `MW3.Game` multi-targets `net10.0;net10.0-android`, and the Android head is in the
+solution.** Considered: keeping `MW3.Android` out of `MW3.slnx` and having it link `MW3.Game`'s
+sources with a wildcard, so the solution build stays workload-free. Rejected because the gate would
+then stop covering the head that actually ships — breakage in the Android build would surface at
+release time rather than on the commit that caused it, which is the opposite of what the gate is
+for. Chosen: `MW3.Game` targets both frameworks with the MonoGame package selected per TFM
+(DesktopGL for `net10.0`, Android for `net10.0-android`), and `MW3.Android` joins the solution.
+Consequences, accepted deliberately: the `android` workload becomes a prerequisite for building the
+repository *at all*, CI must install it (added in FR-2, not FR-4), and every build is slower for
+the multi-targeting. `MW3.Core` is untouched — it stays `netstandard2.1` with no engine reference,
+so D-2 and S-2 are unaffected.
+
+**D-8: Android is verified over `adb`, not by eye.** Considered: manual confirmation on the device.
+Rejected because it makes Definition-of-Done step 4 manual for every Android-facing feature from
+here on. `qa-verifier` asserts `pm list packages`, `am start` returning `Status: ok`, and a live
+process ten seconds later — the last one being the criterion that actually catches a crash on first
+draw, which `am start` alone reports as success. This requires `MainActivity` to declare an explicit
+activity name: the generated hash-prefixed default is unstable across builds and would make the
+launch command unverifiable.
 
 **D-6: `MW3.Game` and the heads target `net10.0`.** Considered: pinning `net8.0` (the TFM MonoGame's
 own NuGet package is built for). Chosen because MonoGame documents .NET 9 as the recommended

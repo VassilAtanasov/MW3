@@ -63,7 +63,24 @@ so that the quality gate has real code to check and stops passing trivially.
 
 FR-2 (wf: 089cdeb5df53): The developer can install and launch the Android head on a physical
 device so that this phase's packaging and deployment risk is retired early rather than at the end.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: `src/MW3.Android` targets `net10.0-android`, references
+    `MonoGame.Framework.Android`, and is listed in `MW3.slnx`.
+  - Acceptance: `src/MW3.Game` targets `net10.0;net10.0-android`, with the DesktopGL package
+    conditioned to `net10.0` and the Android package to `net10.0-android` (D-7).
+  - Acceptance: `MW3.Core` still targets `netstandard2.1` and contains no `Microsoft.Xna` or
+    `MonoGame` text.
+  - Acceptance: `MainActivity` declares an explicit activity name (D-8), and the manifest declares
+    application id `com.vassilatanasov.mw3` with minimum SDK 21 or higher.
+  - Acceptance: `dotnet build MW3.slnx -warnaserror` and `./gate.ps1` both succeed on a machine
+    with the `android` workload installed.
+  - Acceptance: `dotnet run --project src/MW3.Desktop -- --smoke` still exits 0 within 30 seconds.
+  - Acceptance: `ci.yml` installs the `android` workload before the gate, and the PR's CI run
+    concludes `success`.
+  - Acceptance: with one device attached, the app installs and `adb shell pm list packages`
+    includes `com.vassilatanasov.mw3`.
+  - Acceptance: `adb shell am start -n com.vassilatanasov.mw3/<activity>` prints `Status: ok`, and
+    `adb shell pidof com.vassilatanasov.mw3` returns a pid at least 10 seconds later.
+  - Acceptance: the Android commands in `ARCHITECTURE.md` §2a work verbatim on a clean clone.
 
 FR-3 (wf: 03845bfc494d): The player can launch the app and see a welcome screen with the game
 title and one inert entry point, on both heads, so that the shell is visibly the beginning of MW3.
@@ -85,6 +102,11 @@ Only the ones that genuinely constrain design:
 - **Engine portability of the rules layer.** `MW3.Core` targets `netstandard2.1`, uses conservative
   C#, and references no engine types, so a future migration to Unity remains possible (D-2).
 - **Original art only.** Mechanics may follow Mushroom Wars 2; assets must be recreated (D-5).
+- **The `android` workload is a prerequisite for building the repository at all** from FR-2 onward,
+  not just for building the Android head (D-7). CI installs it before the gate, which makes every
+  run slower — accepted so the gate covers the head that actually ships.
+- **Android QA needs the SDK platform-tools on `PATH`** so `adb` resolves, plus one attached device
+  with USB debugging authorized (D-8).
 - No performance, auth, data-retention, or accessibility targets apply to this phase.
 
 ## 6. Out of scope

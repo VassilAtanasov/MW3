@@ -25,6 +25,9 @@ MW3.Android ---+
 - Client framework: **MonoGame 3.8.5** — DesktopGL and Android heads
 - Language/runtime: C# on the .NET 10 SDK; `MW3.Core` targets `netstandard2.1`
 - Primary platform: **Android** (physical device). Windows desktop exists as the QA surface
+- Build prerequisite: the **`android` .NET SDK workload** — required to build the solution at all,
+  because `MW3.Game` multi-targets `net10.0;net10.0-android` and the Android head is in the
+  solution so the gate covers it (see `docs/welcome-screen/ARCHITECTURE.md` D-7)
 - Tests: xUnit, over `MW3.Core`
 - Data: none yet — local JSON on device when saves/settings arrive; no database until a server exists
 - Server / API / auth: none yet — introduced with multiplayer, not before
