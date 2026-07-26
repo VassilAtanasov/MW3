@@ -149,3 +149,68 @@ Concepts: viewport-derived layout math, RenderTarget2D for off-screen capture, o
 Try next: add a third platform-varying asset (e.g. a second `.spritefont` at a different size) to
 the same `Content.mgcb` and confirm both heads still pick it up automatically — this exercises the
 shared-content pattern again without the font-selection risk already covered here.
+
+## 2026-07-27 — #8 Player, base ownership, and unit production in the core rules library
+Concepts: positional records for value-like data, nullable reference types to model absence, readonly record struct, switch expressions, reflection-based public-surface tests, cumulative-counter accumulation for deterministic partial progress
+- **Positional `record` for id-plus-behavior-free data** — `Player` (`src/MW3.Core/Player.cs`) is
+  `public sealed record Player(int Id, PlayerControllerKind ControllerKind);`. Why here:
+  `docs/CONVENTIONS.md` prescribes `record` for value-like data and `class` for identity/behavior,
+  and D-11 deliberately keeps `Player` to exactly two fields with no behavior — a record gives free
+  value equality (used directly in tests like `b.Owner == match.HumanPlayer`) and `init`-style
+  immutability with one line. Pitfall: record equality is structural, not reference — two players
+  with the same `Id` and `ControllerKind` compare equal even if they're meant to be distinct match
+  participants, which would be a real bug in a design that allowed duplicate ids (it doesn't here,
+  since `Match`'s constructor is the only place `Player` instances are created).
+- **`Player? Owner` to model "no owner" instead of a sentinel** — `Base.Owner`
+  (`src/MW3.Core/Base.cs`) is a nullable reference, so a neutral base is simply one where
+  `Owner is null`. Why here: the acceptance criteria explicitly forbid a reserved player id or index
+  0 as "neutral" — nullable reference types make the absence a case the compiler tracks (with
+  `<Nullable>enable</Nullable>` already on repo-wide), rather than a convention callers have to
+  remember. Pitfall: `is null`/`is not null` pattern checks are required by the style rules over
+  `== null` for reference types, but more importantly, forgetting a null check on `Owner` anywhere
+  new code reads it becomes a compiler warning (promoted to an error under `-warnaserror`), not a
+  silent runtime bug — which is the entire point, but only if new code doesn't suppress the warning.
+- **`readonly record struct` for a small, frequently-copied value** — `MapPoint`
+  (`src/MW3.Core/MapPoint.cs`) is `public readonly record struct MapPoint(double X, double Y);`.
+  Why here: like `FixedStepClock` from #1, a normalized position is copied by value constantly
+  (every `Base.Position` read) and must never allocate — a `struct` avoids heap allocation, `record`
+  gives value equality for the tests that assert exact positions (`MatchTests.cs`), and `readonly`
+  documents and enforces that it can't be mutated in place. Pitfall: `record struct` without
+  `readonly` still allows field mutation through a non-readonly reference, silently reintroducing the
+  mutable-value-type footguns (e.g. surprising copy-on-write behavior in LINQ) that `readonly` exists
+  to close off.
+- **`switch` expression over an internal enum to resolve a slot to a `Player?`** — `Match`'s
+  constructor (`src/MW3.Core/Match.cs`) uses
+  `slot.Kind switch { MapSlotKind.HumanStart => HumanPlayer, MapSlotKind.AiStart => AiPlayer, _ => null }`.
+  Why here: `MapLayout` only knows *kinds* of starting slot, not player instances (the map is defined
+  before any `Player` exists), so the switch expression is the single point that binds the map's
+  intent to the match's actual `Player` objects. Pitfall: the discard arm `_ => null` silently
+  matches any future `MapSlotKind` value added later (e.g. a hypothetical second AI) — an exhaustive
+  switch with named arms for every enum value would fail to compile instead and force the author to
+  decide what the new kind means, so widening `MapSlotKind` is a easy place to introduce a silent bug.
+- **Reflection to assert a public surface has *no more and no less* than the required members** —
+  `PlayerTests.PublicSurface_ExposesOnlyIdAndControllerKind` and the equivalent tests in
+  `BaseTests.cs`/`MatchTests.cs` use `typeof(T).GetProperties(...)` and assert the exact name list,
+  plus `GetSetMethod(nonPublic: false) is null` to prove no public setter exists. Why here: D-11's
+  acceptance criterion is explicitly about the *absence* of extra fields (no name, colour, score) —
+  a normal behavioral test can't fail when someone adds an unused property, so reflection is what
+  turns "nothing extra was added" into an assertion instead of a code-review hope. Pitfall: this
+  style of test is brittle in the good sense (it must be updated whenever the type legitimately
+  grows) but brittle in the bad sense too — it says nothing about *behavior*, so it must always sit
+  alongside behavioral tests, never replace them.
+- **Deriving partial progress from a cumulative counter instead of per-call carry state** —
+  `Match.Advance` (`Match.cs`) tracks a single `_elapsedTicks` field and computes
+  `unitsProducedNow - unitsProducedSoFar` from `_elapsedTicks / ProductionPeriodTicks` on every call,
+  rather than accumulating a remainder per base the way `FixedStepClock` does for its own carry.
+  Why here: this is what makes `Advance(7); Advance(3)` produce byte-identical results to
+  `Advance(10)` in one call "for free" — the calculation only ever depends on the *total* ticks
+  elapsed, never on how the caller chose to chunk them, which is exactly D-12's determinism
+  requirement. Pitfall: this only stays correct because every owned base always produces at the same
+  rate from tick zero — the moment a base's ownership can change mid-match (the next feature, FR-4),
+  a single match-wide counter stops being enough and per-base "ticks owned" bookkeeping becomes
+  necessary; this feature's design deliberately doesn't yet solve that harder problem.
+
+Try next: add a `MW3.Core` type that has to interoperate with the shared-map + reflection-test
+pattern from this feature — e.g. sketch (without wiring it in) what a `SendArmyCommand` record for
+FR-4 would look like, and consider what a reflection test analogous to the ones here would need to
+assert once ownership becomes mutable mid-match.
