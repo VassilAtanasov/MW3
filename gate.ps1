@@ -87,7 +87,12 @@ $steps = @(
     # Style/analyzer rules themselves are enforced by the build: .editorconfig severities are
     # promoted to build diagnostics by EnforceCodeStyleInBuild in Directory.Build.props.
     @{ Name = 'dotnet format (verify no changes)'; WorkDir = $repoRoot; Command = "dotnet format `"$sln`" --verify-no-changes --verbosity minimal" },
-    @{ Name = 'dotnet build (warnings as errors)'; WorkDir = $repoRoot; Command = "dotnet build `"$sln`" -warnaserror --nologo" }
+    # -m:1 forces MSBuild to a single node. Without it, building this solution in parallel with
+    # MonoGame content in play (MW3.Desktop and MW3.Android both driving MonoGame.Content.Builder.Task
+    # against src/MW3.Game/Content/Content.mgcb) reliably crashes with a raw IOException writing
+    # .mgcontent - a known upstream race (MonoGame/MonoGame#7409), not something in this repo's
+    # control. Serializing the build is the documented-nowhere-else but verified fix.
+    @{ Name = 'dotnet build (warnings as errors)'; WorkDir = $repoRoot; Command = "dotnet build `"$sln`" -warnaserror -m:1 --nologo" }
 )
 
 # Coverage runs only when the test projects actually reference coverlet.collector, so this
