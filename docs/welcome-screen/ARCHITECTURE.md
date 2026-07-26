@@ -85,11 +85,15 @@ dotnet build src/MW3.Android -t:Run
 ```
 
 Android launch check (what `qa-verifier` asserts — `Status: ok`, then a live process ten seconds
-later, which is what distinguishes "Android started it" from "it did not crash"):
+later, which is what distinguishes "Android started it" from "it did not crash"). `am start` needs
+`-W` (wait-for-launch) to print `Status: ok` at all — without it, `am start` only ever prints
+`Starting: Intent {...}` and returns immediately. On real hardware this has taken over two minutes
+(confirmed on a MI Pad 4) because MonoGame apps never call `Activity.reportFullyDrawn()`, which is
+what `-W` actually waits for — budget for that, don't assume a hang:
 
 ```powershell
 adb shell pm list packages com.vassilatanasov.mw3
-adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity
+adb shell am start -W -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity
 adb shell pidof com.vassilatanasov.mw3
 ```
 
