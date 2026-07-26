@@ -63,8 +63,22 @@ repository is public, and copied assets — not cloned mechanics — carry the r
 are single-player; multiplayer comes later. Nothing may be designed in a way that forecloses a
 future authoritative server reusing `MW3.Core`.
 
+**S-8: the simulation is deterministic and command-driven.** State changes only by advancing whole
+fixed-step ticks and by applying explicit commands — no wall-clock read, no ambient randomness, no
+frame-rate dependence inside `MW3.Core`. Human input and AI produce the same command types, so
+neither can express anything the other cannot. This is what makes rules headlessly testable,
+interactive features verifiable unattended, and a future authoritative server able to re-run the
+same code. Any randomness a later phase needs enters as a seeded PRNG owned by the simulation.
+Established in phase 2; see `docs/core-gameplay-loop/ARCHITECTURE.md` D-12.
+
+**S-9: a player is a rules-level owner, not an account.** Until a server exists, a player is an
+in-match id plus a controller kind (human or AI). Identity, names, and persistence arrive with
+authentication and not before; a future server maps its accounts onto in-match player ids. See
+`docs/core-gameplay-loop/ARCHITECTURE.md` D-11.
+
 ## 4. Phase index
 
 | Phase | Docs | Adds |
 |---|---|---|
 | 1 — Welcome screen | `docs/welcome-screen/` | Solution skeleton, both heads, placeholder welcome screen, Android CI artifact |
+| 2 — Core gameplay loop | `docs/core-gameplay-loop/` | Match simulation in `MW3.Core`, match screen, send-army mechanic, AI opponent, victory/defeat |

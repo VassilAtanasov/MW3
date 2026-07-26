@@ -137,11 +137,13 @@ These run without a human gate and never block or reopen a feature:
 - Stack: **MonoGame 3.8.5 on .NET 10** (SDK 10.0.301). Android-first, with a Windows DesktopGL head
   as the unattended QA surface. Rules live in an engine-free `MW3.Core` (`netstandard2.1`).
   No server, database, or auth until the multiplayer phase. See `docs/ARCHITECTURE.md` for the
-  standing decisions S-1..S-7 that bind every phase.
+  standing decisions S-1..S-9 that bind every phase.
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Welcome screen** (`docs/welcome-screen/`)
+- Active project: **Core gameplay loop** (`docs/core-gameplay-loop/`). Phase 1 "Welcome screen" is
+  shipped except FR-4 (`a536546adb60`, CI publishes the Android APK), which was never kicked off —
+  finish it on board 18 before or alongside phase 2 rather than letting it rot.
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
   **full** node id. Reads accept either.
 - Ivan plugin version: **1.3.0** (re-adopted 26-07-2026).
@@ -153,6 +155,7 @@ These run without a human gate and never block or reopen a feature:
 | Project (Workflowy level 2) | wf short id | Docs folder | Board # | Project ID | Status field / Todo / In Progress / Done |
 |---|---|---|---|---|---|
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | _(set by /kickoff)_ | _(set by /kickoff)_ | _(set by /kickoff)_ |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -161,7 +164,19 @@ Phase 1 features, in dependency order (`/kickoff` one at a time):
 | 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` (issue #1, merged) |
 | 2 | Android head installs and launches on a physical device | `089cdeb5df53` (issue #3) |
 | 3 | Welcome screen with game title and inert entry point | `03845bfc494d` (issue #4) |
-| 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` |
+| 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` (not kicked off) |
+
+Phase 2 features, in dependency order (`/kickoff` one at a time):
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Player, base ownership, and unit production in the core rules library | `50ae1a68b773` |
+| 2 | Play button opens a match screen and back returns to the welcome screen | `f68a4d876cb3` |
+| 3 | Match screen draws the map, bases, owners, and live garrison counts | `fc6dfb3d8695` |
+| 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` |
+| 5 | Tap and mouse input sends armies between bases on both heads | `06e4c2f2ddb8` |
+| 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` |
+| 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` |
 
 ### Quality gate
 
