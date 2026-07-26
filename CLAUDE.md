@@ -155,7 +155,7 @@ These run without a human gate and never block or reopen a feature:
 | Project (Workflowy level 2) | wf short id | Docs folder | Board # | Project ID | Status field / Todo / In Progress / Done |
 |---|---|---|---|---|---|
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | _(set by /kickoff)_ | _(set by /kickoff)_ | _(set by /kickoff)_ |
+| Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -170,7 +170,7 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Player, base ownership, and unit production in the core rules library | `50ae1a68b773` |
+| 1 | Player, base ownership, and unit production in the core rules library | `50ae1a68b773` (issue #8) |
 | 2 | Play button opens a match screen and back returns to the welcome screen | `f68a4d876cb3` |
 | 3 | Match screen draws the map, bases, owners, and live garrison counts | `fc6dfb3d8695` |
 | 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` |

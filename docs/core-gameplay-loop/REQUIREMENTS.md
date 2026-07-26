@@ -49,7 +49,33 @@ user and writes them into both the Workflowy note and the GitHub issue.
 FR-1 (wf: 50ae1a68b773): The developer can construct a match — players, bases with owners and
 garrisons, and the hardcoded map — and advance it so that owned bases accrue units over time, so
 that the game has a rules foundation before anything is drawn.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: a player is a stable in-match id plus a `Human`/`Ai` controller kind and nothing
+    else — no name, display string, colour, score, or persistence field (D-11, S-9).
+  - Acceptance: a base carries an id, garrison count, normalized position, and owner, with neutral
+    modelled as the *absence* of an owner in the type system — never a reserved id or sentinel.
+  - Acceptance: the hardcoded map has exactly six bases — human `(0.12, 0.50)`, AI `(0.88, 0.50)`,
+    neutrals `(0.35, 0.25)`, `(0.35, 0.75)`, `(0.65, 0.25)`, `(0.65, 0.75)` — and a test asserts
+    every coordinate lies within `0.0..1.0` (D-14).
+  - Acceptance: starting garrisons are 10 (human), 10 (AI), and 5 for each neutral.
+  - Acceptance: the tick duration (100 ms) and production period (10 ticks per unit) are named
+    Core constants, so heads and tests read one source rather than each hardcoding the number.
+  - Acceptance: an owned base gains exactly one unit per 10 ticks — 100 ticks from a fresh match
+    leaves the human's and the AI's bases holding exactly 20 each.
+  - Acceptance: partial production carries — 7 ticks then 3 equals 10 in one call, and 9 ticks from
+    a fresh match adds no unit.
+  - Acceptance: neutral bases never produce — after 1000 ticks each still holds exactly 5.
+  - Acceptance: `Advance(0)` changes nothing, and a negative tick count throws
+    `ArgumentOutOfRangeException` rather than rewinding or silently doing nothing.
+  - Acceptance: determinism — two matches advanced to the same total tick count, one in a single
+    call and one in irregular chunks, end with identical garrisons for every base (D-12).
+  - Acceptance: no file under `src/MW3.Core` references `DateTime`, `DateTimeOffset`, `Stopwatch`,
+    `Environment.TickCount`, or `Random`.
+  - Acceptance: `MW3.Core` still targets `netstandard2.1` and contains no `Microsoft.Xna` or
+    `MonoGame` text — the position type is a Core type, not `Vector2` (D-2, D-14).
+  - Acceptance: the aggregate exposes no settable property and no mutable collection; bases are
+    reachable only as a read-only view and garrisons change only via `Advance` (D-13).
+  - Acceptance: `dotnet test MW3.slnx` passes with tests that advance a match over many ticks, and
+    `./gate.ps1` exits 0.
 
 FR-2 (wf: f68a4d876cb3): The player can press `Play` and arrive at a match screen, and return from
 it, so that the app has more than one destination and `Play` stops being inert.
