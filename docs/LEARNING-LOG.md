@@ -419,3 +419,8 @@ remaining) as flagged in #13's entry, now that FR-4 actually has armies to repor
 wiring it up, sketch a test that advances a match in different chunk sizes with an army mid-flight
 to confirm the dump would show identical numbers regardless of chunking, the same property this
 feature's `Advance` fix depends on.
+
+## 2026-07-27 — #21 CI builds and publishes the Android APK as an artifact
+No new C# concepts — the diff is CI workflow YAML plus one MSBuild property
+(`EmbedAssembliesIntoApk`, `src/MW3.Android/MW3.Android.csproj`) that disables Fast Deployment for
+Debug builds so the CI-published APK installs standalone.
