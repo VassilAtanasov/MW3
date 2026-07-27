@@ -35,6 +35,22 @@ note as the body verbatim. `/implement <issue>` then builds it.
 
 Workflowy is the source of truth for the *plan*, `docs/` for the *product truth*, GitHub Issues
 and Projects for *execution*. Item names stay ≤ 15 words; detail goes in the item's note.
+
+**Workflowy silently drops notes larger than roughly 5 KB.** The server keeps them — the API
+returns the full text — but the browser client never syncs them, so the note renders as *blank* in
+both the outline and the zoomed view, with no error anywhere. Measured on this repo's own data
+(27-07-2026): 194, 247, and 5340 chars render; 6886, 7579, 7993, and 9422 chars do not. The
+boundary is between 5340 and 6886.
+
+Consequence for `/kickoff`, which Ivan 1.3.0 does not know about: **the note is the settled summary
+and the issue is the contract**, not two copies of one text. Write the full verbatim acceptance
+criteria into the GitHub issue — that is what `/implement`, `code-reviewer`, and `qa-verifier`
+read — and write a condensed note (target ≤ 4 KB, hard ceiling 5 KB) carrying the Goal, a grouped
+criteria summary, Out of scope, and a link to the issue. After any note write, **verify it actually
+rendered** rather than trusting the API's `status: ok`; a round-trip through the same CLI proves
+only that the server stored it. FR-2, FR-3, and FR-4 (issues #9, #13, #14) still carry oversized
+invisible notes from earlier kickoffs and were deliberately left that way — those features are
+shipped and their issues are the record that matters.
 Writes need `WORKFLOWY_API_KEY` (from `.env`, never printed) and are dry-run until the user says
 go. Never delete, move, or complete a Workflowy node.
 
