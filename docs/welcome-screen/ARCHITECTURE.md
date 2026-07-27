@@ -76,12 +76,21 @@ omitted. This is how `qa-verifier` asserts visual criteria; see D-9:
 dotnet run --project src/MW3.Desktop -- --smoke --screenshot out.png
 ```
 
-Android (physical device with USB debugging enabled; requires the SDK platform-tools on `PATH`,
-see the prerequisites above):
+Android, built locally (physical device with USB debugging enabled; requires the SDK
+platform-tools on `PATH`, see the prerequisites above):
 
 ```powershell
 adb devices
 dotnet build src/MW3.Android -t:Run
+```
+
+Android, built by CI (FR-4): every CI run (pull request or push to `main`) that passes the gate
+uploads a Debug APK as a workflow artifact — a red gate produces no artifact. On the run's summary
+page, under **Artifacts**, download `mw3-apk-<short-sha>` (the short commit SHA distinguishes runs);
+unzipping it yields exactly one `mw3-apk-<short-sha>.apk`. Install it the same way as a local build:
+
+```powershell
+adb install -r mw3-apk-<short-sha>.apk
 ```
 
 Android launch check (what `qa-verifier` asserts — `Status: ok`, then a live process ten seconds

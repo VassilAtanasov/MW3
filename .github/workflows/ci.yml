@@ -23,3 +23,34 @@ jobs:
       - name: Quality gate
         shell: pwsh
         run: ./gate.ps1
+
+      # The solution build inside gate.ps1 already packages MW3.Android (D-7); this is an
+      # incremental rebuild that just confirms the packaged Debug APK is present, so a future
+      # change to the gate can't silently stop producing one. -m:1 per the MonoGame content race
+      # rule (MonoGame/MonoGame#7409).
+      - name: Build Android APK (Debug)
+        shell: pwsh
+        run: dotnet build src/MW3.Android -m:1 --nologo
+
+      # Stage only the debug-signed APK under a name that carries the commit, so two downloads
+      # from different runs are distinguishable and unzip yields exactly one .apk file (the
+      # unsigned sibling MonoGame also emits is never copied here).
+      - name: Stage APK artifact
+        shell: pwsh
+        run: |
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $staging = Join-Path $pwd 'artifacts/apk'
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item 'src/MW3.Android/bin/Debug/net10.0-android/com.vassilatanasov.mw3-Signed.apk' `
+                    (Join-Path $staging "mw3-apk-$shortSha.apk") -ErrorAction Stop
+          "SHORT_SHA=$shortSha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # No `if: always()` here, deliberately: a gate that failed above must never publish an
+      # installable artifact.
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mw3-apk-${{ env.SHORT_SHA }}
+          path: artifacts/apk/mw3-apk-${{ env.SHORT_SHA }}.apk
+          retention-days: 30
+          if-no-files-found: error
