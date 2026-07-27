@@ -1,0 +1,5 @@
+# Tap Play, then press nothing - run at a time scale sufficient for the passive-human match to
+# reach defeat, well within the 5000-tick budget FR-6 established.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+400 wait

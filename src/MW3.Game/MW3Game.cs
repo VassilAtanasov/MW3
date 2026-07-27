@@ -14,6 +14,7 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
     private readonly bool _exitAfterFirstDraw;
     private readonly string? _screenshotPath;
     private readonly string? _dumpStatePath;
+    private readonly long _timeScale;
     private readonly GraphicsDeviceManager _graphics;
     private readonly ScreenManager _screenManager = new();
     private readonly IInputSource _input;
@@ -21,11 +22,17 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 
     private SpriteBatch? _spriteBatch;
 
-    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null)
+    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null, long timeScale = 1)
     {
+        if (timeScale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeScale), timeScale, "Time scale must be a positive integer.");
+        }
+
         _exitAfterFirstDraw = exitAfterFirstDraw;
         _screenshotPath = screenshotPath;
         _dumpStatePath = dumpStatePath;
+        _timeScale = timeScale;
 
         // 1280x720 matches the reference resolution every screen's layout already scales from,
         // and is one of the two resolutions FR-3's non-clipping/non-overlap criterion is checked
@@ -83,8 +90,10 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         // Screens receive only the elapsed millisecond count, never GameTime itself, so no screen
         // can reach for a wall-clock member (D-12). MonoGame's fixed timestep (the default) makes
         // this value identical on every Update call, which is what keeps a --script run's frame
-        // count alone determining the total elapsed time deterministically.
-        var elapsedMilliseconds = (long)gameTime.ElapsedGameTime.TotalMilliseconds;
+        // count alone determining the total elapsed time deterministically. --time-scale (FR-7)
+        // multiplies this value only - the tick sequence it produces is exactly the one real-time
+        // play would, just delivered sooner; no rule or behaviour changes, only how fast it arrives.
+        var elapsedMilliseconds = (long)gameTime.ElapsedGameTime.TotalMilliseconds * _timeScale;
         var backRequestedExit = _screenManager.Update(_input, GraphicsDevice.Viewport, elapsedMilliseconds);
 
         // Outside scripted playback, a back request on the last screen exits immediately - there

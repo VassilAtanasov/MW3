@@ -40,7 +40,9 @@ public sealed class MatchRunner
 
     /// <summary>
     /// Advances the match by <paramref name="ticks"/> whole ticks, stopping at every decision tick
-    /// crossed to let the AI brain decide, before continuing to the requested total.
+    /// crossed to let the AI brain decide, before continuing to the requested total. Once
+    /// <see cref="Match.Outcome"/> is decided, <see cref="Match.Advance"/> itself is a no-op and this
+    /// stops consulting the brain entirely (FR-7) - never mid-decision, only between them.
     /// </summary>
     public void Advance(long ticks)
     {
@@ -53,6 +55,11 @@ public sealed class MatchRunner
 
         while (true)
         {
+            if (_match.Outcome != MatchOutcome.InProgress)
+            {
+                return;
+            }
+
             var nextDecisionTick = NextDecisionTickAfter(_match.ElapsedTicks);
             if (nextDecisionTick > targetElapsedTicks)
             {
@@ -61,6 +68,11 @@ public sealed class MatchRunner
             }
 
             _match.Advance(nextDecisionTick - _match.ElapsedTicks);
+
+            if (_match.Outcome != MatchOutcome.InProgress)
+            {
+                return;
+            }
 
             var decision = _aiBrain.Decide(_match);
             if (decision.HasCommand)

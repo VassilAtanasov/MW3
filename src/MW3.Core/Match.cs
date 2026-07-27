@@ -61,6 +61,13 @@ public sealed class Match
     public IReadOnlyList<Army> ArmiesInFlight => _armies;
 
     /// <summary>
+    /// Whether the match is still undecided, or has been won or lost - read-only, changing only
+    /// inside <see cref="Advance"/> (D-13, FR-7). Once decided, the simulation is frozen: further
+    /// <see cref="Advance"/> calls change nothing and <see cref="Execute"/> rejects every command.
+    /// </summary>
+    public MatchOutcome Outcome { get; private set; } = MatchOutcome.InProgress;
+
+    /// <summary>
     /// Validates and applies a <see cref="SendArmyCommand"/>. A rejection leaves every base's
     /// garrison and owner, and every in-flight army, exactly as it was.
     /// </summary>
@@ -69,6 +76,11 @@ public sealed class Match
         if (command is null)
         {
             throw new ArgumentNullException(nameof(command));
+        }
+
+        if (Outcome != MatchOutcome.InProgress)
+        {
+            return SendArmyOutcome.MatchAlreadyDecided;
         }
 
         var source = FindBase(command.SourceBaseId);
@@ -120,13 +132,20 @@ public sealed class Match
     /// commands at the same tick counts always yield the same result (D-12 determinism) regardless
     /// of how the total is split across calls. A flat per-call production diff would not do this: it
     /// would let a capture's timing relative to a call's boundaries change how many production
-    /// periods the captured base is credited for.
+    /// periods the captured base is credited for. Once <see cref="Outcome"/> is decided, this is a
+    /// no-op - not an error - so the final board stays exactly as it was at the moment of decision
+    /// (FR-7).
     /// </summary>
     public void Advance(long ticks)
     {
         if (ticks < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(ticks), ticks, "Ticks cannot be negative.");
+        }
+
+        if (Outcome != MatchOutcome.InProgress)
+        {
+            return;
         }
 
         var targetElapsedTicks = ElapsedTicks + ticks;
@@ -145,6 +164,12 @@ public sealed class Match
             }
 
             ResolveArrivalsAtTick(ElapsedTicks);
+            EvaluateOutcome();
+
+            if (Outcome != MatchOutcome.InProgress)
+            {
+                return;
+            }
         }
     }
 
@@ -260,4 +285,49 @@ public sealed class Match
     }
 
     private static long ComputeTravelTicks(MapPoint from, MapPoint to) => TravelTimeCalculator.ComputeTicks(from, to);
+
+    /// <summary>
+    /// Decides <see cref="Outcome"/> from the current elimination state, evaluated once per tick
+    /// right after that tick's arrivals resolve - the only moment ownership or in-flight armies can
+    /// change (FR-7). The human is checked first, so a same-tick double elimination resolves as
+    /// defeat - arbitrary but fixed, since a tie has to break somehow and this is the simpler rule
+    /// to state and test.
+    /// </summary>
+    private void EvaluateOutcome()
+    {
+        if (IsEliminated(HumanPlayer))
+        {
+            Outcome = MatchOutcome.HumanDefeat;
+        }
+        else if (IsEliminated(AiPlayer))
+        {
+            Outcome = MatchOutcome.HumanVictory;
+        }
+    }
+
+    /// <summary>
+    /// A player is eliminated only once irreversibly so: zero owned bases and zero armies still in
+    /// flight. An army in flight might yet recapture a base, so elimination is never declared while
+    /// one remains (FR-7).
+    /// </summary>
+    private bool IsEliminated(Player player)
+    {
+        foreach (var b in _bases)
+        {
+            if (b.Owner == player)
+            {
+                return false;
+            }
+        }
+
+        foreach (var army in _armies)
+        {
+            if (army.Owner == player)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

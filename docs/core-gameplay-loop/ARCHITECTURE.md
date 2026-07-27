@@ -190,6 +190,51 @@ started neutral. Neither adds a script directive or a `--dump-state` field — t
 checks need. Re-running either individually reproduces its own screenshot byte-for-byte, and the two
 are not byte-identical to each other.
 
+FR-7 closes the loop: `Match` gains an `Outcome` (in progress / human victory / human defeat),
+`--dump-state` gains one more line reporting it, and the desktop head gains `--time-scale <n>`, a
+positive-integer multiplier on the fixed per-frame elapsed milliseconds handed to `Update`:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script <commands.txt> --time-scale <n> --screenshot out.png --dump-state out.txt
+```
+
+It changes no rule and no behaviour — the tick sequence is exactly the one real-time play produces,
+delivered sooner — and defaults to 1 (matching every prior script's timing) when omitted. A
+non-numeric, zero, or negative value exits non-zero naming the problem, before any graphics device
+is created, the same way an unparseable `--script` file does. `MW3.Android` accepts no command-line
+arguments at all (D-3, D-8) and stays real-time only; `--time-scale` is a desktop QA lever, needed
+because a full match is thousands of ticks — over eight minutes of wall clock at the default scale,
+against the 30-second budget every earlier script fits comfortably (REQUIREMENTS.md §5).
+
+Three scripts exercise the ending, each a **documented exception to the 30-second script
+budget: up to 60 seconds**, since reaching an ending is a full match rather than a few drags:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/defeat.txt --time-scale 125 --screenshot defeat.png --dump-state defeat.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/victory.txt --time-scale 25 --screenshot victory.png --dump-state victory.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-ending.txt --time-scale 125 --screenshot dismiss.png
+```
+
+`defeat.txt` presses nothing after `Play`, at a time scale sufficient for the passive-human match to
+reach defeat well within FR-6's 5000-tick budget: its dump reports human defeat with the AI owning
+all six bases. `victory.txt` drives the exact fixed, hand-authored command sequence covered by
+`MatchOutcomeTests` in `MW3.Core.Tests` — every drag's timing is chosen so it lands on the intended
+tick precisely under `--time-scale 25` (each frame after `Play`'s release advances the match by
+exactly 4 ticks): its dump reports human victory with the human owning all six bases.
+`dismiss-ending.txt` waits past defeat, then presses back: its final screenshot is byte-identical to
+the FR-2 welcome baseline, proving the return is a real pop rather than a redrawn lookalike (and
+`--dump-state`, given alongside it, would write nothing, since the final screen showing is
+`WelcomeScreen`, not `MatchScreen` — consistent with FR-3's existing rule that the dump only ever
+reads match state when the match screen is what is actually showing).
+
+Re-running any of the three individually reproduces its own screenshot byte-for-byte; the victory
+and defeat screenshots are not byte-identical to each other. A short pre-existing script
+(`match-early.txt`) run with `--time-scale 1` reports the identical elapsed ticks and per-base
+numbers it always has — the new `Outcome:` dump line is the only addition, proving the default path
+is untouched. Every pre-existing script (FR-2 through FR-6) still exits 0 within its original
+30-second budget and still reproduces its own screenshot byte-for-byte; `--smoke` alone still exits
+0 within 30 seconds writing no file.
+
 ## 3. Project layout
 
 No new projects. Within the existing ones:
@@ -207,6 +252,7 @@ src/MW3.Core/
   BrainDecision.cs         "no command" vs exactly one SendArmyCommand, in the type system
   AiBrain.cs               the three-clause heuristic: defend, attack, consolidate
   MatchRunner.cs           owns Match + the AI brain; the only thing that Advance()s and Execute()s
+  MatchOutcome.cs          in progress / human victory / human defeat (D-13)
 src/MW3.Game/
   ScreenManager.cs         minimal screen stack (D-16)
   WelcomeScreen.cs         (phase 1) Play now pushes MatchScreen
@@ -306,6 +352,21 @@ both guarantees the handler runs and keeps Android's default back-stack handling
 activity. Binds every later feature that reads Android back/hardware-key input (FR-5's tap input,
 FR-7's return-to-welcome): don't reach for `OnBackPressed` or a `Keyboard` check first, go straight
 to `DispatchKeyEvent`.
+
+**D-20: elimination requires zero bases *and* zero armies in flight, evaluated once per tick right
+after that tick's arrivals resolve - not a snapshot check at arbitrary moments.** Considered:
+declaring a player eliminated the instant their base count hits zero. Rejected: an army already
+launched toward a base it will recapture would make a match end (and freeze) before that army ever
+lands, contradicting "attainable" victories that route through a temporary all-bases-lost swing.
+Considered for the tie-break: no precedence rule, introducing a draw outcome instead. Rejected:
+REQUIREMENTS §6 explicitly scopes draws out, and a fixed, documented precedence (defeat first) is
+simpler to state and test than a third outcome value threading through every screen and script that
+reads `Outcome`. Consequence worth recording: ordinary play can never actually produce the
+simultaneous-elimination state this rule exists for - a capture always transfers ownership to the
+attacker, never to neither player, so the combined human-plus-AI owned-base count is monotonically
+non-decreasing from its starting value of 2 and can never reach 0 for both at once. The test covering
+the precedence rule constructs that state directly (reflection into `Base.Owner`'s internal setter)
+rather than reaching it through `SendArmyCommand`s, which is expected, not a workaround.
 
 ## 5. Cross-cutting conventions
 
