@@ -490,3 +490,81 @@ Try next: add an analyzer or `.editorconfig` rule (or, short of that, a `docs/CO
 line) that would have caught the `IReadOnlyList<T>` `foreach`-boxing pattern automatically, then
 deliberately reintroduce one `foreach` over `_match.Bases` in a throwaway branch to confirm the rule
 actually fires — turning a review-time catch into a gate-time one.
+
+## 2026-07-27 — #24 AI opponent reinforces and attacks with simple heuristics
+Concepts: readonly record struct wrapping a private field to model a closed "one of two shapes" result, extracting shared logic behind an unchanged private method signature, List<T>.Sort with a multi-key comparator for total ordering, reusing a segment-walking pattern to solve a structurally identical new problem, validating a computed value before it reaches a downstream boundary
+- **`readonly record struct BrainDecision` hiding a nullable field behind two named constructors** —
+  `BrainDecision` (`src/MW3.Core/BrainDecision.cs`) has a single private `SendArmyCommand? _command`
+  field, but its public surface is `BrainDecision.None`, `BrainDecision.Send(command)`, `HasCommand`,
+  and a `Command` getter that throws if accessed without checking `HasCommand` first. Why here: the
+  acceptance criteria explicitly forbid `null` as the "no command" signal (unlike `Base.Owner`'s
+  `Player?` in #8, or `HitTester`'s `int?` in #9/#20) — the AI's decision needs to be a closed
+  two-shape result, and record structs give that shape free structural equality (used directly in
+  `AiBrainTests.cs`'s `Assert.False(decision.HasCommand)` assertions) without a class allocation per
+  decision, which matters since a decision happens on a fixed cadence for the life of a match.
+  Pitfall: because the backing field is still nullable underneath, a future maintainer who adds a
+  second field to `BrainDecision` and forgets `_command`'s null-guard in the new code reopens exactly
+  the hole the type exists to close — the compiler enforces nothing beyond what `Command`'s one
+  guarded getter does today.
+- **Extracting shared arithmetic into a new type while keeping an old private method's signature
+  intact** — `Match.ComputeTravelTicks` (`src/MW3.Core/Match.cs`) now delegates its entire body to
+  the new `TravelTimeCalculator.ComputeTicks` (`src/MW3.Core/TravelTimeCalculator.cs`), so `AiBrain`
+  can reuse the identical travel-time formula without duplicating it. Why here: `SendArmyTests.cs`
+  already reflects into `Match.ComputeTravelTicks` by name via `BindingFlags.NonPublic | Static`
+  (#14's entry covers the same reflection pattern) — changing that method's accessibility or
+  signature to share it directly would have broken an existing test for a reason unrelated to what
+  it actually checks, so the fix keeps the private method as a thin forwarding shim instead. Pitfall:
+  this only stays safe as long as `ComputeTravelTicks`'s name and static-method shape never change;
+  a reflection-based test has no compile-time link to the method it invokes, so a rename silently
+  turns a passing test into one that throws `NullReferenceException` on a missing `MethodInfo`
+  rather than a compile error pointing at the actual call site.
+- **`List<T>.Sort` with a comparator that always breaks ties on a unique key** — `AiBrain.TryAttack`
+  (`src/MW3.Core/AiBrain.cs`) sorts candidate sources by
+  `b.GarrisonCount.CompareTo(a.GarrisonCount)` falling back to `a.Id.CompareTo(b.Id)` whenever the
+  garrison comparison returns zero, and does the same (by distance, then id) for targets. Why here:
+  the acceptance criteria require the heuristic to be "deterministic with no reliance on collection
+  ordering" — `List<T>.Sort` is not guaranteed stable, so relying on it to preserve insertion order
+  for equal-garrison bases would be relying on an implementation detail `List<T>`'s own documentation
+  doesn't promise; breaking every tie on `Id` (which is unique per base) makes the comparator itself
+  total, so the sort's stability no longer matters. Pitfall: a comparator that can return `0` for two
+  genuinely distinct elements is only safe if *every* caller of `Sort` on that data additionally
+  tolerates arbitrary relative order among those equal elements — the moment a second sort call
+  reuses a partial comparator (garrison only, no id fallback) elsewhere in the same file, its result
+  becomes silently ordering-dependent again.
+- **Reusing the "walk to the next boundary tick, act, repeat" pattern for a new kind of boundary** —
+  `MatchRunner.Advance` (`src/MW3.Core/MatchRunner.cs`) computes `NextDecisionTickAfter` and calls
+  `_match.Advance` up to exactly that tick before consulting the brain, then loops — structurally the
+  same shape `Match.Advance` itself already uses internally to walk to the next arrival tick before
+  resolving combat (#14's determinism-bug entry). Why here: FR-6's requirement ("every decision tick
+  is hit exactly once, however the caller chunks ticks") is the identical determinism problem #14
+  solved for arrivals, just for a different kind of event — recognizing the shape let the runner
+  reuse "measure the next boundary from absolute elapsed state, not from anything the caller tracks"
+  rather than re-deriving a chunking-safe algorithm from scratch. Pitfall: this pattern's safety
+  depends entirely on always computing the next boundary from `Match.ElapsedTicks` (state that
+  advances monotonically and is the same regardless of chunking) rather than from a counter the
+  runner maintains itself — a runner-local "ticks since last decision" counter would look equivalent
+  in a single-call test but silently double-count or skip boundaries under irregular chunking, since
+  it wouldn't reset consistently across calls.
+- **A code-review catch: a computed value used downstream without a floor check** — the reviewer
+  caught that `AiBrain`'s largest-garrison source selection (`TryDefend`/`TryConsolidate`,
+  `src/MW3.Core/AiBrain.cs`) had no lower bound on `candidate.GarrisonCount`, so a base left at
+  exactly zero by a repelled N==M tie (`Match.ResolveArrival`, `Match.cs`) could still be chosen as a
+  reinforcement source, producing a `SendArmyCommand` that `Match.Execute` would reject
+  (`UnitCountExceedsGarrison`) — the fix adds `candidate.GarrisonCount > 0` (or `<= 0` as an exclusion)
+  at both call sites. Why this is worth recording as a concept rather than just a bug: it's the same
+  shape as `MatchScreen.HandleDrag`'s existing `if (unitCount <= source.GarrisonCount)` guard for the
+  human's send — a value computed from live state (`garrison / 2`, clamped to a minimum of 1) still
+  needs validating against the *other* live value (available garrison) before it crosses into a
+  command, and the asymmetry between the human path (which had this check) and the AI path (which
+  didn't) is exactly what made the gap easy to miss by inspection alone. Pitfall: none of the existing
+  tests caught this because they all kept the human fully passive, so no AI base was ever driven down
+  to exactly zero while still owned — a property this specific (a repelled tie leaving a nonzero
+  owner at a zero garrison) needed a test that deliberately constructs that state, not one that
+  merely runs a long match and hopes to stumble into it.
+
+Try next: `MatchRunner.Advance`'s boundary-walking loop and `Match.Advance`'s arrival-walking loop are
+now two independent implementations of the same shape (`docs/CONVENTIONS.md`'s "three similar lines is
+better than a premature abstraction" would say that's fine at two call sites) — if FR-7's outcome-freeze
+work (the next issue) introduces a *third* kind of boundary tick to walk to, that's the point to sketch
+whether a small shared "walk to next boundary" helper actually pays for itself, or whether it's still
+just two-and-a-bit call sites that don't yet justify one.
