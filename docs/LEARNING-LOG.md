@@ -284,3 +284,65 @@ Try next: add a fourth `ScriptDirective` case (e.g. a `WaitDirective` that does 
 a frame) and notice the `switch` in `ScriptedInputSource.Update` compiles fine without handling it —
 then add a `default` arm that throws, and see which of the four committed `qa/scripts/*.txt` files,
 if any, would have hidden the gap by never needing that case at all.
+
+## 2026-07-27 — #13 Match screen draws the map, bases, owners, and live garrison counts
+Concepts: procedural Texture2D generation, narrowing a parameter to enforce a boundary, invalidate-on-change caching to avoid per-frame allocation, IReadOnlyList<T> foreach boxing a struct enumerator, tuple deconstruction over an immutable clock
+- **Generating a texture in code instead of loading an asset** — `MatchScreen.CreateCircleTexture`
+  (`src/MW3.Game/MatchScreen.cs`) builds a 128×128 `Texture2D` by filling a `Color[]` (white inside
+  the radius, `Color.Transparent` outside) and calling `texture.SetData(data)` once in
+  `LoadContent`. Why here: the acceptance criteria explicitly forbid adding an image asset to the
+  content pipeline (D-5 - original art only, and a circle isn't art yet), so the only way to get a
+  filled circle onto the screen is to rasterize one directly; `SpriteBatch.Draw`'s tint parameter
+  then recolors the same white-on-transparent texture per base (human/AI/neutral) without needing
+  three separate textures. Pitfall: `SetData` takes a flat array in row-major order
+  (`data[(y * diameter) + x]`) - transposing `x`/`y` in that index silently produces a
+  90-degree-rotated (or mirrored, depending on which axis is swapped) circle that still *looks*
+  roughly circular at a glance, so a transposition bug here is easy to ship unnoticed without
+  either a very close visual check or a symmetry-based test.
+- **Narrowing `GameTime` to a `long` at the one boundary that's allowed to see it** —
+  `MW3Game.Update` (`MW3Game.cs`) computes
+  `(long)gameTime.ElapsedGameTime.TotalMilliseconds` and passes that value into
+  `IScreen.Update(..., long elapsedMilliseconds)`; no screen's method signature accepts a
+  `GameTime`. Why here: D-12 requires the rules layer (and now the screens that drive it) to never
+  read a wall-clock member, and the *type system* is what actually enforces that once `IScreen`'s
+  signature no longer has a parameter capable of exposing one - a screen literally cannot call
+  `gameTime.TotalGameTime.TotalSeconds` by accident because there is no `gameTime` in scope to call
+  it on. Pitfall: this only holds as a boundary as long as *every* implementer's signature is kept
+  narrow; adding a second method that takes `GameTime` "just for this one screen" anywhere in
+  `MW3.Game` would quietly reopen the exact hole this design closes.
+- **Invalidate-on-change caching to satisfy "no allocation per frame"** — the code-review fix in
+  `MatchScreen.cs` added `_garrisonText`/`_lastGarrisonCount` arrays so `GarrisonCount.ToString()`
+  only runs when `_lastGarrisonCount[i] != b.GarrisonCount`, not on every `Draw` call. Why here:
+  `docs/CONVENTIONS.md`'s frame-loop rule exists because the target device is a phone, and a
+  garrison count changes at most once every `ProductionPeriodTicks` (10 ticks) - formatting it 60
+  times a second for a value that changed once every ~1.6 seconds (at 60 ticks/sec) is pure waste
+  the cache eliminates by construction. Pitfall: a cache keyed by *value equality* rather than
+  *identity/position* would have been wrong here - two different bases can legitimately hold the
+  same garrison count at the same time (both neutrals start at 5), so the cache is indexed by each
+  base's stable position in the list, not by the count itself.
+- **`foreach` over an `IReadOnlyList<T>`-typed field boxes its enumerator** — the second review
+  finding: `foreach (var b in _match.Bases)` (where `Match.Bases` is typed `IReadOnlyList<Base>`,
+  backed by a `List<Base>`) forces the compiler to bind through `IEnumerable<Base>.GetEnumerator()`
+  rather than `List<Base>`'s own non-boxing struct enumerator, because the *static type* of the
+  expression is the interface, not the concrete list. The fix switched to an indexed `for` loop
+  (`bases[i]`), which only calls the interface's `this[int]` indexer - no enumerator, no boxing.
+  Pitfall: this is invisible at the call site and doesn't show up as a compiler warning; it only
+  shows up as GC pressure under profiling, which is exactly why the review convention calls it out
+  explicitly rather than trusting it to be self-evident from reading the code.
+- **Tuple deconstruction over an immutable "next state + result" return** —
+  `MatchScreen.Update` (`MatchScreen.cs`) does `var (clock, ticks) = _clock.Advance(elapsedMilliseconds); _clock = clock;`,
+  the same `FixedStepClock` pattern `#1`'s log entry covered, now reused in a second, independent
+  context (the match screen's own timing, separate from whatever clock a head might use). Why here:
+  proof that the pattern generalizes - `FixedStepClock` doesn't know or care whether its caller is
+  a head's smoke-mode loop or a screen's `Update`, because its contract is just "elapsed
+  milliseconds in, whole ticks and next state out." Pitfall (same as before, worth restating since
+  it bit exactly this shape of code): forgetting the reassignment (`_clock = clock;`) means the
+  carry-over remainder silently never advances past whatever the first call computed, and ticks
+  stop accumulating correctly with no exception to reveal it.
+
+Try next: the previous entry's exercise (add a `WaitDirective`) is exactly what this feature did -
+`src/MW3.Game/WaitDirective.cs` is a one-line `sealed record` and its `switch` case in
+`ScriptedInputSource.Update` is an explicit no-op `break`. For the next one, try adding a
+`--dump-state` field that reports in-flight armies once FR-4 introduces them, and notice how much
+of `MatchScreen.WriteStateDump`'s shape (open a `StreamWriter`, one line per item, an
+`Owner`-or-`Neutral` string) can be reused versus what has to change.
