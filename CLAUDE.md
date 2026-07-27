@@ -144,9 +144,13 @@ These run without a human gate and never block or reopen a feature:
 - Active project: **Core gameplay loop** (`docs/core-gameplay-loop/`). Phase 1 "Welcome screen" is
   shipped except FR-4 (`a536546adb60`, CI publishes the Android APK), which was never kicked off —
   finish it on board 18 before or alongside phase 2 rather than letting it rot.
-- Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200 in
-  the landscape lock. Device-dependent acceptance criteria are therefore **blocking** from phase 2
-  FR-2 onward, not deferred as they were for issues #3/#4 (see follow-up #7, now actionable).
+- Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200
+  panel resolution, in the landscape lock. The MonoGame viewport is smaller than the panel —
+  roughly `1808x1018` — because `MainActivity` requests no fullscreen/immersive theme, so Android
+  draws the status and soft-navigation bars as chrome on top of the surface (see
+  `docs/core-gameplay-loop/ARCHITECTURE.md` §2a "Desktop window size"). Device-dependent acceptance
+  criteria are therefore **blocking** from phase 2 FR-2 onward, not deferred as they were for
+  issues #3/#4 (see follow-up #7, now actionable).
   Android input is injected with `adb shell input tap <x> <y>` and `adb shell input keyevent 4`.
   Requires `C:\Program Files (x86)\Android\android-sdk\platform-tools` on `PATH`.
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
