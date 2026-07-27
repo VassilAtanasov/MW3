@@ -37,7 +37,7 @@ internal sealed class WelcomeScreen : IScreen
     /// Activates on release: the press must start and end within the button's bounds, so pressing
     /// inside and dragging off before releasing does not navigate.
     /// </summary>
-    public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator)
+    public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator, long elapsedMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(navigator);

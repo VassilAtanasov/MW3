@@ -23,6 +23,9 @@ internal sealed class ScreenManager : IScreenNavigator, IDisposable
         _graphicsDevice = graphicsDevice;
     }
 
+    /// <summary>The screen on top of the stack, for a host that needs to inspect it (e.g. a state dump).</summary>
+    public IScreen Current => _screens.Peek();
+
     public void Push(IScreen screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
@@ -41,7 +44,7 @@ internal sealed class ScreenManager : IScreenNavigator, IDisposable
     /// with only one screen left, meaning the host should exit the application rather than pop an
     /// empty stack.
     /// </summary>
-    public bool Update(IInputSource input, Viewport viewport)
+    public bool Update(IInputSource input, Viewport viewport, long elapsedMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(input);
 
@@ -58,7 +61,7 @@ internal sealed class ScreenManager : IScreenNavigator, IDisposable
             return true;
         }
 
-        _screens.Peek().Update(input, viewport, this);
+        _screens.Peek().Update(input, viewport, this, elapsedMilliseconds);
         return false;
     }
 

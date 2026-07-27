@@ -14,7 +14,7 @@ internal interface IScreen : IDisposable
 
     void LoadContent(ContentManager content, GraphicsDevice graphicsDevice);
 
-    void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator);
+    void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator, long elapsedMilliseconds);
 
     void Draw(SpriteBatch spriteBatch, Viewport viewport);
 }
