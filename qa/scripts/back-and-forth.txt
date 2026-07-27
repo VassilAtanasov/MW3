@@ -1,0 +1,16 @@
+# Five full Play/back cycles - screens must survive repeated push/pop.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 back
+20 down 0.500000 0.591667
+25 up 0.500000 0.591667
+30 back
+40 down 0.500000 0.591667
+45 up 0.500000 0.591667
+50 back
+60 down 0.500000 0.591667
+65 up 0.500000 0.591667
+70 back
+80 down 0.500000 0.591667
+85 up 0.500000 0.591667
+90 back

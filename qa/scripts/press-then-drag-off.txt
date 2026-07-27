@@ -1,0 +1,3 @@
+# Press on Play but release outside its bounds - must not navigate.
+0 down 0.500000 0.591667
+5 up 0.500000 0.100000

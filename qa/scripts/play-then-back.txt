@@ -1,0 +1,4 @@
+# Tap Play, then press back - must return to the welcome screen.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 back
