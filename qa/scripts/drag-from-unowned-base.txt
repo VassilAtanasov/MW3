@@ -1,0 +1,6 @@
+# Tap Play, then press starting on the AI's base (not owned by the human) - selects nothing, so
+# the release changes no state regardless of where it lands.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.880000 0.500000
+15 up 0.350000 0.250000

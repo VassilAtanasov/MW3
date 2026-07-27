@@ -1,0 +1,5 @@
+# Tap Play, then press on the human base and release over empty space - cancels the drag.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.500000 0.900000

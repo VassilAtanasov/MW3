@@ -136,6 +136,33 @@ script again reproduces its own screenshot byte-for-byte. Each dump reports elap
 every owned base, a garrison of exactly `10 + elapsedTicks / 10`; neutral bases stay at exactly 5
 in both.
 
+FR-5 adds six more, exercising the drag interaction (D-18) through the same `down`/`up`
+vocabulary — a drag is just `down` at the source followed by `up` at the target, so no directive
+changed:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/send-army.txt --screenshot send.png --dump-state send.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/army-arrival.txt --screenshot arrival.png --dump-state arrival.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/cancel-on-empty-space.txt --screenshot cancel.png --dump-state cancel.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/drag-from-unowned-base.txt --screenshot unowned.png --dump-state unowned.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/hold-selection.txt --screenshot hold-selection.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/hold-empty-space.txt --screenshot hold-empty-space.png
+```
+
+`send-army.txt` drags from the human base to the nearest neutral immediately and ends before the
+army lands: its dump shows the human base at half its pre-send garrison and exactly one army in
+flight, with an arrival tick later than its launch tick. `army-arrival.txt` holds first so the
+human base's garrison outgrows twice the neutral's before dragging, then waits long enough (~17
+ticks) for the army to land: its dump shows zero armies in flight and the target owned by the
+human with a garrison consistent with FR-4's 1:1 arithmetic. `cancel-on-empty-space.txt` presses
+on the human base and releases over empty space; `drag-from-unowned-base.txt` presses starting on
+the AI's base — both dumps show zero armies in flight, every base under its starting owner, and
+garrisons consistent with production alone. `hold-selection.txt` presses on the human base and
+never releases, so its screenshot captures the selection highlight while held; `hold-empty-space.txt`
+is otherwise identical but presses over empty space, so the two screenshots are **not**
+byte-identical (the highlight is what differs), and re-running either individually reproduces its
+own screenshot byte-for-byte.
+
 ## 3. Project layout
 
 No new projects. Within the existing ones:
@@ -148,6 +175,7 @@ src/MW3.Core/
   MapPoint.cs              Core-side normalized position (no Vector2 - D-14)
   Player.cs                rules-level owner: id + controller kind (D-11)
   SendArmyCommand.cs       the only mutation input (D-12)
+  HitTester.cs             "which base is at this point" - pure, unit tested (D-18)
   IPlayerBrain.cs          AI seam, implemented by AiBrain (D-16)
 src/MW3.Game/
   ScreenManager.cs         minimal screen stack (D-16)
