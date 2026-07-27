@@ -346,3 +346,6 @@ Try next: the previous entry's exercise (add a `WaitDirective`) is exactly what 
 `--dump-state` field that reports in-flight armies once FR-4 introduces them, and notice how much
 of `MatchScreen.WriteStateDump`'s shape (open a `StreamWriter`, one line per item, an
 `Owner`-or-`Neutral` string) can be reused versus what has to change.
+
+## 2026-07-27 — #15 Correct viewport docs: 1920x1200 is the panel, not the MonoGame viewport
+No new concepts — docs-only correction (CLAUDE.md, REQUIREMENTS.md), no code changed.
