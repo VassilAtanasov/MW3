@@ -28,6 +28,15 @@ public sealed class MainActivity : AndroidGameActivity
         _game.Run();
     }
 
+    // MonoGame does not surface the hardware back button through its own Keyboard state on every
+    // device (confirmed on a physical MI Pad 4, Android 11), so the activity intercepts it here
+    // and relays it into the game's input seam instead. Not calling base.OnBackPressed() means
+    // Android's own back-stack handling never fires - ScreenManager decides pop vs. exit instead.
+    public override void OnBackPressed()
+    {
+        _game?.NotifyBackButtonPressed();
+    }
+
     protected override void OnDestroy()
     {
         _game?.Dispose();

@@ -7,18 +7,27 @@ namespace MW3.Game;
 
 /// <summary>
 /// The real <see cref="IInputSource"/>: wraps <see cref="Mouse"/>/<see cref="TouchPanel"/> for the
-/// pointer and the keyboard for back requests. On Android, MonoGame maps the hardware back button
-/// to <see cref="Keys.Back"/>, so one code path covers desktop Escape and the device back button.
+/// pointer, the keyboard's Escape key for desktop back requests, and <see cref="RequestBack"/> for
+/// a platform back button the host had to intercept itself - confirmed on a physical device that
+/// MonoGame does not surface Android's hardware back button through <see cref="Keyboard"/> here, so
+/// the Android head's activity relays it in explicitly rather than this class polling for it.
 /// </summary>
 internal sealed class MouseAndTouchInputSource : IInputSource
 {
     private KeyboardState _previousKeyboardState;
+    private bool _pendingBackRequest;
 
     public Point PointerPosition { get; private set; }
 
     public bool IsPointerPressed { get; private set; }
 
     public bool BackRequested { get; private set; }
+
+    /// <summary>Called by a platform head that intercepts its own back button (e.g. Android's).</summary>
+    public void RequestBack()
+    {
+        _pendingBackRequest = true;
+    }
 
     public void Update(Viewport viewport)
     {
@@ -37,7 +46,8 @@ internal sealed class MouseAndTouchInputSource : IInputSource
         }
 
         var keyboard = Keyboard.GetState();
-        BackRequested = IsKeyNewlyDown(keyboard, Keys.Escape) || IsKeyNewlyDown(keyboard, Keys.Back);
+        BackRequested = IsKeyNewlyDown(keyboard, Keys.Escape) || _pendingBackRequest;
+        _pendingBackRequest = false;
         _previousKeyboardState = keyboard;
     }
 

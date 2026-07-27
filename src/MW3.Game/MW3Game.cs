@@ -38,6 +38,19 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         }
     }
 
+    /// <summary>
+    /// Relays a platform back button a head had to intercept itself (Android's activity does not
+    /// get this through MonoGame's keyboard state on every device) into the real input source.
+    /// A no-op during scripted playback, where the script is the only source of back requests.
+    /// </summary>
+    public void NotifyBackButtonPressed()
+    {
+        if (_input is MouseAndTouchInputSource realInput)
+        {
+            realInput.RequestBack();
+        }
+    }
+
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
