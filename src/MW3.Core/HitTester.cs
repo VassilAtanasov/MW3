@@ -39,8 +39,12 @@ public static class HitTester
         int? nearestId = null;
         nearestDistance = double.MaxValue;
 
-        foreach (var b in bases)
+        // Indexed rather than foreach: `bases` is IReadOnlyList<Base>, and enumerating a List<T>
+        // through that interface boxes its struct enumerator on every call - not acceptable in a
+        // hit-test reached from every drag press and release (docs/CONVENTIONS.md).
+        for (var i = 0; i < bases.Count; i++)
         {
+            var b = bases[i];
             var dx = b.Position.X - point.X;
             var dy = b.Position.Y - point.Y;
             var distance = Math.Sqrt((dx * dx) + (dy * dy));

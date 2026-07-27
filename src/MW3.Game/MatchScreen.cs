@@ -7,9 +7,11 @@ using MW3.Core;
 namespace MW3.Game;
 
 /// <summary>
-/// Draws the match live: one circle per base, tinted by owner, with its rising garrison count.
-/// Owns a fresh <see cref="Match"/> per instance, so pushing this screen always starts a new
-/// match. Read-only - nothing here submits a command or changes ownership (FR-4/FR-5's job).
+/// Draws the match live: one circle per base, tinted by owner, with its rising garrison count, plus
+/// the drag interaction that sends armies (FR-5). Owns a fresh <see cref="Match"/> per instance, so
+/// pushing this screen always starts a new match. Presentation reads and commands write: this class
+/// submits a <see cref="SendArmyCommand"/> only through <see cref="Match.Execute"/> on a completed
+/// drag and never mutates match state directly.
 /// </summary>
 internal sealed class MatchScreen : IScreen
 {
@@ -36,6 +38,10 @@ internal sealed class MatchScreen : IScreen
     // An army's unit count never changes in flight (D-12), so its text is formatted once ever and
     // cached by army id rather than reformatted every frame.
     private readonly Dictionary<int, string> _armyUnitText = new();
+
+    // Reused scratch buffer for PruneResolvedArmyText, so pruning stale cache entries allocates
+    // nothing beyond its own one-time growth.
+    private readonly List<int> _armyIdsToPrune = new();
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
@@ -69,6 +75,7 @@ internal sealed class MatchScreen : IScreen
         {
             _match.Advance(ticks);
             _elapsedTicks += ticks;
+            PruneResolvedArmyText();
         }
 
         HandleDrag(input, viewport);
@@ -116,17 +123,64 @@ internal sealed class MatchScreen : IScreen
         _wasPointerPressed = input.IsPointerPressed;
     }
 
+    // Indexed rather than foreach: _match.Bases is IReadOnlyList<Base>, and enumerating a List<T>
+    // through that interface boxes its struct enumerator on every call - not acceptable in code
+    // reached from Draw (docs/CONVENTIONS.md's no-per-frame-allocation rule).
     private Base? FindBase(int id)
     {
-        foreach (var b in _match.Bases)
+        var bases = _match.Bases;
+        for (var i = 0; i < bases.Count; i++)
         {
-            if (b.Id == id)
+            if (bases[i].Id == id)
             {
-                return b;
+                return bases[i];
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Drops cached unit-count text for armies no longer in flight, so <see cref="_armyUnitText"/>
+    /// does not grow for the life of a match as armies resolve.
+    /// </summary>
+    private void PruneResolvedArmyText()
+    {
+        if (_armyUnitText.Count == 0)
+        {
+            return;
+        }
+
+        var armies = _match.ArmiesInFlight;
+        foreach (var id in _armyUnitText.Keys)
+        {
+            var stillInFlight = false;
+            for (var i = 0; i < armies.Count; i++)
+            {
+                if (armies[i].Id == id)
+                {
+                    stillInFlight = true;
+                    break;
+                }
+            }
+
+            if (!stillInFlight)
+            {
+                _armyIdsToPrune.Add(id);
+            }
+        }
+
+        if (_armyIdsToPrune.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var id in _armyIdsToPrune)
+        {
+            _armyUnitText.Remove(id);
+        }
+
+        _armyIdsToPrune.Clear();
     }
 
     private static MapPoint ToNormalized(Point pointerPosition, Viewport viewport) =>
@@ -193,9 +247,11 @@ internal sealed class MatchScreen : IScreen
 
         var armyRadius = Math.Min(viewport.Width, viewport.Height) * _armyRadiusFraction;
         var armyDiameter = (int)(armyRadius * 2);
+        var armies = _match.ArmiesInFlight;
 
-        foreach (var army in _match.ArmiesInFlight)
+        for (var i = 0; i < armies.Count; i++)
         {
+            var army = armies[i];
             var source = FindBase(army.SourceBaseId);
             var target = FindBase(army.TargetBaseId);
             if (source is null || target is null)
