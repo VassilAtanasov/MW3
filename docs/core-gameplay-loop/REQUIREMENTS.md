@@ -248,7 +248,65 @@ a **drag**, not two taps: press on the source, release on the target.
 
 FR-6 (wf: e4164ec62a52): The player can face an AI-controlled opponent that reinforces and attacks
 on its own, so that a match can be lost rather than only slowly won.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: `MW3.Core` defines `IPlayerBrain`, taking the player it acts for and a read-only
+    view of the match, returning either "no command this decision" or exactly one
+    `SendArmyCommand` in the type system — never null, never a sentinel, never more than one. It
+    reads only already-public match state, mutates nothing, and never calls `Match.Execute` itself.
+  - Acceptance: only the AI player has a brain; no command with the human as issuer is ever
+    produced by the brain or the runner.
+  - Acceptance: every command the brain issues is accepted — a test over at least 5000 ticks
+    asserts `Match.Execute` never returned any rejection.
+  - Acceptance: the AI decides only on decision ticks — a named Core constant of 20 ticks, first
+    at tick 20 then every 20 — and which ticks those are does not depend on how `Advance` was
+    chunked. At most one command per decision; the first clause that produces one wins.
+  - Acceptance (clause 1, defend): an AI base is threatened when the enemy armies already in
+    flight to it total at least its garrison predicted at the earliest of their arrival ticks. It
+    is reinforced from the AI base with the largest garrison (lowest id on a tie) that is not the
+    threatened base and whose travel time is at most the ticks remaining until that arrival; if
+    none can arrive in time, clause 2 is tried.
+  - Acceptance (clause 2, attack): considering AI bases in descending garrison order and, for
+    each, the bases it does not own in ascending distance order, the AI sends at the first
+    winnable target and stops — winnable meaning `floor(sourceGarrison / 2)` strictly exceeds that
+    target's garrison **predicted at the arrival tick** (production added only if a player owns
+    it; neutrals never produce).
+  - Acceptance (clause 3, consolidate): with nothing to defend and nothing winnable, the largest
+    AI base other than the front base sends to the front base — the AI base closest to any base it
+    does not own. Skipped when the AI owns fewer than two bases. This is what stops the AI
+    idle-locking against a passive human, whose single base grows as fast as any single AI base.
+  - Acceptance: no clause targets a base that already has an AI army in flight to it, and every
+    send is `floor(garrison / 2)` clamped to a minimum of 1 — identical to the human's rule, so
+    the AI can express nothing a human could not. All ties break by ascending base id.
+  - Acceptance: `MW3.Core` gains a runner owning the match and the brain; it is the only thing
+    that consults the brain and submits commands, and it slices `Advance` so every decision tick
+    is hit exactly once whatever the chunking — asserted by a single-call vs irregular-chunks
+    determinism test (D-12). A decision at tick T sees state at tick T and launches at tick T.
+  - Acceptance: `MatchScreen` drives the runner instead of `Match.Advance`; no screen calls
+    `Match.Advance`, and the human's drag command goes through the runner too, so one object owns
+    the match. Pushing the match screen starts a fresh match and a fresh AI.
+  - Acceptance: a headless passive-human match ends with the AI owning every base within a stated
+    budget of at most 5000 ticks, with all four neutrals taken and at least one army launched at
+    the human's base; and there is no 200-tick window in which the AI owns two or more bases, has
+    a base holding at least 2, and issues nothing.
+  - Acceptance: no new drawing code — owner tints and army circles from FR-3/FR-5 already cover a
+    captured base and an AI army in transit.
+  - Acceptance: no new script directive and no new `--dump-state` field. Committed
+    `qa/scripts/ai-first-strike.txt` (dump lists at least one AI-owned army in flight and zero
+    human ones) and `ai-expansion.txt` (dump shows the AI owning at least two bases, one of which
+    started neutral) each exit 0 within 30 seconds and reproduce their own screenshots
+    byte-for-byte, and are not byte-identical to each other.
+  - Acceptance: the FR-2, FR-3, and FR-5 scripts still exit 0 and still reproduce their own
+    screenshots byte-for-byte. Where AI activity legitimately changes an expected dump — an AI
+    base that has sent units no longer holds `10 + elapsedTicks / 10`; a "starting owners intact"
+    dump now shows a captured neutral — the **expectation** is corrected in `ARCHITECTURE.md` §2a
+    and in the FR-3/FR-5 entries above, in the same PR. The scripts are not rewritten to dodge the
+    AI and no switch is added to turn it off.
+  - Acceptance: `--smoke` alone still exits 0 within 30 seconds writing no file;
+    `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass; §2a documents the two new
+    scripts and works verbatim on a clean clone.
+  - Acceptance (device, blocking): tapping `Play` on the MI Pad 4 and giving no further input, a
+    `screencap` roughly 30 seconds later shows a formerly neutral base in the AI's tint and/or an
+    AI-tinted numbered army circle in transit; `pidof` still returns a pid and
+    `adb shell input keyevent 4` returns to welcome with the process alive.
 
 FR-7 (wf: 94ecc30a06a5): The player can win by owning every base or lose by owning none, see which
 happened, and return to the welcome screen, so that the loop closes instead of running forever.
@@ -310,7 +368,13 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   Original art (D-5) arrives in its own phase.
 - **Anything server, account, login, or multiplayer.** Cooperative campaigns are single-player and
   still belong to a later phase (S-7).
-- **Randomized combat**, difficulty levels, and AI tuning surfaces (D-15, D-16).
+- **Randomized combat**, difficulty levels, and AI tuning surfaces (D-15, D-16). FR-6 adds two
+  neighbours of this: **a switch to disable the AI** (`--no-ai` or similar) is refused — it would
+  be a QA-only code path players never take, existing solely to keep stale expectations passing —
+  and so is **AI lookahead**: no search, no scoring function over future states, no planning of
+  coordinated multi-base sends. Three clauses, one command per decision, evaluated fresh.
+- **A second AI opponent, teams, or a brain for the human player** (autoplay, hints, suggested
+  moves). One AI, as the hardcoded map defines.
 - **Gestures beyond a tap or drag**, camera pan/zoom, rotation handling (still landscape-locked,
   D-10), and pause. FR-5 settled which of the two the send-army interaction is: **drag only** —
   tap-to-tap is deliberately not offered as a second path to the same command.
