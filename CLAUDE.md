@@ -60,6 +60,23 @@ go. Never delete, move, or complete a Workflowy node.
   Definition-of-Done step 5 ("CI green") is checkable this way — verified working. There is no
   blocking `gh run watch` equivalent, so poll this endpoint at a sane interval rather than tightly.
 
+- **Reading a full issue/PR body** — the `github` MCP server's `issue_read` and `list_issues`
+  tools silently truncate long bodies (confirmed on issue #13: complete and 7578 chars over REST,
+  cut to ~3160 chars mid-sentence through `issue_read`, losing everything after — including the
+  whole "Out of scope" section — with no error or warning). Whenever the complete text matters —
+  feeding acceptance criteria to `qa-verifier`, diffing a `/kickoff` note against its GitHub issue,
+  anything gating a decision — fetch the body over REST instead:
+
+  ```powershell
+  $tok = ((Get-Content .env | Where-Object { $_ -match '^GITHUB_CLASSIC_TOKEN=' }) -replace '^GITHUB_CLASSIC_TOKEN=','').Trim()
+  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/VassilAtanasov/MW3/issues/<N>' `
+       -Headers @{ Authorization = "token $tok"; 'User-Agent' = 'ivan'; Accept = 'application/vnd.github+json' }
+  $r.body
+  ```
+
+  The MCP tools remain fine for titles, labels, state, and comment metadata — only body length is
+  affected. See issue #12 for the investigation.
+
 The rules behind Ivan's `gh` guidance still bind, whatever the transport:
 
 1. **Always scope explicitly** to `VassilAtanasov/MW3` — never rely on the cwd's remote, because
