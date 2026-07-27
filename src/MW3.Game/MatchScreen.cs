@@ -46,6 +46,7 @@ internal sealed class MatchScreen : IScreen
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
+    private bool _pressBeganAfterOutcomeDecided;
 
     public MatchScreen()
     {
@@ -73,37 +74,67 @@ internal sealed class MatchScreen : IScreen
     public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator, long elapsedMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(navigator);
 
-        var (clock, ticks) = _clock.Advance(elapsedMilliseconds);
-        _clock = clock;
-
-        if (ticks > 0)
+        if (_match.Outcome == MatchOutcome.InProgress)
         {
-            _runner.Advance(ticks);
-            PruneResolvedArmyText();
+            var (clock, ticks) = _clock.Advance(elapsedMilliseconds);
+            _clock = clock;
+
+            if (ticks > 0)
+            {
+                _runner.Advance(ticks);
+                PruneResolvedArmyText();
+            }
         }
 
-        HandleDrag(input, viewport);
+        if (_match.Outcome != MatchOutcome.InProgress)
+        {
+            // A drag in progress the moment the match ends sends nothing and shows no selection -
+            // clearing here covers both "decided this very frame, mid-drag" and every frame after.
+            _selectedSourceBaseId = null;
+        }
+
+        HandleInput(input, viewport, navigator);
     }
 
     /// <summary>
-    /// A press starting on a base the human owns selects it as the drag source; releasing over a
-    /// different base issues a <see cref="SendArmyCommand"/> for half its garrison (read at
-    /// release, floored, clamped to at least 1); releasing anywhere else cancels. Selection always
-    /// clears on release, so the next press starts fresh (FR-5, D-18).
+    /// While the match is in progress: a press starting on a base the human owns selects it as the
+    /// drag source; releasing over a different base issues a <see cref="SendArmyCommand"/> for half
+    /// its garrison (read at release, floored, clamped to at least 1); releasing anywhere else
+    /// cancels. Selection always clears on release, so the next press starts fresh (FR-5, D-18).
+    /// Once decided: no drag is possible, and a release whose press began after the decision pops
+    /// back to the welcome screen - a release from a press that began before it does not, so a drag
+    /// already underway when the match ended cannot skip the result the player never saw (FR-7).
     /// </summary>
-    private void HandleDrag(IInputSource input, Viewport viewport)
+    private void HandleInput(IInputSource input, Viewport viewport, IScreenNavigator navigator)
     {
+        var outcomeDecided = _match.Outcome != MatchOutcome.InProgress;
+
         if (input.IsPointerPressed && !_wasPointerPressed)
         {
-            var point = ToNormalized(input.PointerPosition, viewport);
-            var pressedBaseId = HitTester.FindBaseAt(point, _match.Bases);
-            var pressedBase = pressedBaseId is int id ? FindBase(id) : null;
-            _selectedSourceBaseId = pressedBase is not null && pressedBase.Owner == _match.HumanPlayer ? pressedBase.Id : null;
+            _pressBeganAfterOutcomeDecided = outcomeDecided;
+
+            if (!outcomeDecided)
+            {
+                var point = ToNormalized(input.PointerPosition, viewport);
+                var pressedBaseId = HitTester.FindBaseAt(point, _match.Bases);
+                var pressedBase = pressedBaseId is int id ? FindBase(id) : null;
+                _selectedSourceBaseId = pressedBase is not null && pressedBase.Owner == _match.HumanPlayer ? pressedBase.Id : null;
+            }
         }
         else if (!input.IsPointerPressed && _wasPointerPressed)
         {
-            if (_selectedSourceBaseId is int sourceId)
+            if (outcomeDecided)
+            {
+                if (_pressBeganAfterOutcomeDecided)
+                {
+                    navigator.Pop();
+                    _wasPointerPressed = false;
+                    return;
+                }
+            }
+            else if (_selectedSourceBaseId is int sourceId)
             {
                 var point = ToNormalized(input.PointerPosition, viewport);
                 var targetId = HitTester.FindBaseAt(point, _match.Bases);
@@ -236,6 +267,31 @@ internal sealed class MatchScreen : IScreen
         }
 
         DrawArmiesInFlight(spriteBatch, viewport);
+
+        if (_match.Outcome != MatchOutcome.InProgress)
+        {
+            DrawOutcomeBanner(spriteBatch, viewport);
+        }
+    }
+
+    /// <summary>
+    /// Victory/defeat text over the final board, sized and positioned from the viewport (D-14) - a
+    /// small band near the top clears every base's circle and garrison count at both 1280x720 and
+    /// 1920x1200, since the nearest base row sits no higher than y=0.25 normalized (FR-7).
+    /// </summary>
+    private void DrawOutcomeBanner(SpriteBatch spriteBatch, Viewport viewport)
+    {
+        if (_font is null)
+        {
+            return;
+        }
+
+        var text = _match.Outcome == MatchOutcome.HumanVictory ? "Victory" : "Defeat";
+        var unscaledSize = _font.MeasureString(text);
+        var textScale = (viewport.Height * 0.06f) / unscaledSize.Y;
+        var textSize = unscaledSize * textScale;
+        var textPosition = new Vector2((viewport.Width - textSize.X) / 2f, viewport.Height * 0.02f);
+        spriteBatch.DrawString(_font, text, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
     }
 
     /// <summary>
@@ -298,6 +354,7 @@ internal sealed class MatchScreen : IScreen
     {
         using var writer = new StreamWriter(path);
         writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_match.ElapsedTicks}"));
+        writer.WriteLine(FormattableString.Invariant($"Outcome: {_match.Outcome}"));
 
         foreach (var b in _match.Bases)
         {

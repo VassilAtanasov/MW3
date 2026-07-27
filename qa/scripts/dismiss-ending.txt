@@ -1,0 +1,6 @@
+# Tap Play, press nothing until well past defeat (run with --time-scale 125, same as defeat.txt),
+# then press back - proves dismissal is a real pop back to welcome, not a redrawn lookalike.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+155 wait
+160 back

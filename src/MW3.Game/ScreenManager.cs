@@ -40,6 +40,18 @@ internal sealed class ScreenManager : IScreenNavigator, IDisposable
     }
 
     /// <summary>
+    /// Pops the current screen and disposes it, unless it is the only one left - mirroring the
+    /// same "don't pop an empty stack" guard <see cref="Update"/> applies to a back request.
+    /// </summary>
+    public void Pop()
+    {
+        if (_screens.Count > 1)
+        {
+            _screens.Pop().Dispose();
+        }
+    }
+
+    /// <summary>
     /// Advances input and the top screen by one frame. Returns true when a back request arrived
     /// with only one screen left, meaning the host should exit the application rather than pop an
     /// empty stack.

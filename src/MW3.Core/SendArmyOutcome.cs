@@ -12,4 +12,5 @@ public enum SendArmyOutcome
     SourceEqualsTarget,
     UnitCountNotPositive,
     UnitCountExceedsGarrison,
+    MatchAlreadyDecided,
 }
