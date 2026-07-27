@@ -23,6 +23,12 @@ internal sealed class MatchScreen : IScreen
     private SpriteFont? _font;
     private Texture2D? _circleTexture;
 
+    // Garrison text is formatted only when a base's count actually changes (at most once every
+    // ProductionPeriodTicks per base), not on every Draw call - frame-loop code allocates nothing
+    // per frame (docs/CONVENTIONS.md).
+    private string[]? _garrisonText;
+    private int[]? _lastGarrisonCount;
+
     public Color BackgroundColor => Color.DarkSlateGray;
 
     public void LoadContent(ContentManager content, GraphicsDevice graphicsDevice)
@@ -32,6 +38,13 @@ internal sealed class MatchScreen : IScreen
 
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
+
+        _garrisonText = new string[_match.Bases.Count];
+        _lastGarrisonCount = new int[_match.Bases.Count];
+        for (var i = 0; i < _lastGarrisonCount.Length; i++)
+        {
+            _lastGarrisonCount[i] = -1;
+        }
     }
 
     public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator, long elapsedMilliseconds)
@@ -50,21 +63,29 @@ internal sealed class MatchScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_font is null || _circleTexture is null)
+        if (_font is null || _circleTexture is null || _garrisonText is null || _lastGarrisonCount is null)
         {
             return;
         }
 
         var radius = Math.Min(viewport.Width, viewport.Height) * _radiusFraction;
         var diameter = (int)(radius * 2);
+        var bases = _match.Bases;
 
-        foreach (var b in _match.Bases)
+        for (var i = 0; i < bases.Count; i++)
         {
+            var b = bases[i];
             var center = new Vector2((float)(b.Position.X * viewport.Width), (float)(b.Position.Y * viewport.Height));
             var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
             spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(b.Owner));
 
-            var garrisonText = b.GarrisonCount.ToString(CultureInfo.InvariantCulture);
+            if (_lastGarrisonCount[i] != b.GarrisonCount)
+            {
+                _garrisonText[i] = b.GarrisonCount.ToString(CultureInfo.InvariantCulture);
+                _lastGarrisonCount[i] = b.GarrisonCount;
+            }
+
+            var garrisonText = _garrisonText[i];
             var unscaledSize = _font.MeasureString(garrisonText);
             var textScale = (diameter * 0.5f) / unscaledSize.Y;
             var textSize = unscaledSize * textScale;
