@@ -103,8 +103,18 @@ The rules behind Ivan's `gh` guidance still bind, whatever the transport:
    live in the Projects registry below. Only `/kickoff` writes them, once, when it creates a board.
 5. **Idempotent by construction** — check for an existing issue, label, or board before creating.
 
-PowerShell gotcha: **`$pid` is a read-only automatic variable** (the process ID) — never use it for
-a project id; the assignment fails silently in a pipeline and the id comes out wrong.
+PowerShell gotchas:
+
+- **`$pid` is a read-only automatic variable** (the process ID) — never use it for a project id;
+  the assignment fails silently in a pipeline and the id comes out wrong.
+- **Never pass a commit message with `-m`; always write it to a file and use `git commit -F
+  <file>`.** Windows PowerShell 5.1 re-quotes arguments when handing them to a native executable,
+  and a `"` inside the message terminates the argument early — git then reads the remaining words
+  as pathspecs and fails with `error: pathspec '<word>' did not match any file(s) known to git`.
+  A single-quoted here-string (`@'...'@`) does **not** save you: it builds the correct string, and
+  the corruption happens afterwards, at the native-call boundary. Hit on 27-07-2026 by a kickoff
+  message quoting `"it builds on my machine"`. Kickoff and retrospective messages quote something
+  most of the time, so treat `-F` as the default rather than the fallback.
 
 ## Definition of Done (per feature issue)
 
