@@ -187,6 +187,21 @@ tested including the miss and the ambiguous-overlap cases. What remains in the h
 conversion of device coordinates to a normalized point: a couple of lines, verified once on real
 hardware rather than mocked forever.
 
+**D-19: Android's hardware back button is intercepted in `MainActivity.DispatchKeyEvent`, never
+`OnBackPressed` or MonoGame's `Keyboard` state.** Discovered building FR-2 (#9): the initial
+assumption that MonoGame surfaces the hardware back button as `Keys.Back` in `Keyboard.GetState()`
+proved false on a physical MI Pad 4 (Android 11) - the check never fired. The next attempt,
+overriding `Activity.OnBackPressed()`, *also* never fired: MonoGame's own view consumes the
+`KEYCODE_BACK` key event during `Window.superDispatchKeyEvent` - the step `Activity.dispatchKeyEvent`
+runs *before* falling back to `onKeyDown`/`onBackPressed` - so the event never reaches that
+fallback path at all. What works: overriding `DispatchKeyEvent` itself, the activity's first look
+at any key event, ahead of the view hierarchy; checking for `Keycode.Back` with
+`KeyEventActions.Down` there and returning `true` (without calling `base.DispatchKeyEvent` for it)
+both guarantees the handler runs and keeps Android's default back-stack handling from finishing the
+activity. Binds every later feature that reads Android back/hardware-key input (FR-5's tap input,
+FR-7's return-to-welcome): don't reach for `OnBackPressed` or a `Keyboard` check first, go straight
+to `DispatchKeyEvent`.
+
 ## 5. Cross-cutting conventions
 
 Build-mode Ivan applies these without being asked:
