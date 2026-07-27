@@ -130,13 +130,15 @@ Only the ones that genuinely constrain design:
   phone. It must not.
 - **Cost and speed of the build/run loop** remain the primary constraint (S-5): `dotnet` commands
   only, free CI, no engine binary, no paid runner.
-- **Device QA is currently blocked and this phase cannot start pretending otherwise.** Follow-up
-  [#28](https://github.com/VassilAtanasov/MW3/issues/28) records that the MI Pad 4 is listed by
-  `adb` but **unauthorized** — its USB-debugging dialog was never approved on the device — so every
-  device-blocking criterion on phase 2's #24 and #25 was reported *not verifiable* rather than
-  passed. Device-dependent criteria stay **blocking** this phase (they have since the device
-  arrived on 27-07-2026), which means #28 must be cleared by a physical tap on the tablet before
-  the first feature reaches QA, or every feature will stall at the same gate.
+- **Device QA is available and device criteria are blocking.** Follow-up #28 (the MI Pad 4 showing
+  as `unauthorized` in `adb`, which left every device criterion on phase 2's #24 and #25 reported
+  *not verifiable*) was resolved and closed on 28-07-2026; `adb devices` now shows
+  `43e75e5 device`. Device-dependent criteria are therefore verified per feature and block the PR,
+  as they have since the device arrived. One lesson from clearing #28 binds every feature this
+  phase: an `adb install` attempted while the device was unauthorized **silently no-opped**, so
+  device checks ran against a stale APK and produced a convincing false defect. Rebuild and
+  reinstall from `main` before trusting any device observation that contradicts a passing headless
+  test.
 - **A full match is still thousands of ticks**, so `--time-scale` (phase 2 FR-7) remains the lever
   that keeps desktop scripts inside their budget, and Android device checks remain real-time.
 - No auth, no persistence, no network, and no accessibility or performance targets this phase.
