@@ -201,6 +201,59 @@ public class AiBrainTests
         Assert.False(decision.HasCommand);
     }
 
+    [Fact]
+    public void TryConsolidate_NeverPicksAZeroGarrisonBaseAsSource()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral4 = match.Bases[4];
+        var neutral2 = match.Bases[2];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral4.Id, 6)); // captures at tick 17 with 1 remaining
+        match.Advance(17);
+
+        // Drain aiBase (id 1) to exactly zero: a repelled tie (N == M) leaves a base owned but
+        // empty (Match.ResolveArrival), so a source candidate reaching zero is a real, reachable
+        // state - not just a hand-picked test fixture.
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral2.Id, aiBase.GarrisonCount));
+        Assert.Equal(0, aiBase.GarrisonCount);
+
+        // aiBase (id 1, garrison 0) is the only base other than the front (id 4, nearer any
+        // non-owned base than id 1 is); with no non-zero source available, consolidation must
+        // yield nothing rather than issue a command Match.Execute would reject.
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConsolidate", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryDefend_NeverPicksAZeroGarrisonBaseAsSource()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral5 = match.Bases[5];
+        var neutral3 = match.Bases[3];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 17 with 1 remaining
+        match.Advance(17);
+        match.Execute(new SendArmyCommand(ai, neutral5.Id, neutral3.Id, neutral5.GarrisonCount)); // drains it to zero
+        Assert.Equal(0, neutral5.GarrisonCount);
+
+        var humanBase = match.Bases.Single(b => b.Owner == human);
+        match.Execute(new SendArmyCommand(human, humanBase.Id, aiBase.Id, 9)); // threat, arrives tick 55
+
+        // base 5 (the AI's only other base) can arrive in time but has zero garrison, so it must
+        // not be picked as the reinforcement source.
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryDefend", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
     // --- Cross-cutting ---
 
     [Fact]

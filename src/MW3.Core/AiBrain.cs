@@ -78,7 +78,7 @@ public sealed class AiBrain : IPlayerBrain
 
         foreach (var candidate in ownBases)
         {
-            if (candidate.Id == threatened.Id)
+            if (candidate.Id == threatened.Id || candidate.GarrisonCount <= 0)
             {
                 continue;
             }
@@ -209,7 +209,7 @@ public sealed class AiBrain : IPlayerBrain
         Base? source = null;
         foreach (var candidate in ownBases)
         {
-            if (candidate.Id != front.Id && IsLargerSource(candidate, source))
+            if (candidate.Id != front.Id && candidate.GarrisonCount > 0 && IsLargerSource(candidate, source))
             {
                 source = candidate;
             }
