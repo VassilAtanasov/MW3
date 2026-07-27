@@ -310,7 +310,62 @@ on its own, so that a match can be lost rather than only slowly won.
 
 FR-7 (wf: 94ecc30a06a5): The player can win by owning every base or lose by owning none, see which
 happened, and return to the welcome screen, so that the loop closes instead of running forever.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: `Match` exposes an outcome — in progress, human victory, human defeat — read-only
+    and changing only inside `Advance`, evaluated once per tick after that tick's production and
+    army resolution (D-13).
+  - Acceptance: a player is eliminated only when they own zero bases **and** have zero armies in
+    flight. Zero bases with an army still travelling is not elimination — the army lands, resolves
+    normally, and may recapture — so an outcome is declared only when it is irreversible. A test
+    covers the near miss.
+  - Acceptance: the AI eliminated is a human victory; the human eliminated is a human defeat. If
+    both are eliminated on the same tick, **defeat takes precedence** — arbitrary but fixed,
+    documented, and covered by a test that constructs the simultaneous case.
+  - Acceptance: neutral bases never affect the outcome — the human owning five bases with the AI
+    eliminated and one neutral unowned is a victory.
+  - Acceptance: once decided, the simulation is frozen — further `Advance` calls change nothing and
+    are not an error, `Match.Execute` rejects with a distinct reason leaving state untouched, and
+    the runner stops consulting the AI brain. Determinism holds across the ending: single-call and
+    irregular-chunk advances agree on the outcome, the tick it was decided, owners, and garrisons
+    (D-12).
+  - Acceptance: a passive-human headless test reaches defeat within FR-6's tick budget with the AI
+    owning all six bases; a headless test issuing a hand-authored human command sequence against
+    the live AI reaches victory with the human owning all six — proof that victory is attainable,
+    not merely representable.
+  - Acceptance: the screen draws distinct victory and defeat text over the final board (bases and
+    counts still visible), laid out from the viewport with no fixed pixel coordinate (D-14) on the
+    bundled SpriteFont with no new content asset (D-5); victory, defeat, and in-progress frames are
+    mutually non-identical; at 1280x720 and 1920x1200 the text is within the viewport and obscures
+    no garrison count.
+  - Acceptance: once decided the screen submits no further command and clears any drag selection.
+    Dismissal is a back request, or a pointer release whose press began **after** the outcome was
+    decided — a release from a press that began before it does not dismiss, so a drag in progress
+    when the match ends cannot skip a result the player never saw. Dismissal runs entirely through
+    `IInputSource` (D-17).
+  - Acceptance: returning leaves the welcome screen as FR-2 left it, and pressing `Play` again
+    starts a fresh match with a fresh AI (10/10/5, in progress).
+  - Acceptance: the desktop head accepts `--time-scale <n>`, a positive integer multiplying the
+    fixed per-frame elapsed milliseconds handed to `Update`. It changes no rule — the tick sequence
+    is exactly real-time play's, delivered sooner — defaults to 1, and a non-numeric, zero, or
+    negative value exits non-zero naming the problem before any graphics device is created.
+    `MW3.Android` still accepts no command-line arguments (D-3, D-8).
+  - Acceptance: `--dump-state` gains one outcome line; elapsed-ticks, per-base, and per-army lines
+    are unchanged.
+  - Acceptance: committed `qa/scripts/defeat.txt` (dump reports human defeat, AI owning all six),
+    `victory.txt` (dump reports human victory, human owning all six), and a dismissal script whose
+    final screenshot is byte-identical to the FR-2 welcome baseline, each exit 0 within **60
+    seconds** — a documented exception to the 30-second budget, justified by a full match being
+    thousands of ticks. Every pre-existing script keeps the 30-second budget and its behaviour, and
+    a short pre-existing script run at `--time-scale 1` dumps identically to before the flag
+    existed.
+  - Acceptance: re-running any new script reproduces its own screenshot byte-for-byte, and the
+    victory and defeat screenshots are not byte-identical; `--smoke` alone still exits 0 within 30
+    seconds writing no file; `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass;
+    §2a documents `--time-scale`, the outcome dump line, and the three new scripts.
+  - Acceptance (device, blocking): tapping `Play` on the MI Pad 4 and giving no further input
+    reaches the defeat screen, confirmed by polling `screencap` — allow up to **12 minutes**, since
+    `--time-scale` is unavailable on Android and this runs in real time; it is slow by design, not
+    hung, and `pidof` returns a pid throughout. A single tap then returns to welcome, and
+    `keyevent 4` exits the app without a crash dialog.
 
 ## 5. Non-functional requirements
 
@@ -352,6 +407,14 @@ Only the ones that genuinely constrain design:
   for `Activity.reportFullyDrawn()`, which MonoGame never calls; on the attached device it took
   over two minutes (found while closing #7, commit `22a79a1`). Poll `adb shell pidof` for liveness
   instead, and budget accordingly wherever `Status: ok` genuinely is the evidence wanted.
+- **A whole match cannot be verified in real time.** At 100 ms per tick, FR-6's 5000-tick budget is
+  over eight minutes of wall clock, against a 30-second script budget every earlier feature fits
+  comfortably. FR-7 answers this with `--time-scale <n>` on the desktop head, multiplying the fixed
+  per-frame elapsed milliseconds: MonoGame's fixed timestep keeps each frame's delta constant, so
+  the tick sequence is exactly real-time play's and byte-identical screenshots survive — only the
+  wall clock changes. It is a timing lever, not a behaviour switch, which is why it is admitted
+  where a "disable the AI" flag is refused. It is unavailable on Android (D-3, D-8), so the FR-7
+  device check runs in real time with a 12-minute allowance.
 - No auth, no persistence, no network, and no accessibility or performance targets this phase.
   Frame-rate work waits until there is art to slow it down.
 
@@ -375,6 +438,12 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   coordinated multi-base sends. Three clauses, one command per decision, evaluated fresh.
 - **A second AI opponent, teams, or a brain for the human player** (autoplay, hints, suggested
   moves). One AI, as the hardcoded map defines.
+- **A "play again" or "rematch" button on the outcome screen** (FR-7) — returning to welcome and
+  pressing `Play` *is* the rematch, and FR-6 already requires that to start a genuinely fresh
+  match. Nor is the result persisted: no save file, no history, no win counter.
+- **Draws and stalemate detection.** FR-7's simultaneous-elimination case is settled by a stated
+  precedence rule (defeat wins), not by introducing a third outcome.
+- **Surrender and restart-in-place.** The only way out of a match remains FR-2's back request.
 - **Gestures beyond a tap or drag**, camera pan/zoom, rotation handling (still landscape-locked,
   D-10), and pause. FR-5 settled which of the two the send-army interaction is: **drag only** —
   tap-to-tap is deliberately not offered as a second path to the same command.
