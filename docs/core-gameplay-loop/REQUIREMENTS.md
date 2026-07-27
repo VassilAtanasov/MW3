@@ -134,7 +134,11 @@ count rising live, so that the match state is legible before it is interactive.
     reproduces its own screenshot byte-for-byte.
   - Acceptance: the late dump reports ≥ 40 elapsed ticks and is internally consistent — every owned
     base holds exactly `10 + elapsedTicks / 10`, every neutral base exactly 5; the early dump is
-    consistent the same way for its own elapsed count.
+    consistent the same way for its own elapsed count. **Corrected by FR-6**: `match-late.txt` now
+    runs long enough for the AI to have acted (its first decision is at tick 20), so its own bases
+    no longer hold `10 + elapsedTicks / 10` once it has sent a unit or captured a base — only the
+    human's base and any base the AI has not touched still do. `match-early.txt` ends at tick 4,
+    before the AI's first decision, and is unaffected.
   - Acceptance: the FR-2 scripts still behave as before, and `--smoke` alone still exits 0 within
     30 seconds writing no file.
   - Acceptance: no file is added under `src/MW3.Core`; `dotnet build MW3.slnx -warnaserror -m:1`
@@ -232,7 +236,13 @@ a **drag**, not two taps: press on the source, release on the target.
     production since) and exactly one army in flight with an arrival tick later than its launch
     tick; the arrival script's dump shows zero armies in flight and the target owned by the human
     with a garrison consistent with FR-4's 1:1 arithmetic; the cancel and not-owned dumps show zero
-    armies, starting owners intact, and garrisons consistent with production alone.
+    armies, starting owners intact, and garrisons consistent with production alone. **Corrected by
+    FR-6**: `army-arrival.txt` holds long enough (~64 ticks) for the AI to have acted independently
+    of the human's drag, so its dump may show the AI's own army still in flight elsewhere on the
+    map - the human's captured base and its own zero-armies-against-it guarantee are unaffected,
+    since the AI's targets and the human's target are on opposite sides of the map. `send-army.txt`,
+    `cancel-on-empty-space.txt`, and `drag-from-unowned-base.txt` all end well before the AI's first
+    decision (tick 20) and are unaffected.
   - Acceptance: the selection-highlight screenshot is **not** byte-identical to that of an
     otherwise-identical script pressing on empty space; re-running any new script reproduces its own
     screenshot byte-for-byte.

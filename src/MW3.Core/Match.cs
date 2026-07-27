@@ -18,7 +18,6 @@ public sealed class Match
 
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
-    private long _elapsedTicks;
     private int _nextArmyId;
 
     public Match()
@@ -44,6 +43,13 @@ public sealed class Match
     public Player HumanPlayer { get; }
 
     public Player AiPlayer { get; }
+
+    /// <summary>
+    /// Ticks the match has advanced through so far. Read-only like all of <see cref="Match"/>'s
+    /// other state (D-13); the AI brain (D-16) reads this alongside <see cref="Bases"/> and
+    /// <see cref="ArmiesInFlight"/> to decide when a decision tick has been reached.
+    /// </summary>
+    public long ElapsedTicks { get; private set; }
 
     public IReadOnlyList<Base> Bases => _bases;
 
@@ -101,8 +107,8 @@ public sealed class Match
             command.SourceBaseId,
             command.TargetBaseId,
             command.UnitCount,
-            LaunchTick: _elapsedTicks,
-            ArrivalTick: _elapsedTicks + travelTicks));
+            LaunchTick: ElapsedTicks,
+            ArrivalTick: ElapsedTicks + travelTicks));
 
         return SendArmyOutcome.Accepted;
     }
@@ -123,22 +129,22 @@ public sealed class Match
             throw new ArgumentOutOfRangeException(nameof(ticks), ticks, "Ticks cannot be negative.");
         }
 
-        var targetElapsedTicks = _elapsedTicks + ticks;
+        var targetElapsedTicks = ElapsedTicks + ticks;
 
         while (true)
         {
             var nextArrivalTick = EarliestArrivalTickUpTo(targetElapsedTicks);
             var segmentEnd = nextArrivalTick ?? targetElapsedTicks;
 
-            ApplyProduction(_elapsedTicks, segmentEnd);
-            _elapsedTicks = segmentEnd;
+            ApplyProduction(ElapsedTicks, segmentEnd);
+            ElapsedTicks = segmentEnd;
 
             if (nextArrivalTick is null)
             {
                 return;
             }
 
-            ResolveArrivalsAtTick(_elapsedTicks);
+            ResolveArrivalsAtTick(ElapsedTicks);
         }
     }
 
@@ -253,12 +259,5 @@ public sealed class Match
         }
     }
 
-    private static long ComputeTravelTicks(MapPoint from, MapPoint to)
-    {
-        var dx = to.X - from.X;
-        var dy = to.Y - from.Y;
-        var distance = Math.Sqrt((dx * dx) + (dy * dy));
-        var ticks = (long)Math.Ceiling(distance / ArmySpeedUnitsPerTick);
-        return Math.Max(1, ticks);
-    }
+    private static long ComputeTravelTicks(MapPoint from, MapPoint to) => TravelTimeCalculator.ComputeTicks(from, to);
 }

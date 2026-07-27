@@ -153,15 +153,42 @@ dotnet run --project src/MW3.Desktop -- --script qa/scripts/hold-empty-space.txt
 army lands: its dump shows the human base at half its pre-send garrison and exactly one army in
 flight, with an arrival tick later than its launch tick. `army-arrival.txt` holds first so the
 human base's garrison outgrows twice the neutral's before dragging, then waits long enough (~17
-ticks) for the army to land: its dump shows zero armies in flight and the target owned by the
-human with a garrison consistent with FR-4's 1:1 arithmetic. `cancel-on-empty-space.txt` presses
-on the human base and releases over empty space; `drag-from-unowned-base.txt` presses starting on
-the AI's base — both dumps show zero armies in flight, every base under its starting owner, and
-garrisons consistent with production alone. `hold-selection.txt` presses on the human base and
-never releases, so its screenshot captures the selection highlight while held; `hold-empty-space.txt`
-is otherwise identical but presses over empty space, so the two screenshots are **not**
-byte-identical (the highlight is what differs), and re-running either individually reproduces its
-own screenshot byte-for-byte.
+ticks) for the army to land: its dump shows the target owned by the human with a garrison
+consistent with FR-4's 1:1 arithmetic. `cancel-on-empty-space.txt` presses on the human base and
+releases over empty space; `drag-from-unowned-base.txt` presses starting on the AI's base — both
+dumps show zero armies in flight, every base under its starting owner, and garrisons consistent
+with production alone. `hold-selection.txt` presses on the human base and never releases, so its
+screenshot captures the selection highlight while held; `hold-empty-space.txt` is otherwise
+identical but presses over empty space, so the two screenshots are **not** byte-identical (the
+highlight is what differs), and re-running either individually reproduces its own screenshot
+byte-for-byte.
+
+FR-6 adds the AI opponent, which decides on a fixed 20-tick interval independently of any screen or
+script — the first decision tick any script can reach is baked into its total frame count (`match-
+late.txt` and `army-arrival.txt`, both holding for hundreds of frames, now run well past it). This
+changes what two pre-existing dumps show, corrected here and in `REQUIREMENTS.md`'s FR-3/FR-5
+entries rather than dodged: **`match-late.txt`**'s dump no longer has every owned base holding
+exactly `10 + elapsedTicks / 10` — only the human's base and any base the AI has not acted on still
+do; the AI's own bases reflect its sends and captures instead. **`army-arrival.txt`**'s dump may
+show the AI's own army still in flight elsewhere on the map, so "zero armies in flight" no longer
+holds by itself — only the human's captured base and its own zero-contest guarantee stand.
+`match-early.txt` (elapsed tick 4) and the other FR-5 scripts all end well before the AI's first
+decision (tick 20) and are unaffected.
+
+Two more scripts exercise the AI directly, holding no human input at all:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/ai-first-strike.txt --screenshot first-strike.png --dump-state first-strike.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/ai-expansion.txt --screenshot expansion.png --dump-state expansion.txt
+```
+
+`ai-first-strike.txt` holds just long enough for the AI's first decision (tick 20) to fire: its
+dump lists exactly one army, owned by the AI, and none owned by the human. `ai-expansion.txt` holds
+for several decision ticks (~64): its dump shows the AI owning at least two bases, one of which
+started neutral. Neither adds a script directive or a `--dump-state` field — the AI needs nothing
+`--script` doesn't already expose, since owner and army-in-flight lines already say everything these
+checks need. Re-running either individually reproduces its own screenshot byte-for-byte, and the two
+are not byte-identical to each other.
 
 ## 3. Project layout
 
@@ -177,6 +204,9 @@ src/MW3.Core/
   SendArmyCommand.cs       the only mutation input (D-12)
   HitTester.cs             "which base is at this point" - pure, unit tested (D-18)
   IPlayerBrain.cs          AI seam, implemented by AiBrain (D-16)
+  BrainDecision.cs         "no command" vs exactly one SendArmyCommand, in the type system
+  AiBrain.cs               the three-clause heuristic: defend, attack, consolidate
+  MatchRunner.cs           owns Match + the AI brain; the only thing that Advance()s and Execute()s
 src/MW3.Game/
   ScreenManager.cs         minimal screen stack (D-16)
   WelcomeScreen.cs         (phase 1) Play now pushes MatchScreen
