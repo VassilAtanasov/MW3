@@ -229,8 +229,8 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 | 3 | Match screen draws the map, bases, owners, and live garrison counts | `fc6dfb3d8695` (issue #13, merged) |
 | 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` (issue #14) |
 | 5 | Tap and mouse input sends armies between bases on both heads | `06e4c2f2ddb8` (issue #20) |
-| 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` |
-| 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` |
+| 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` (issue #24) |
+| 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` (issue #25) |
 
 ### Quality gate
 
