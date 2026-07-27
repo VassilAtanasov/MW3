@@ -424,3 +424,69 @@ feature's `Advance` fix depends on.
 No new C# concepts — the diff is CI workflow YAML plus one MSBuild property
 (`EmbedAssembliesIntoApk`, `src/MW3.Android/MW3.Android.csproj`) that disables Fast Deployment for
 Debug builds so the CI-published APK installs standalone.
+
+## 2026-07-27 — #20 Tap and mouse input sends armies between bases on both heads
+Concepts: pattern-matching a nullable value type instead of .Value/.HasValue, reflection into a private static method with an out parameter, Dictionary<TKey,TValue>.Keys as a non-boxing concrete-type enumerator, deferred removal to avoid mutating a collection mid-enumeration, the IReadOnlyList<T> boxing pitfall recurring in new call sites
+- **`if (x is int id)` instead of `x.HasValue`/`x.Value`** — `MatchScreen.HandleDrag`
+  (`src/MW3.Game/MatchScreen.cs`) writes `var pressedBase = pressedBaseId is int id ? FindBase(id) : null;`
+  and `if (targetId is int target && target != sourceId)` rather than checking `.HasValue` and then
+  dereferencing `.Value` separately. Why here: `HitTester.FindBaseAt` returns `int?` specifically so
+  "no base" is a type-level absence (D-18), and the pattern-match form binds the unwrapped `int` to a
+  new name in the same expression that tests for presence, so there's no window where code could
+  read `.Value` before confirming `HasValue` is true. Pitfall: `is int id` on a `Nullable<int>` only
+  matches when the value is present - it's easy to assume (wrongly) that this also somehow matches
+  `null` into a default `0`, when in fact `null` simply fails the pattern and falls to the `else`/`:`
+  branch, which is exactly what's wanted here but is worth double-checking the first time.
+- **Reflecting into a `private static` method that has an `out` parameter** —
+  `HitTesterTests.FindNearestBaseId_PointBetweenTwoBases_ResolvesToTheGenuinelyNearerOne`
+  (`tests/MW3.Core.Tests/HitTesterTests.cs`) calls
+  `method.Invoke(null, new object?[] { point, match.Bases, null })` and never reads the third array
+  slot back, because the test only needs the return value here — this extends the `Match.ComputeTravelTicks`
+  reflection pattern from #14's entry to a method whose signature includes `out double nearestDistance`.
+  Why here: `HitTester.FindNearestBaseId` is deliberately `private` (only `FindBaseAt`'s
+  threshold-gated wrapper is public API), but the "resolves to the genuinely nearer one" acceptance
+  criterion needs to test the *unthresholded* nearest search directly, the same tension #14 already
+  hit with a private helper. Pitfall: when a reflected method has an `out` parameter, the value
+  written back is read from the *same array slot* after `Invoke` returns (`MethodInfo.Invoke` mutates
+  the `object[]` in place for `ref`/`out` parameters) — passing `null` as a placeholder works only
+  because this particular test doesn't need that slot; a test that did would have to read
+  `parameters[2]` back out after the call, not assume the local variable it never had access to.
+- **`Dictionary<TKey,TValue>.Keys` avoids the boxing that `IReadOnlyList<T>` doesn't** —
+  `MatchScreen.PruneResolvedArmyText` (`src/MW3.Game/MatchScreen.cs`) does
+  `foreach (var id in _armyUnitText.Keys)` directly against the concrete `Dictionary<int, string>`
+  field, which is safe from the enumerator-boxing problem #13's entry already flagged for
+  `foreach (var b in _match.Bases)` — because `_armyUnitText`'s *compile-time* type is the concrete
+  `Dictionary<int, string>`, not an interface, `.Keys` returns the concrete `KeyCollection` struct
+  type and `foreach` binds to its own non-boxing `GetEnumerator()`. Why here: this feature needed a
+  frame-loop-safe way to iterate one collection (armies still in flight, exposed as `IReadOnlyList<Army>`
+  and iterated by index) while safely enumerating a different one (cached text keyed by army id,
+  a plain `Dictionary` field) — the same boxing question has two different right answers depending
+  on which concrete type sits behind the variable. Pitfall: this safety only holds as long as the
+  field stays declared as `Dictionary<int, string>`; refactoring it to `IReadOnlyDictionary<int, string>`
+  for encapsulation (a change that looks purely stylistic) would silently reintroduce the exact boxing
+  cost this code was written to avoid.
+- **Collecting removals in a second pass instead of mutating during enumeration** — the same
+  `PruneResolvedArmyText` method builds `_armyIdsToPrune` (a reused `List<int>` field) while iterating
+  `_armyUnitText.Keys`, then removes from `_armyUnitText` in a separate loop afterward. Why here:
+  `Dictionary<TKey,TValue>.Remove` while a `foreach` over that same dictionary (or its `Keys`) is still
+  in progress throws `InvalidOperationException` at the next `MoveNext()` — a version-check the
+  runtime performs specifically to catch this — so the fix has to fully finish reading before it
+  starts writing. Pitfall: reusing `_armyIdsToPrune` as a field (rather than a fresh `List<int>` per
+  call) avoids a per-tick allocation, but only works correctly because the method clears it at the
+  end of every call; forgetting that `Clear()` would silently re-remove already-gone ids on the next
+  call (harmless here since `Dictionary.Remove` on a missing key is a no-op) while quietly leaking the
+  list's backing array's contents forever.
+- **The `IReadOnlyList<T>` `foreach`-boxing pitfall from #13 recurring in brand-new code** —
+  `HitTester.FindNearestBaseId` and `MatchScreen.FindBase`/`DrawArmiesInFlight` were first written
+  with plain `foreach` loops over `_match.Bases`/`_match.ArmiesInFlight` (both `IReadOnlyList<T>`),
+  and the code-reviewer caught the identical boxing issue #13 had already fixed once in this same
+  file, just at new call sites this feature added. Why repeat the entry: it's worth noting explicitly
+  *because* it recurred despite being documented — the lesson from #13 was "this is invisible at the
+  call site," and that held true even while writing the fix for the same file a few weeks later,
+  which is a stronger argument for institutionalizing it (e.g. an analyzer rule or a code-review
+  checklist item) than for trusting memory of a past finding.
+
+Try next: add an analyzer or `.editorconfig` rule (or, short of that, a `docs/CONVENTIONS.md` checklist
+line) that would have caught the `IReadOnlyList<T>` `foreach`-boxing pattern automatically, then
+deliberately reintroduce one `foreach` over `_match.Bases` in a throwaway branch to confirm the rule
+actually fires — turning a review-time catch into a gate-time one.
