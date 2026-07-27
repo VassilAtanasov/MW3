@@ -110,7 +110,39 @@ FR-1 — buildable in either order.
 
 FR-3 (wf: fc6dfb3d8695): The player can see the map, every base, who owns it, and its garrison
 count rising live, so that the match state is legible before it is interactive.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: `IScreen.Update` receives the frame's elapsed milliseconds from `MW3Game` (never a
+    `GameTime`), and `MatchScreen` advances its `Match` through a `FixedStepClock` built from
+    `Match.TickDurationMilliseconds`, passing whole ticks only (D-12).
+  - Acceptance: pushing the match screen starts a fresh match each time (10/10/5 again), and no
+    match advances while the welcome screen is active.
+  - Acceptance: all six bases are drawn as filled circles positioned and sized from the viewport by
+    scaling their normalized `MapPoint` — no fixed pixel coordinate in the layout (D-14).
+  - Acceptance: the circle texture is generated procedurally at `LoadContent` and disposed with the
+    screen; no image asset joins the content pipeline (D-5).
+  - Acceptance: human, AI, and neutral bases carry three distinct tints, visibly different from
+    each other and the background; each base's garrison count is drawn on its circle with the
+    bundled SpriteFont and equals the model's value.
+  - Acceptance: at 1280x720 and at 1920x1200, all six circles and numbers are fully within the
+    viewport, unclipped and non-overlapping.
+  - Acceptance: the script format gains `<frame> wait` (no arguments) as a timeline marker;
+    `down`, `up`, `back` are unchanged.
+  - Acceptance: `--dump-state <path>` writes, at the final frame, the match's elapsed ticks and one
+    line per base (id, owner as human/AI/neutral, garrison), exits 0, works with or without
+    `--screenshot`, and writes nothing when omitted.
+  - Acceptance: committed `qa/scripts/match-early.txt` and `match-late.txt` both exit 0 within 30
+    seconds; the late screenshot is **not** byte-identical to the early one, and re-running either
+    reproduces its own screenshot byte-for-byte.
+  - Acceptance: the late dump reports ≥ 40 elapsed ticks and is internally consistent — every owned
+    base holds exactly `10 + elapsedTicks / 10`, every neutral base exactly 5; the early dump is
+    consistent the same way for its own elapsed count.
+  - Acceptance: the FR-2 scripts still behave as before, and `--smoke` alone still exits 0 within
+    30 seconds writing no file.
+  - Acceptance: no file is added under `src/MW3.Core`; `dotnet build MW3.slnx -warnaserror -m:1`
+    and `./gate.ps1` both pass; §2a documents `wait` and `--dump-state` and works verbatim.
+  - Acceptance (device, blocking): after `adb shell input tap` on `Play`, a `screencap` shows six
+    circles with numbers in three distinguishable colours laid out for the device aspect ratio; a
+    second `screencap` ten seconds later shows larger numbers on the human's and AI's bases and
+    unchanged neutrals; `pidof` still returns a pid.
 
 FR-4 (wf: 8aa2138b342a): The developer can issue a send-army command that detaches part of a
 garrison, travels for a number of ticks, and on arrival reinforces a friendly base or fights for a
