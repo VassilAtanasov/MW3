@@ -178,7 +178,7 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 | 1 | Player, base ownership, and unit production in the core rules library | `50ae1a68b773` (issue #8, merged) |
 | 2 | Play button opens a match screen and back returns to the welcome screen | `f68a4d876cb3` (issue #9, merged) |
 | 3 | Match screen draws the map, bases, owners, and live garrison counts | `fc6dfb3d8695` (issue #13) |
-| 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` |
+| 4 | Core rules for sending an army: transit, reinforcement, capture, and losses | `8aa2138b342a` (issue #14) |
 | 5 | Tap and mouse input sends armies between bases on both heads | `06e4c2f2ddb8` |
 | 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` |
 | 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` |

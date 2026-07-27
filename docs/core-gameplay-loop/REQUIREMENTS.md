@@ -148,7 +148,39 @@ FR-4 (wf: 8aa2138b342a): The developer can issue a send-army command that detach
 garrison, travels for a number of ticks, and on arrival reinforces a friendly base or fights for a
 neutral or enemy one — flipping ownership when it wins — so that the core mechanic exists as
 deterministic rules.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: the send command carries the issuing player, source base id, target base id, and an
+    explicit unit count; `Match.Execute` is the only way to submit one, and it returns a result
+    distinguishing acceptance from each rejection reason in the type system — never a bool, an
+    exception for an ordinary rejection, or a silent no-op.
+  - Acceptance: a send is rejected leaving all state untouched when the source is not owned by the
+    issuing player, source and target are the same base, the count is ≤ 0, the count exceeds the
+    source's current garrison, or a base id does not exist.
+  - Acceptance: an accepted send subtracts the count immediately; sending an entire garrison is
+    legal, and a zero-garrison base stays owned, keeps producing, and can be taken by one unit.
+  - Acceptance: army speed is a named Core constant; travel time is proportional to the
+    straight-line distance between normalized positions, crossing the full map width (1.0) in 5
+    seconds (~17 ticks to the nearest neutral, ~38 to the AI base), never less than one tick.
+  - Acceptance: `Match` exposes in-flight armies read-only — owner, source, target, count, launch
+    tick, arrival tick — enough for FR-5 to interpolate a position with no drawing knowledge in
+    Core. Armies are inert in flight: no interception, recall, or change of owner if their source
+    base is captured.
+  - Acceptance: arrival at a base owned by the army's owner reinforces it; arrival elsewhere
+    resolves 1:1 with no defender advantage (N > M captures with N − M; N ≤ M leaves the defender
+    with M − N, so N == M leaves the defender owning zero units) — D-15.
+  - Acceptance: resolution uses the target's owner **at arrival**, not at launch.
+  - Acceptance: several armies arriving on the same tick at one base resolve one at a time in a
+    deterministic documented order, each fully applied before the next — two armies of 6 against a
+    base of 10 capture it with 2.
+  - Acceptance: an arrival tick passed over by a large `Advance` still resolves exactly once, at
+    its due outcome — never twice, never skipped.
+  - Acceptance: determinism (D-12) — the same commands at the same tick counts give identical
+    owners, garrisons, and in-flight armies whether `Advance` runs in one step or irregular chunks.
+  - Acceptance: `MW3.Core` still has no `DateTime`/`Stopwatch`/`Random`, still targets
+    `netstandard2.1`, still contains no `Microsoft.Xna` or `MonoGame` text, and the added state
+    stays unmutatable from outside the aggregate (D-13).
+  - Acceptance: tests cover every rejection reason, reinforcement, capture, a repelled attack,
+    N == M, ownership changing mid-flight, same-tick ordering, and a skipped-over arrival tick;
+    `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-5 (wf: 06e4c2f2ddb8): The player can tap or click a source base and then a target base to send
 an army, and see it in transit, on both heads, so that the mechanic is actually playable.
