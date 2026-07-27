@@ -175,8 +175,10 @@ These run without a human gate and never block or reopen a feature:
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
 - Active project: **Core gameplay loop** (`docs/core-gameplay-loop/`). Phase 1 "Welcome screen" is
-  shipped except FR-4 (`a536546adb60`, CI publishes the Android APK), which was never kicked off —
-  finish it on board 18 before or alongside phase 2 rather than letting it rot.
+  shipped except FR-4 — CI does **not** yet build or publish an APK (`ci.yml` installs the `android`
+  workload but has no `upload-artifact` step), so the only installable build is whatever was made
+  locally. Kicked off 27-07-2026 as issue #21 on board 18; build it before or alongside phase 2
+  rather than letting it rot.
 - Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200
   panel resolution, in the landscape lock. The MonoGame viewport is smaller than the panel —
   roughly `1808x1018` — because `MainActivity` requests no fullscreen/immersive theme, so Android
@@ -206,7 +208,7 @@ Phase 1 features, in dependency order (`/kickoff` one at a time):
 | 1 | Solution skeleton with core library, tests, and desktop head that launches | `3dae1956ad98` (issue #1, merged) |
 | 2 | Android head installs and launches on a physical device | `089cdeb5df53` (issue #3) |
 | 3 | Welcome screen with game title and inert entry point | `03845bfc494d` (issue #4) |
-| 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` (not kicked off) |
+| 4 | CI builds and publishes the Android APK as an artifact | `a536546adb60` (issue #21) |
 
 Phase 2 features, in dependency order (`/kickoff` one at a time):
 

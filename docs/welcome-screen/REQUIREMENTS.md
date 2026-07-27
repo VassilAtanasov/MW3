@@ -108,7 +108,33 @@ Depends on FR-2 being merged.
 
 FR-4 (wf: a536546adb60): The developer can download an installable APK from any CI run so that
 "it builds on my machine" stops being the standard of evidence.
-  - Acceptance: (set by /kickoff)
+  - Acceptance: the existing `gate` job gains an APK build and an upload step **after** `./gate.ps1`
+    in the same job — no second job, and the `android` workload installed exactly once per run.
+  - Acceptance: the upload step uses no `if: always()` or equivalent, so a red gate produces no
+    artifact and a build that failed its own gate can never be installed.
+  - Acceptance: the APK is **Debug** configuration, so a CI APK and one from
+    `dotnet build src/MW3.Android -t:Run` are the same kind of build; any added `dotnet build`
+    passes `-m:1` per the MonoGame content-race rule.
+  - Acceptance: both triggers publish — a pull request run and a push-to-`main` run each attach an
+    APK; the artifact name embeds the short commit SHA and retention is 30 days.
+  - Acceptance: exactly one APK per run — the installable debug-key-signed one, not both it and its
+    unsigned sibling.
+  - Acceptance: the run's artifact list over REST
+    (`/repos/VassilAtanasov/MW3/actions/runs/<id>/artifacts`) holds one matching entry with non-zero
+    `size_in_bytes`; unzipping it yields exactly one `.apk`.
+  - Acceptance: that `.apk` is a valid zip containing `AndroidManifest.xml` and `classes.dex`, and
+    the string `com.vassilatanasov.mw3` appears in its bytes — so the artifact is this application
+    and not an empty or placeholder package.
+  - Acceptance: `ARCHITECTURE.md` §2a documents getting the APK from CI (where it appears, its
+    name, and `adb install -r`) and works verbatim; the local
+    `dotnet build src/MW3.Android -t:Run` path stays documented — CI is an addition, not a
+    replacement.
+  - Acceptance: CI stays green and the added steps cost no more than a few minutes over the current
+    baseline (before/after times recorded in the PR); `./gate.ps1` passes locally and in CI.
+  - Acceptance (device, blocking): the APK from this feature's own PR run installs with
+    `adb install -r` reporting `Success`; `adb shell pm list packages com.vassilatanasov.mw3` lists
+    it; launching without `-W` shows the welcome screen in a `screencap`; and `adb shell pidof`
+    returns a pid ten seconds later, proving the CI-built APK does not crash on startup.
 
 ## 5. Non-functional requirements
 
