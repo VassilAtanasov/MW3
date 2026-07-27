@@ -53,8 +53,13 @@ dotnet run --project src/MW3.Desktop -- --script <commands.txt> --screenshot out
 ```
 
 Replays the directives in `<commands.txt>` against a fresh app (no `--smoke` needed alongside it —
-`--script` has its own exit rule), then writes one frame and exits 0. FR-5 extends the same
-directive vocabulary to sending armies rather than introducing a second mechanism.
+`--script` has its own exit rule), then writes one frame and exits 0.
+
+**FR-5 adds no directive.** Phase 2 discovery expected it to extend this vocabulary for sending
+armies; settling the feature showed there is nothing to add — the send-army interaction is a drag,
+and a drag is already `down` at the source followed by `up` at the target. The scripted input
+source teleports the pointer between the two, which the model is indifferent to because only the
+press-start and release positions decide anything.
 
 **File format** — one directive per line, `<frame> <directive> [args]`. Blank lines are skipped;
 `#` starts a full-line comment. `<frame>` is a non-negative integer frame index (the first `Update`
@@ -84,6 +89,12 @@ works with or without it, and omitting `--dump-state` writes no file. Only meani
 match screen is showing - reads nothing if `--script` never navigated past the welcome screen.
 This is how `qa-verifier` asserts exact model numbers instead of inferring them from pixels; FR-4,
 FR-6, and FR-7 all reuse it rather than inventing a second state-inspection mechanism.
+
+**FR-5 extends the dump with in-flight armies** — after the per-base lines, one line per army
+reporting its id, owner, source base id, target base id, unit count, launch tick, and arrival tick.
+The elapsed-ticks and per-base lines are unchanged, and a dump taken with nothing in flight lists no
+army at all. This is what makes transit assertable from the model: a screenshot can show that *a*
+circle is somewhere between two bases, but only the dump says which army it is and when it lands.
 
 **Desktop window size** — `MW3Game` sets the desktop head's `PreferredBackBufferWidth`/`Height` to
 `1280x720`, the same reference resolution every screen's layout already scales from. This is one of

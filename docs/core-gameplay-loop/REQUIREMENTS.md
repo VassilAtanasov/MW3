@@ -182,9 +182,69 @@ deterministic rules.
     N == M, ownership changing mid-flight, same-tick ordering, and a skipped-over arrival tick;
     `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-5 (wf: 06e4c2f2ddb8): The player can tap or click a source base and then a target base to send
-an army, and see it in transit, on both heads, so that the mechanic is actually playable.
-  - Acceptance: (set by /kickoff)
+FR-5 (wf: 06e4c2f2ddb8): The player can drag from a base they own to another base to send an army,
+and see it in transit, on both heads, so that the mechanic is actually playable. The interaction is
+a **drag**, not two taps: press on the source, release on the target.
+  - Acceptance: `MW3.Core` exposes a pure function taking a normalized `MapPoint` and returning the
+    base at it or the absence of one in the type system (never `-1`, never a bool-plus-out) — unit
+    tested with no graphics device (D-18).
+  - Acceptance: the rule is **nearest base within a threshold** — the closest base by distance, and
+    only if that distance is at or under a named Core constant; beyond it, no base.
+  - Acceptance: a test asserts no two bases in the hardcoded map lie within twice that threshold of
+    each other, so the nearest match is never ambiguous and the constant cannot be widened into
+    ambiguity unnoticed.
+  - Acceptance: hit-test tests cover a base's exact centre, just inside and just outside the
+    threshold, a point between two bases resolving to the genuinely nearer one, and all four map
+    corners returning no base.
+  - Acceptance: a press starting on a base owned by the human player selects it as the source for
+    as long as the pointer is down; a press starting on a neutral base, an AI base, or no base
+    selects nothing and its release changes no state.
+  - Acceptance: releasing over a different base issues one `SendArmyCommand` from the human player
+    with a unit count of `garrison / 2` rounded down and **clamped to a minimum of 1**, read from
+    the source's garrison **at release** — so production during the drag cannot overdraw it.
+  - Acceptance: releasing over the source base itself, or over no base, cancels — no command, no
+    garrison change, selection cleared. After any release the selection clears, so a second drag
+    immediately after a first behaves identically.
+  - Acceptance: the screen submits commands only through `Match.Execute`, never mutates match state
+    directly, and submits no command it can determine will be rejected. Production continues during
+    a drag, and a back request still pops the screen as in FR-2.
+  - Acceptance: no screen reads `Mouse`, `TouchPanel`, or `Keyboard` directly — the drag is driven
+    entirely through `IInputSource`, so one code path serves both heads (D-17).
+  - Acceptance: the selected source base is drawn visibly differently from its unselected self and
+    from the other two owner tints, apparent in a screenshot rather than only in code.
+  - Acceptance: each in-flight army is drawn as a filled circle smaller than a base, tinted by
+    owner, positioned by interpolating source→target from its launch and arrival ticks, with its
+    unit count in the bundled SpriteFont; it sits on its source at the launch tick, on its target at
+    the arrival tick, and disappears the moment it resolves.
+  - Acceptance: army circles are laid out by scaling normalized `MapPoint` values with no fixed
+    pixel coordinate (D-14) and reuse the procedural circle texture — no image asset joins the
+    content pipeline (D-5). At 1280x720 and 1920x1200 every circle and number is within the
+    viewport and legible, and Draw allocates nothing per frame beyond FR-3's established pattern.
+  - Acceptance: **no new script directive** — a drag is `<frame> down <x> <y>` then
+    `<frame> up <x> <y>`; `back` and `wait` unchanged. `ARCHITECTURE.md` §2a is corrected to say so.
+  - Acceptance: `--dump-state` gains one line per in-flight army (id, owner, source, target, count,
+    launch tick, arrival tick); its elapsed-ticks and per-base lines are unchanged, and a dump with
+    nothing in flight lists no army.
+  - Acceptance: committed `qa/scripts/` scripts each exit 0 within 30 seconds covering a successful
+    send, an arrival, a cancel on empty space, a press starting on a base the human does not own,
+    and one holding the pointer down to capture the selection highlight.
+  - Acceptance: the send script's dump shows the source at half its pre-send garrison (plus any
+    production since) and exactly one army in flight with an arrival tick later than its launch
+    tick; the arrival script's dump shows zero armies in flight and the target owned by the human
+    with a garrison consistent with FR-4's 1:1 arithmetic; the cancel and not-owned dumps show zero
+    armies, starting owners intact, and garrisons consistent with production alone.
+  - Acceptance: the selection-highlight screenshot is **not** byte-identical to that of an
+    otherwise-identical script pressing on empty space; re-running any new script reproduces its own
+    screenshot byte-for-byte.
+  - Acceptance: the FR-2 and FR-3 scripts still behave as before, `--smoke` alone still exits 0
+    within 30 seconds writing no file, `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1`
+    both pass, and §2a documents the extended dump and the drag scripts, working verbatim on a
+    clean clone.
+  - Acceptance (device, blocking): `adb shell input swipe` from the human base to the nearest
+    neutral, then `screencap`, shows the human base's count roughly halved and a small owner-tinted
+    numbered circle between the two; a later `screencap` shows that neutral in the human's tint with
+    no army circle remaining; a swipe starting on the AI's base changes nothing, and
+    `adb shell input keyevent 4` returns to welcome with `pidof` still alive.
 
 FR-6 (wf: e4164ec62a52): The player can face an AI-controlled opponent that reinforces and attacks
 on its own, so that a match can be lost rather than only slowly won.
@@ -221,6 +281,15 @@ Only the ones that genuinely constrain design:
   Phase 1 deferred them to follow-up issue #7 for want of hardware; that deferral does not carry
   into this phase (#7 was verified and closed on 26-07-2026). Android input is injected with
   `adb shell input tap` / `keyevent`, which is real OS input and needs none of the D-17 seam.
+  From FR-5 onward `adb shell input swipe <x1> <y1> <x2> <y2> <ms>` joins them, because the
+  send-army interaction is a drag rather than a tap.
+- **Hit-testing distance is computed in normalized space while circles are drawn with a pixel
+  radius** (FR-5), so the threshold region is an ellipse in pixel terms on any non-square viewport.
+  Accepted, not a defect: for a *nearest*-base rule the closest base in normalized space is the
+  closest one on screen everywhere in the map's neighbourhood, because the hardcoded bases are at
+  least 0.34 normalized units apart — far wider than the distortion 16:9 or 16:10 introduces. It
+  would stop being harmless if a map ever placed two bases close together, which is exactly what
+  FR-5's twice-the-threshold separation test exists to catch.
 - **Launching for device checks uses plain `adb shell am start`, never `am start -W`.** `-W` waits
   for `Activity.reportFullyDrawn()`, which MonoGame never calls; on the attached device it took
   over two minutes (found while closing #7, commit `22a79a1`). Poll `adb shell pidof` for liveness
@@ -243,7 +312,12 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   still belong to a later phase (S-7).
 - **Randomized combat**, difficulty levels, and AI tuning surfaces (D-15, D-16).
 - **Gestures beyond a tap or drag**, camera pan/zoom, rotation handling (still landscape-locked,
-  D-10), and pause.
+  D-10), and pause. FR-5 settled which of the two the send-army interaction is: **drag only** —
+  tap-to-tap is deliberately not offered as a second path to the same command.
+- **Choosing how many units a send dispatches.** FR-5 fixes it at half the garrison rounded down,
+  never below 1. No slider, percentage picker, multi-tap-to-add, or HUD showing totals.
+- **Rally points, army recall, and interception in flight.** FR-4 settled that armies are inert
+  once launched; FR-5 does not reopen it.
 - **Fog of war and pathfinding around obstacles.** Armies travel base-to-base in a straight line.
 - **Nice-to-have, explicitly deferred rather than forgotten**: a HUD totalling a player's units,
   garrison caps, pause, camera pan/zoom, and the build/version info and app icon still owed from
