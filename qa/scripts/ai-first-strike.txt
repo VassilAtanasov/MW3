@@ -1,0 +1,5 @@
+# Tap Play, then press nothing - hold just long enough for the AI's first decision (tick 20) to
+# fire, so its dump shows the AI's first army in flight and nothing from the human.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+160 wait

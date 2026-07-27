@@ -8,10 +8,11 @@ namespace MW3.Game;
 
 /// <summary>
 /// Draws the match live: one circle per base, tinted by owner, with its rising garrison count, plus
-/// the drag interaction that sends armies (FR-5). Owns a fresh <see cref="Match"/> per instance, so
-/// pushing this screen always starts a new match. Presentation reads and commands write: this class
-/// submits a <see cref="SendArmyCommand"/> only through <see cref="Match.Execute"/> on a completed
-/// drag and never mutates match state directly.
+/// the drag interaction that sends armies (FR-5). Owns a fresh <see cref="Match"/> and a fresh
+/// <see cref="MatchRunner"/> (with a fresh AI brain) per instance, so pushing this screen always
+/// starts a new match against a new opponent. Presentation reads and commands write: this class
+/// reads <see cref="Match"/> state directly to draw it, but advances and submits commands only
+/// through <see cref="MatchRunner"/> - the runner is the one object that owns the match (FR-6).
 /// </summary>
 internal sealed class MatchScreen : IScreen
 {
@@ -22,9 +23,9 @@ internal sealed class MatchScreen : IScreen
     private static readonly Color _selectionHighlightColor = Color.Gold;
 
     private readonly Match _match = new();
+    private readonly MatchRunner _runner;
 
     private FixedStepClock _clock = new(Match.TickDurationMilliseconds);
-    private long _elapsedTicks;
 
     private SpriteFont? _font;
     private Texture2D? _circleTexture;
@@ -45,6 +46,11 @@ internal sealed class MatchScreen : IScreen
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
+
+    public MatchScreen()
+    {
+        _runner = new MatchRunner(_match, new AiBrain(_match.AiPlayer));
+    }
 
     public Color BackgroundColor => Color.DarkSlateGray;
 
@@ -73,8 +79,7 @@ internal sealed class MatchScreen : IScreen
 
         if (ticks > 0)
         {
-            _match.Advance(ticks);
-            _elapsedTicks += ticks;
+            _runner.Advance(ticks);
             PruneResolvedArmyText();
         }
 
@@ -111,7 +116,7 @@ internal sealed class MatchScreen : IScreen
                         var unitCount = Math.Max(1, source.GarrisonCount / 2);
                         if (unitCount <= source.GarrisonCount)
                         {
-                            _match.Execute(new SendArmyCommand(_match.HumanPlayer, sourceId, target, unitCount));
+                            _runner.Execute(new SendArmyCommand(_match.HumanPlayer, sourceId, target, unitCount));
                         }
                     }
                 }
@@ -260,7 +265,7 @@ internal sealed class MatchScreen : IScreen
             }
 
             var span = army.ArrivalTick - army.LaunchTick;
-            var fraction = span > 0 ? (double)(_elapsedTicks - army.LaunchTick) / span : 1.0;
+            var fraction = span > 0 ? (double)(_match.ElapsedTicks - army.LaunchTick) / span : 1.0;
             fraction = Math.Clamp(fraction, 0.0, 1.0);
 
             var x = source.Position.X + ((target.Position.X - source.Position.X) * fraction);
@@ -292,7 +297,7 @@ internal sealed class MatchScreen : IScreen
     internal void WriteStateDump(string path)
     {
         using var writer = new StreamWriter(path);
-        writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_elapsedTicks}"));
+        writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_match.ElapsedTicks}"));
 
         foreach (var b in _match.Bases)
         {
