@@ -59,3 +59,39 @@ standalone). Records outcome and lessons; never gates or reopens a shipped featu
   that Android's hardware back button must be intercepted in `MainActivity.DispatchKeyEvent`, never
   `OnBackPressed` or a `Keyboard` check - binding for FR-5 (tap input) and FR-7 (return to welcome),
   which both touch Android back/hardware-key handling again.
+
+## 2026-07-27 — autopilot run (Core gameplay loop: #24, #25)
+- Outcome: 2 shipped (#24 AI opponent reinforces and attacks via PR #26; #25 Victory and defeat end
+  the match via PR #27), 0 skipped-for-clarification, 0 circuit breakers tripped, `main` green. This
+  clears the entire Core gameplay loop feature backlog - phase 2 is complete.
+- Went well: #25 (the more intricate feature - outcome freezing across three layers, a
+  press-time-vs-release-time dismissal rule, a `--time-scale` QA lever) was approved and verified on
+  the *first* pass with zero findings from either the reviewer or QA - the most complex feature
+  shipped so far with the cleanest single-pass result. Both features' headless test suites (94 tests
+  by the end) caught real behavioral bugs before they ever reached review: #24's AI heuristic
+  idle-locked in an early draft of the passive-human test (turned out to be the match's natural
+  end-state, not a bug, once traced) and #25's first hand-authored "prove victory is attainable"
+  script failed outright because it used arbitrary send counts a real drag can never produce (every
+  drag is `floor(garrison / 2)`, not a chosen number) - both caught by running the test before
+  shipping, not by a human or reviewer noticing later.
+- Caused rework: #24 needed one review cycle - a Major finding (AI could pick a base sitting at
+  exactly zero garrison, left there by a repelled attack, as a reinforcement source, producing a
+  command `Match.Execute` would reject) fixed with two regression tests constructing the exact
+  scenario, then re-approved on delta re-review. This is now a standing note in
+  `docs/CONVENTIONS.md` (see process adjustment below) because it's a *general* shape - a value
+  computed from live state used in a command without being re-validated against that same live
+  state - not an AI-specific one. Separately, discovering the map's underlying symmetry (any
+  full-garrison strike launched at tick T against a base that has produced identically since tick 0
+  falls exactly as far short as the attacker's own head start, regardless of T) took two failed
+  attempts at scripting #25's victory sequence before landing on a strategy (defend, then attack,
+  then a persistent-siege fallback) that reliably overcomes it - genuine design exploration, not a
+  mistake to prevent next time.
+- Follow-ups filed: #28 MI Pad 4 shows as "unauthorized" in `adb` - device QA has been blocked on
+  both #24 and #25 by this (distinct from #7's "no device attached at all" - here one is attached
+  and listed, but its USB-debugging authorization dialog hasn't been approved on the device itself,
+  which this automation can't do). Every device-blocking acceptance criterion on both features was
+  reported as not-verifiable rather than passed or failed.
+- Process adjustments applied: added a bullet to `docs/CONVENTIONS.md`'s MW3-specific section
+  naming the "computed send size vs. live garrison" validation gap #24's review caught, so the next
+  feature that computes a command value from live state gets checked against this pattern explicitly
+  rather than relying on the reviewer to notice the asymmetry by inspection again.

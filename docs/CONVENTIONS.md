@@ -108,6 +108,14 @@ These come from the standing decisions in `docs/ARCHITECTURE.md` and bind every 
   time and any RNG seed are passed in — this is what keeps a future authoritative server able to
   reuse the library (S-7) and what makes rules assertable in tests.
 - **Original art only** (S-6). Mechanics may follow the reference game; every asset is recreated.
+- **A send size computed from live state (`garrison / 2`, clamped to a minimum of 1) is validated
+  against that same live garrison before it becomes a command, on every path that constructs one.**
+  Caught in review on FR-6 (issue #24): the AI's largest-garrison source selection had no floor on
+  `GarrisonCount`, so a base left at exactly zero by a repelled attack (N == M leaves it owned but
+  empty) could still be picked as a reinforcement source, producing a command `Match.Execute` would
+  reject. The human's own drag path (`MatchScreen.HandleDrag`) already had this guard; the AI path
+  didn't, purely by omission — treat this asymmetry as the thing to check for whenever a second
+  code path computes the same kind of value the first one already validates.
 
 Sections above that describe **EF Core, ASP.NET Core, DI containers and `IOptions`** do not apply
 yet — there is no server, database or auth until the multiplayer phase (D-4). They become live the
