@@ -214,3 +214,73 @@ Try next: add a `MW3.Core` type that has to interoperate with the shared-map + r
 pattern from this feature — e.g. sketch (without wiring it in) what a `SendArmyCommand` record for
 FR-4 would look like, and consider what a reflection test analogous to the ones here would need to
 assert once ownership becomes mutable mid-match.
+
+## 2026-07-27 — #9 Play button opens a match screen and back returns to the welcome screen
+Concepts: seam interfaces for untestable I/O, closed record hierarchies with pattern matching, edge-detection state machines, Stack<T> for navigation, Android key-event dispatch order, CA2000 vs. ownership transfer
+- **An interface as the one seam between untestable I/O and everything else** — `IInputSource`
+  (`src/MW3.Game/IInputSource.cs`) is read by every screen; `MouseAndTouchInputSource` wraps
+  `Mouse`/`TouchPanel`/`Keyboard`, and `ScriptedInputSource` replays a file instead. Why here: D-17
+  rejected injecting synthetic OS events as the way to test navigation, so the seam has to sit one
+  level up — screens ask "is the pointer down, where, was back requested" and never care which
+  implementation is answering. Pitfall: a seam is only as good as its narrowest consumer — the
+  moment a screen reached past `IInputSource` for `Mouse.GetState()` directly (which none do here,
+  but it would compile fine if one did), the whole scripted-replay guarantee silently stops applying
+  to that screen with no compiler error to catch it.
+- **A closed set of variants as a sealed record hierarchy, matched with `switch`** —
+  `ScriptDirective` (`src/MW3.Game/ScriptDirective.cs`) is an abstract record with three `sealed`
+  cases (`DownDirective`, `UpDirective`, `BackDirective`); `ScriptedInputSource.Update`
+  (`ScriptedInputSource.cs:53`) pattern-matches on the concrete type in a `switch` statement. Why
+  here: a directive is genuinely one of exactly three shapes with different data (`Down`/`Up` carry
+  coordinates, `Back` carries nothing) — a single record with unused fields for the cases that don't
+  need them would let a `BackDirective` be constructed with meaningless `X`/`Y` values that compile
+  fine but mean nothing. Pitfall: this only stays exhaustive by convention — the `switch` has no
+  `default` arm printing a warning if a fourth directive type is added later, so a missed case
+  silently does nothing at runtime instead of failing to compile (unlike the `MapSlotKind` enum
+  `switch` from #8, a `switch` over an open set of `record` types can't be marked exhaustive by the
+  compiler the same way).
+- **Edge detection: comparing this frame's state to last frame's, not just reading the current one**
+  — `WelcomeScreen.Update` (`WelcomeScreen.cs:44`) tracks `_wasPointerPressed` and
+  `_pressStartedInsideButton` so it can tell "just pressed" and "just released" apart from "still
+  held down". Why here: the acceptance criterion is specifically about release-within-bounds
+  activating the button and release-outside not — a single per-frame `IsPointerPressed` boolean
+  can't express *transitions*, only instantaneous state, so the screen has to remember one frame of
+  history itself. Pitfall: forgetting to update `_wasPointerPressed` on *every* path through
+  `Update` (not just the branches that act on it) desyncs the edge detector permanently — every
+  future frame reads a stale "previous" value and the button either never fires again or fires on
+  the wrong frame.
+- **`Stack<IScreen>` as the entire navigation model** — `ScreenManager`
+  (`src/MW3.Game/ScreenManager.cs`) has no separate "current screen" field; `Push`/`Peek`/`Pop` on
+  a plain `Stack<T>` *is* the navigation stack (D-16). Why here: the feature's whole shape is
+  "push forward, pop back," which is exactly what a stack models with no extra bookkeeping — no
+  index to keep in sync, no separate history list. Pitfall: `Stack<T>.Pop()` throws
+  `InvalidOperationException` on an empty stack, so every caller (here, only `ScreenManager` itself)
+  must check `Count` first; the one guard that matters is the count-of-1 check before popping,
+  which is also the exact point this feature's "exit instead of pop" acceptance criterion sits on.
+- **Android's key-event dispatch order, and why overriding the "obvious" method didn't work** —
+  the first fix for the hardware back button overrode `MainActivity.OnBackPressed()`
+  (deleted before merge), which never fired; the working fix overrides `DispatchKeyEvent`
+  (`src/MW3.Android/MainActivity.cs`) instead. Why here: `Activity.dispatchKeyEvent` calls into the
+  view hierarchy (`Window.superDispatchKeyEvent`) *before* falling back to `onKeyDown`/
+  `onBackPressed` — MonoGame's own view was consuming `KEYCODE_BACK` for its polling-based
+  `Keyboard` state before the event ever reached that fallback path, on this physical device.
+  Pitfall: the "correct-looking" override (`OnBackPressed`, named exactly for this purpose) can be
+  entirely unreachable depending on what else is in the view hierarchy — when a platform callback
+  silently never fires, the fix usually isn't a different implementation of the same hook, it's a
+  hook earlier in the dispatch chain; this was only diagnosable at all because `qa-verifier` could
+  reproduce "no effect" against real hardware and rule out the relay logic by inspection first.
+- **A justified `#pragma warning disable CA2000` versus an actual `try`/`finally`** — pushing a new
+  screen (`WelcomeScreen.cs`, `MW3Game.cs`) suppresses CA2000 with a comment explaining
+  `ScreenManager` takes disposal ownership, while the screenshot `RenderTarget2D` in
+  `MW3Game.Draw` got a real `try`/`finally` instead of a suppression. Why the difference: the
+  screen case is a true false positive — the analyzer can't see that `ScreenManager.Push`/`Pop`
+  dispose what they're handed, so suppressing with a comment naming the constraint (per
+  `docs/CONVENTIONS.md`) is honest; the render-target case was a genuine gap — an exception thrown
+  between creation and the original unconditional `Dispose()` call would have leaked a GPU resource,
+  which a suppression would have hidden rather than fixed. Pitfall: CA2000 firing is not by itself
+  evidence of which situation you're in — the fix has to start from "does this object's owner
+  actually dispose it on every path," and only becomes a suppression once that's verified true.
+
+Try next: add a fourth `ScriptDirective` case (e.g. a `WaitDirective` that does nothing but consume
+a frame) and notice the `switch` in `ScriptedInputSource.Update` compiles fine without handling it —
+then add a `default` arm that throws, and see which of the four committed `qa/scripts/*.txt` files,
+if any, would have hidden the gap by never needing that case at all.
