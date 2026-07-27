@@ -7,6 +7,15 @@
     <ApplicationId>com.vassilatanasov.mw3</ApplicationId>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <!-- Debug builds default to Fast Deployment: assemblies are pushed to the device separately by
+         `dotnet build -t:Run`'s own deploy step rather than embedded in the APK. A plain
+         `adb install` of that APK (CI's artifact) then aborts on launch with no assemblies found.
+         Embedding keeps the CI-published Debug APK self-contained and installable standalone,
+         which is what FR-4 requires (see docs/welcome-screen/ARCHITECTURE.md section 2a). -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.*" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
