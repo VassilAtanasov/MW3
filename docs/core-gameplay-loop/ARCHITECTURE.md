@@ -44,16 +44,50 @@ and no platform capability. See `docs/ARCHITECTURE.md` §2.
 screenshot, Android install/launch, and the gate. Everything there still applies verbatim; note the
 repo-wide rule that the solution is built with `-m:1` (see CLAUDE.md).
 
-This phase adds exactly one command, introduced by FR-5 and **not present until that feature
-merges** — until then the phase-1 section is the whole story:
+FR-2 adds exactly one command to the desktop head's smoke path — `MW3.Android` accepts no CLI args
+and stays verified over `adb` (D-3, D-8), so this exists to give `qa-verifier` an unattended way to
+drive screen navigation without synthetic OS events (D-17):
 
 ```powershell
-dotnet run --project src/MW3.Desktop -- --smoke --script <commands.txt> --screenshot out.png
+dotnet run --project src/MW3.Desktop -- --script <commands.txt> --screenshot out.png
 ```
 
-Replays a scripted command sequence against a fresh match, then writes one frame and exits 0. This
-is how `qa-verifier` asserts interactive and AI behaviour without synthetic input (D-17). The exact
-file format is settled by FR-5's `/kickoff` and documented here when it lands.
+Replays the directives in `<commands.txt>` against a fresh app (no `--smoke` needed alongside it —
+`--script` has its own exit rule), then writes one frame and exits 0. FR-5 extends the same
+directive vocabulary to sending armies rather than introducing a second mechanism.
+
+**File format** — one directive per line, `<frame> <directive> [args]`. Blank lines are skipped;
+`#` starts a full-line comment. `<frame>` is a non-negative integer frame index (the first `Update`
+call is frame 0). Directives:
+
+- `down <x> <y>` — pointer press at normalized `0..1` coordinates.
+- `up <x> <y>` — pointer release at normalized `0..1` coordinates.
+- `back` — a back request (Escape on desktop, the hardware back button on Android).
+
+Coordinates are normalized so the same script behaves identically at any window size or device
+aspect ratio (D-14's precedent, applied to input instead of the map).
+
+**Exit rule** — playback ends a fixed 10 frames after the highest frame number in the file
+(`10 up 0.2 0.2` ends the run at frame 20), then the screenshot is written if `--screenshot` was
+given, and the process exits 0. The fixed frame count is what keeps the check from flaking on
+timing. An unparseable script (unknown directive, wrong argument count, non-numeric frame or
+coordinate) exits non-zero with a message naming the offending line, before any graphics device is
+created.
+
+Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/` (`play.txt`,
+`play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so the commands below are
+reproducible on a clean clone:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --smoke --screenshot welcome.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/play.txt --screenshot match.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/play-then-back.txt --screenshot back.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/press-then-drag-off.txt --screenshot drag.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/back-and-forth.txt --screenshot cycles.png
+```
+
+`match.png` is not byte-identical to `welcome.png` (a different screen is showing); `back.png`,
+`drag.png`, and `cycles.png` all are (navigation returned to, or never left, the welcome screen).
 
 ## 3. Project layout
 

@@ -1,17 +1,15 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using Microsoft.Xna.Framework.Input.Touch;
 
 namespace MW3.Game;
 
 /// <summary>
-/// The welcome screen: the game title and a single inert "Play" button. Positions and sizes are
-/// derived from the current viewport, so layout stays centred at any window size or device
-/// aspect ratio.
+/// The welcome screen: the game title and a "Play" button that pushes the match screen. Positions
+/// and sizes are derived from the current viewport, so layout stays centred at any window size or
+/// device aspect ratio.
 /// </summary>
-public sealed class WelcomeScreen : IDisposable
+internal sealed class WelcomeScreen : IScreen
 {
     private const string _title = "MW3";
     private const string _buttonLabel = "Play";
@@ -19,6 +17,10 @@ public sealed class WelcomeScreen : IDisposable
 
     private SpriteFont? _font;
     private Texture2D? _buttonTexture;
+    private bool _wasPointerPressed;
+    private bool _pressStartedInsideButton;
+
+    public Color BackgroundColor => Color.CornflowerBlue;
 
     public void LoadContent(ContentManager content, GraphicsDevice graphicsDevice)
     {
@@ -32,20 +34,40 @@ public sealed class WelcomeScreen : IDisposable
     }
 
     /// <summary>
-    /// Checks for a click or tap on the Play button. Deliberately does nothing when one occurs -
-    /// the button is inert by design, not by omission; navigation arrives in a later feature.
+    /// Activates on release: the press must start and end within the button's bounds, so pressing
+    /// inside and dragging off before releasing does not navigate.
     /// </summary>
-    public void Update(Viewport viewport)
+    public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator)
     {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(navigator);
+
         if (_font is null)
         {
             return;
         }
 
-        if (IsPointerPressed(GetButtonBounds(viewport)))
+        var isInsideNow = GetButtonBounds(viewport).Contains(input.PointerPosition);
+
+        if (input.IsPointerPressed && !_wasPointerPressed)
         {
-            // Intentionally inert.
+            _pressStartedInsideButton = isInsideNow;
         }
+        else if (!input.IsPointerPressed && _wasPointerPressed)
+        {
+            if (_pressStartedInsideButton && isInsideNow)
+            {
+                // CA2000 does not see that ScreenManager (the navigator) takes ownership and
+                // disposes pushed screens (Pop and ScreenManager.Dispose both call Dispose).
+#pragma warning disable CA2000
+                navigator.Push(new MatchScreen());
+#pragma warning restore CA2000
+            }
+
+            _pressStartedInsideButton = false;
+        }
+
+        _wasPointerPressed = input.IsPointerPressed;
     }
 
     public void Draw(SpriteBatch spriteBatch, Viewport viewport)
@@ -88,25 +110,5 @@ public sealed class WelcomeScreen : IDisposable
         var x = (viewport.Width - width) / 2;
         var y = (int)(viewport.Height * 0.55f);
         return new Rectangle(x, y, width, height);
-    }
-
-    private static bool IsPointerPressed(Rectangle bounds)
-    {
-        var mouse = Mouse.GetState();
-        if (mouse.LeftButton == ButtonState.Pressed && bounds.Contains(mouse.Position))
-        {
-            return true;
-        }
-
-        var touches = TouchPanel.GetState();
-        for (var i = 0; i < touches.Count; i++)
-        {
-            if (touches[i].State == TouchLocationState.Pressed && bounds.Contains(touches[i].Position))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
