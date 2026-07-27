@@ -189,11 +189,18 @@ These run without a human gate and never block or reopen a feature:
   and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. No phase-3
   feature has been kicked off yet, so there is no board and nothing for `/autopilot` to drain until
   `/kickoff` has run at least once.
-- **Device QA is blocked** by follow-up #28: the MI Pad 4 is listed by `adb` but shows as
-  `unauthorized` — its USB-debugging dialog was never approved on the tablet itself, which this
-  automation cannot do. Every device-blocking criterion on #24 and #25 was reported *not
-  verifiable* rather than passed. Phase 3 keeps device criteria blocking, so this must be cleared
-  by a physical tap on the device before the first feature reaches `qa-verifier`.
+- **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
+  closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
+  the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
+  in real play) and was briefly filed as #29 — that was a **false positive**: the installed build
+  predated the FR-6/FR-7 merges by minutes (every install attempt while the device was
+  `unauthorized` had silently no-opped, so a stale APK kept running). Rebuilding from `main` and
+  reinstalling (`dotnet build src/MW3.Android/MW3.Android.csproj -c Debug -m:1`, then
+  `adb install -r <apk>`) confirmed the AI, garrison production, victory/defeat, and navigation all
+  work correctly on hardware — #29 was closed as not-a-bug. **Lesson for future device QA**: before
+  trusting any on-device check, confirm `adb shell dumpsys package <pkg> | grep lastUpdateTime` is
+  newer than the feature under test, especially after a stretch where installs may have been
+  silently failing (e.g. `unauthorized`).
 - Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200
   panel resolution, in the landscape lock. The MonoGame viewport is smaller than the panel —
   roughly `1808x1018` — because `MainActivity` requests no fullscreen/immersive theme, so Android
