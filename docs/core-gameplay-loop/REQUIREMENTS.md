@@ -214,8 +214,10 @@ Only the ones that genuinely constrain design:
   aggregate (D-13).
 - **Cost and speed of the build/run loop** remain the primary constraint (S-5): `dotnet` commands
   only, free CI, no engine binary, no paid runner.
-- **A physical Android device is attached from FR-2 onward** (MI PAD 4, Android 11, 1920x1200 in
-  the landscape lock), so device-dependent criteria are verified per feature and block the PR.
+- **A physical Android device is attached from FR-2 onward** (MI PAD 4, Android 11, 1920x1200 panel
+  resolution, in the landscape lock — the MonoGame viewport it actually draws into is smaller,
+  roughly `1808x1018`, due to Android system chrome; see `ARCHITECTURE.md` §2a "Desktop window
+  size"), so device-dependent criteria are verified per feature and block the PR.
   Phase 1 deferred them to follow-up issue #7 for want of hardware; that deferral does not carry
   into this phase (#7 was verified and closed on 26-07-2026). Android input is injected with
   `adb shell input tap` / `keyevent`, which is real OS input and needs none of the D-17 seam.
