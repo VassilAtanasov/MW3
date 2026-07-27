@@ -86,10 +86,15 @@ This is how `qa-verifier` asserts exact model numbers instead of inferring them 
 FR-6, and FR-7 all reuse it rather than inventing a second state-inspection mechanism.
 
 **Desktop window size** — `MW3Game` sets the desktop head's `PreferredBackBufferWidth`/`Height` to
-`1280x720`, the same reference resolution every screen's layout already scales from. This is one
-of the two resolutions FR-3's circle-layout criterion is checked at; the other, `1920x1200`, is the
-attached device's own screen and is checked there directly (D-3, D-8) - the desktop window is never
-resized to it.
+`1280x720`, the same reference resolution every screen's layout already scales from. This is one of
+the two viewports FR-3's circle-layout criterion is checked at; the other is the attached device's
+own screen, checked there directly (D-3, D-8) rather than by resizing the desktop window to match.
+That device viewport is **not** the panel's full `1920x1200` - `MainActivity` requests no
+fullscreen/immersive theme, so Android draws the status and soft-navigation bars as chrome on top
+of the surface, shrinking what MonoGame actually receives to roughly `1808x1018` (measured on the
+attached MI Pad 4; see follow-up #15 for correcting this repo-wide rather than only here). D-14's
+viewport-derived layout adapts to whatever the real value is regardless, so this doesn't affect
+correctness - only any future arithmetic that assumes the panel's advertised resolution literally.
 
 Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/` (`play.txt`,
 `play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so the commands below are
