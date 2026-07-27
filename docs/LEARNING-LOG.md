@@ -349,3 +349,6 @@ of `MatchScreen.WriteStateDump`'s shape (open a `StreamWriter`, one line per ite
 
 ## 2026-07-27 — #15 Correct viewport docs: 1920x1200 is the panel, not the MonoGame viewport
 No new concepts — docs-only correction (CLAUDE.md, REQUIREMENTS.md), no code changed.
+
+## 2026-07-27 — #12 Document REST fallback for reading full issue/PR bodies
+No new concepts — docs-only addition to CLAUDE.md's GitHub access section, no code changed.
