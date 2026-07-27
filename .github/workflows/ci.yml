@@ -42,7 +42,7 @@ jobs:
           $staging = Join-Path $pwd 'artifacts/apk'
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item 'src/MW3.Android/bin/Debug/net10.0-android/com.vassilatanasov.mw3-Signed.apk' `
-                    (Join-Path $staging "mw3-apk-$shortSha.apk")
+                    (Join-Path $staging "mw3-apk-$shortSha.apk") -ErrorAction Stop
           "SHORT_SHA=$shortSha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # No `if: always()` here, deliberately: a gate that failed above must never publish an
