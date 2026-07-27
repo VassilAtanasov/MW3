@@ -1,0 +1,4 @@
+# Tap Play, then hold the match screen long enough for at least 40 ticks to elapse.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+400 wait

@@ -4,6 +4,7 @@ var smokeTest = args.Contains("--smoke");
 
 string? screenshotPath = null;
 string? scriptPath = null;
+string? dumpStatePath = null;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--screenshot" && i + 1 < args.Length)
@@ -13,6 +14,10 @@ for (var i = 0; i < args.Length; i++)
     else if (args[i] == "--script" && i + 1 < args.Length)
     {
         scriptPath = args[i + 1];
+    }
+    else if (args[i] == "--dump-state" && i + 1 < args.Length)
+    {
+        dumpStatePath = args[i + 1];
     }
 }
 
@@ -30,5 +35,5 @@ if (scriptPath is not null)
     }
 }
 
-using var game = new MW3Game(exitAfterFirstDraw: smokeTest, screenshotPath: screenshotPath, scriptDirectives: scriptDirectives);
+using var game = new MW3Game(exitAfterFirstDraw: smokeTest, screenshotPath: screenshotPath, dumpStatePath: dumpStatePath, scriptDirectives: scriptDirectives);
 game.Run();

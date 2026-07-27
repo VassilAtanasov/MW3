@@ -5,8 +5,8 @@ namespace MW3.Game;
 /// <summary>
 /// Parses a `--script` file into ordered directives. One `&lt;frame&gt; &lt;directive&gt; [args]`
 /// per line; blank lines are skipped and `#` starts a full-line comment. Directives are
-/// `down &lt;x&gt; &lt;y&gt;`, `up &lt;x&gt; &lt;y&gt;` (normalized 0..1 pointer coordinates), and
-/// `back`.
+/// `down &lt;x&gt; &lt;y&gt;`, `up &lt;x&gt; &lt;y&gt;` (normalized 0..1 pointer coordinates),
+/// `back`, and `wait` (a no-argument timeline marker that only extends playback).
 /// </summary>
 public static class ScriptParser
 {
@@ -48,6 +48,8 @@ public static class ScriptParser
                 new UpDirective(frame, upX, upY),
             "back" when tokens.Length == 2 =>
                 new BackDirective(frame),
+            "wait" when tokens.Length == 2 =>
+                new WaitDirective(frame),
             _ => throw new ScriptParseException(lineNumber, $"line {lineNumber}: unrecognized directive '{line}'."),
         };
     }

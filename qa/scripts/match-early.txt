@@ -1,0 +1,4 @@
+# Tap Play, then hold the match screen briefly before the script ends.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+20 wait

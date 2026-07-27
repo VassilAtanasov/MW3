@@ -69,6 +69,9 @@ internal sealed class ScriptedInputSource : IInputSource
                 case BackDirective:
                     BackRequested = true;
                     break;
+                case WaitDirective:
+                    // Intentionally a no-op; its frame already counts toward _lastDirectiveFrame.
+                    break;
             }
         }
     }
