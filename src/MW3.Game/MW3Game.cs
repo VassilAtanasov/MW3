@@ -54,7 +54,14 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
-        if (_screenManager.Update(_input, GraphicsDevice.Viewport))
+        var backRequestedExit = _screenManager.Update(_input, GraphicsDevice.Viewport);
+
+        // Outside scripted playback, a back request on the last screen exits immediately - there
+        // is no frame count to honour. Under --script, exiting here instead of at the documented
+        // "10 frames after the last directive" point would skip that fixed-frame wait and, if
+        // --screenshot was given, skip capturing it too - so scripted mode defers to Draw's
+        // isFinalFrame check even when back already asked to exit.
+        if (backRequestedExit && _scriptedInput is null)
         {
             Exit();
         }
