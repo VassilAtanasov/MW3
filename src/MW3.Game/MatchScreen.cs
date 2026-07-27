@@ -1,53 +1,152 @@
+using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using MW3.Core;
 
 namespace MW3.Game;
 
 /// <summary>
-/// Placeholder match screen: a background colour distinct from the welcome screen's and one word,
-/// laid out from the viewport. Wiring the FR-1 match model into this screen is FR-3's job.
+/// Draws the match live: one circle per base, tinted by owner, with its rising garrison count.
+/// Owns a fresh <see cref="Match"/> per instance, so pushing this screen always starts a new
+/// match. Read-only - nothing here submits a command or changes ownership (FR-4/FR-5's job).
 /// </summary>
 internal sealed class MatchScreen : IScreen
 {
-    private const string _label = "Match";
-    private const float _referenceViewportWidth = 1280f;
+    private const float _radiusFraction = 0.15f;
+
+    private readonly Match _match = new();
+
+    private FixedStepClock _clock = new(Match.TickDurationMilliseconds);
+    private long _elapsedTicks;
 
     private SpriteFont? _font;
+    private Texture2D? _circleTexture;
+
+    // Garrison text is formatted only when a base's count actually changes (at most once every
+    // ProductionPeriodTicks per base), not on every Draw call - frame-loop code allocates nothing
+    // per frame (docs/CONVENTIONS.md).
+    private string[]? _garrisonText;
+    private int[]? _lastGarrisonCount;
 
     public Color BackgroundColor => Color.DarkSlateGray;
 
     public void LoadContent(ContentManager content, GraphicsDevice graphicsDevice)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
 
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
+        _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
+
+        _garrisonText = new string[_match.Bases.Count];
+        _lastGarrisonCount = new int[_match.Bases.Count];
+        for (var i = 0; i < _lastGarrisonCount.Length; i++)
+        {
+            _lastGarrisonCount[i] = -1;
+        }
     }
 
-    public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator)
+    public void Update(IInputSource input, Viewport viewport, IScreenNavigator navigator, long elapsedMilliseconds)
     {
-        // No interaction on this placeholder screen; back navigation is handled by ScreenManager.
+        var (clock, ticks) = _clock.Advance(elapsedMilliseconds);
+        _clock = clock;
+
+        if (ticks > 0)
+        {
+            _match.Advance(ticks);
+            _elapsedTicks += ticks;
+        }
     }
 
     public void Draw(SpriteBatch spriteBatch, Viewport viewport)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_font is null)
+        if (_font is null || _circleTexture is null || _garrisonText is null || _lastGarrisonCount is null)
         {
             return;
         }
 
-        var scale = viewport.Width / _referenceViewportWidth;
-        var labelSize = _font.MeasureString(_label) * scale;
-        var labelPosition = new Vector2(
-            (viewport.Width - labelSize.X) / 2f,
-            (viewport.Height - labelSize.Y) / 2f);
+        var radius = Math.Min(viewport.Width, viewport.Height) * _radiusFraction;
+        var diameter = (int)(radius * 2);
+        var bases = _match.Bases;
 
-        spriteBatch.DrawString(_font, _label, labelPosition, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        for (var i = 0; i < bases.Count; i++)
+        {
+            var b = bases[i];
+            var center = new Vector2((float)(b.Position.X * viewport.Width), (float)(b.Position.Y * viewport.Height));
+            var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
+            spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(b.Owner));
+
+            if (_lastGarrisonCount[i] != b.GarrisonCount)
+            {
+                _garrisonText[i] = b.GarrisonCount.ToString(CultureInfo.InvariantCulture);
+                _lastGarrisonCount[i] = b.GarrisonCount;
+            }
+
+            var garrisonText = _garrisonText[i];
+            var unscaledSize = _font.MeasureString(garrisonText);
+            var textScale = (diameter * 0.5f) / unscaledSize.Y;
+            var textSize = unscaledSize * textScale;
+            var textPosition = new Vector2(center.X - (textSize.X / 2f), center.Y - (textSize.Y / 2f));
+            spriteBatch.DrawString(_font, garrisonText, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
+        }
+    }
+
+    /// <summary>
+    /// Writes the match's elapsed ticks and one line per base (id, owner, garrison) to
+    /// <paramref name="path"/>, for `--dump-state` to give QA exact numbers instead of pixels.
+    /// </summary>
+    internal void WriteStateDump(string path)
+    {
+        using var writer = new StreamWriter(path);
+        writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_elapsedTicks}"));
+
+        foreach (var b in _match.Bases)
+        {
+            var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
+            writer.WriteLine(FormattableString.Invariant($"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount}"));
+        }
     }
 
     public void Dispose()
     {
+        _circleTexture?.Dispose();
+    }
+
+    private static Color GetOwnerColor(Player? owner)
+    {
+        if (owner is null)
+        {
+            return Color.Gray;
+        }
+
+        return owner.ControllerKind switch
+        {
+            PlayerControllerKind.Human => Color.RoyalBlue,
+            PlayerControllerKind.Ai => Color.Firebrick,
+            _ => Color.Gray,
+        };
+    }
+
+    private static Texture2D CreateCircleTexture(GraphicsDevice graphicsDevice, int diameter)
+    {
+        var texture = new Texture2D(graphicsDevice, diameter, diameter);
+        var data = new Color[diameter * diameter];
+        var radius = diameter / 2f;
+        var center = new Vector2(radius, radius);
+
+        for (var y = 0; y < diameter; y++)
+        {
+            for (var x = 0; x < diameter; x++)
+            {
+                var distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                data[(y * diameter) + x] = distance <= radius ? Color.White : Color.Transparent;
+            }
+        }
+
+        texture.SetData(data);
+        return texture;
     }
 }

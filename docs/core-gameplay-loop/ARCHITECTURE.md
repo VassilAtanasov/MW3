@@ -63,6 +63,9 @@ call is frame 0). Directives:
 - `down <x> <y>` — pointer press at normalized `0..1` coordinates.
 - `up <x> <y>` — pointer release at normalized `0..1` coordinates.
 - `back` — a back request (Escape on desktop, the hardware back button on Android).
+- `wait` (FR-3) — a timeline marker with no effect, letting a script extend to a chosen frame
+  without a fake pointer event. Useful once a screen has live state (the match screen) that a
+  script wants to hold on for a while before ending.
 
 Coordinates are normalized so the same script behaves identically at any window size or device
 aspect ratio (D-14's precedent, applied to input instead of the map).
@@ -73,6 +76,25 @@ given, and the process exits 0. The fixed frame count is what keeps the check fr
 timing. An unparseable script (unknown directive, wrong argument count, non-numeric frame or
 coordinate) exits non-zero with a message naming the offending line, before any graphics device is
 created.
+
+**`--dump-state <path>` (FR-3)** — at the same final frame the screenshot is taken, writes the
+match's total elapsed ticks and one line per base (id, owner - the human player, the AI player, or
+`Neutral` - and garrison count), then the process still exits 0. Independent of `--screenshot`:
+works with or without it, and omitting `--dump-state` writes no file. Only meaningful once the
+match screen is showing - reads nothing if `--script` never navigated past the welcome screen.
+This is how `qa-verifier` asserts exact model numbers instead of inferring them from pixels; FR-4,
+FR-6, and FR-7 all reuse it rather than inventing a second state-inspection mechanism.
+
+**Desktop window size** — `MW3Game` sets the desktop head's `PreferredBackBufferWidth`/`Height` to
+`1280x720`, the same reference resolution every screen's layout already scales from. This is one of
+the two viewports FR-3's circle-layout criterion is checked at; the other is the attached device's
+own screen, checked there directly (D-3, D-8) rather than by resizing the desktop window to match.
+That device viewport is **not** the panel's full `1920x1200` - `MainActivity` requests no
+fullscreen/immersive theme, so Android draws the status and soft-navigation bars as chrome on top
+of the surface, shrinking what MonoGame actually receives to roughly `1808x1018` (measured on the
+attached MI Pad 4; see follow-up #15 for correcting this repo-wide rather than only here). D-14's
+viewport-derived layout adapts to whatever the real value is regardless, so this doesn't affect
+correctness - only any future arithmetic that assumes the panel's advertised resolution literally.
 
 Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/` (`play.txt`,
 `play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so the commands below are
@@ -88,6 +110,20 @@ dotnet run --project src/MW3.Desktop -- --script qa/scripts/back-and-forth.txt -
 
 `match.png` is not byte-identical to `welcome.png` (a different screen is showing); `back.png`,
 `drag.png`, and `cycles.png` all are (navigation returned to, or never left, the welcome screen).
+
+FR-3 adds two more, holding the match screen for different lengths of time before ending
+(`qa/scripts/match-early.txt`, `qa/scripts/match-late.txt` — the latter long enough for at least 40
+ticks to elapse):
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/match-early.txt --screenshot early.png --dump-state early.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/match-late.txt --screenshot late.png --dump-state late.txt
+```
+
+`late.png` is not byte-identical to `early.png` (the garrison numbers changed); running either
+script again reproduces its own screenshot byte-for-byte. Each dump reports elapsed ticks and, for
+every owned base, a garrison of exactly `10 + elapsedTicks / 10`; neutral bases stay at exactly 5
+in both.
 
 ## 3. Project layout
 

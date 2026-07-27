@@ -13,6 +13,7 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 {
     private readonly bool _exitAfterFirstDraw;
     private readonly string? _screenshotPath;
+    private readonly string? _dumpStatePath;
     private readonly GraphicsDeviceManager _graphics;
     private readonly ScreenManager _screenManager = new();
     private readonly IInputSource _input;
@@ -20,11 +21,21 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 
     private SpriteBatch? _spriteBatch;
 
-    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null)
+    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null)
     {
         _exitAfterFirstDraw = exitAfterFirstDraw;
         _screenshotPath = screenshotPath;
-        _graphics = new GraphicsDeviceManager(this);
+        _dumpStatePath = dumpStatePath;
+
+        // 1280x720 matches the reference resolution every screen's layout already scales from,
+        // and is one of the two resolutions FR-3's non-clipping/non-overlap criterion is checked
+        // at (the other, 1920x1200, is the attached device's own screen - verified over adb).
+        _graphics = new GraphicsDeviceManager(this)
+        {
+            PreferredBackBufferWidth = 1280,
+            PreferredBackBufferHeight = 720,
+        };
+
         Content.RootDirectory = "Content";
 
         if (scriptDirectives is not null)
@@ -67,7 +78,14 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
-        var backRequestedExit = _screenManager.Update(_input, GraphicsDevice.Viewport);
+        ArgumentNullException.ThrowIfNull(gameTime);
+
+        // Screens receive only the elapsed millisecond count, never GameTime itself, so no screen
+        // can reach for a wall-clock member (D-12). MonoGame's fixed timestep (the default) makes
+        // this value identical on every Update call, which is what keeps a --script run's frame
+        // count alone determining the total elapsed time deterministically.
+        var elapsedMilliseconds = (long)gameTime.ElapsedGameTime.TotalMilliseconds;
+        var backRequestedExit = _screenManager.Update(_input, GraphicsDevice.Viewport, elapsedMilliseconds);
 
         // Outside scripted playback, a back request on the last screen exits immediately - there
         // is no frame count to honour. Under --script, exiting here instead of at the documented
@@ -102,6 +120,11 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
             {
                 GraphicsDevice.SetRenderTarget(null);
                 SaveScreenshot(screenshotTarget, _screenshotPath!);
+            }
+
+            if (isFinalFrame && _dumpStatePath is not null && _screenManager.Current is MatchScreen matchScreen)
+            {
+                matchScreen.WriteStateDump(_dumpStatePath);
             }
         }
         finally
