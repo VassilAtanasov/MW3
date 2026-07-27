@@ -352,3 +352,70 @@ No new concepts — docs-only correction (CLAUDE.md, REQUIREMENTS.md), no code c
 
 ## 2026-07-27 — #12 Document REST fallback for reading full issue/PR bodies
 No new concepts — docs-only addition to CLAUDE.md's GitHub access section, no code changed.
+
+## 2026-07-27 — #14 Core rules for sending an army: transit, reinforcement, capture, and losses
+Concepts: enum result types instead of bool/exception, nullable `long?` as a "no value yet" sentinel, netstandard2.1's missing `ArgumentNullException.ThrowIfNull`, record equality via `!=` for domain checks, chronological event-segmentation to fix a determinism bug
+- **An `enum` return type to make every rejection reason a distinct, exhaustive case** —
+  `SendArmyOutcome` (`src/MW3.Core/SendArmyOutcome.cs`) gives `Match.Execute`
+  (`src/MW3.Core/Match.cs:61`) six named outcomes instead of a `bool` or a thrown exception. Why
+  here: the acceptance criteria explicitly require distinguishing *why* a send was rejected "in the
+  type system - not a bool, not an exception for ordinary rejections" — a caller (a future UI, the
+  AI, a test) can `switch` on the exact reason without string-matching an exception message or
+  losing information behind a single `false`. Pitfall: an `enum` is not automatically exhaustively
+  checked by the compiler at every call site the way a closed record hierarchy's `switch` can
+  warn on missing arms (see #9's `ScriptDirective` entry) — a `switch` over `SendArmyOutcome`
+  missing a case still compiles fine and silently falls through unless a `default` arm is written
+  to catch it deliberately.
+- **`long?` as "no arrival due yet" rather than a magic sentinel value** —
+  `EarliestArrivalTickUpTo` (`Match.cs`) returns `long?`, and `Advance` treats `null` as "nothing to
+  resolve in this segment, jump straight to the target tick." Why here: tick numbers are ordinary
+  non-negative `long`s, so any in-band sentinel (`-1`, `long.MaxValue`) would either collide with a
+  real value or require a second boolean to disambiguate — nullable value types exist for exactly
+  this "value, or nothing" shape, matching the same reasoning `Base.Owner` used for "no player" in
+  #8's entry. Pitfall: `earliest is null || army.ArrivalTick < earliest` (`Match.cs`) relies on the
+  short-circuit `||` evaluating the null check first; reordering the comparison would compile (a
+  `long?` supports `<` against a `long?` via lifted operators) but silently changes which armies get
+  picked when `_armies` is empty on the first iteration.
+- **`ArgumentNullException.ThrowIfNull` doesn't exist on `netstandard2.1`** — the first version of
+  `Match.Execute`'s null check used `ArgumentNullException.ThrowIfNull(command);`, which compiles
+  and analyzes cleanly as a suggestion from tooling trained on modern .NET, but failed the gate with
+  `CS0117: 'ArgumentNullException' does not contain a definition for 'ThrowIfNull'` because that
+  static helper was added in .NET 6 and isn't part of the frozen `netstandard2.1` surface `MW3.Core`
+  targets (D-2/D-6, the same constraint #1's entry hit with `ThrowIfNegative`). The fix reverted to
+  the explicit `if (command is null) { throw new ArgumentNullException(nameof(command)); }`
+  (`Match.cs:63`). Pitfall: an IDE or an AI assistant suggesting "modern" null-check syntax has no
+  way to know a project multi-targets an old TFM unless it actually tries to build against that
+  target — this is exactly the kind of gap `gate.ps1`'s build step exists to catch immediately
+  rather than at review time.
+- **Comparing a `record`'s `!=` for a domain rule, not just in tests** — `Execute` rejects a send
+  with `if (source.Owner != command.IssuingPlayer)` (`Match.cs:75`), and arrival resolution checks
+  `target.Owner == army.Owner` (`Match.cs`) to decide reinforcement versus combat. Why here: `Player`
+  is a `record` (#8's entry), so `==`/`!=` are structural equality, null-safe by the compiler's
+  generated operators - exactly what's needed to compare a nullable `Base.Owner` against a
+  non-nullable `SendArmyCommand.IssuingPlayer` without a manual null check first. Pitfall: this is
+  only safe because `Match`'s constructor is the sole place `Player` instances are created (#8's
+  entry already flagged this) - if two distinct in-match players could ever share an `Id` and
+  `ControllerKind`, these equality checks would treat them as the same player.
+- **Decomposing a batch operation into chronologically-ordered segments to fix a real determinism
+  bug** — the first version of `Match.Advance` applied one flat production diff for the whole call,
+  then resolved all due arrivals; this passed every single-scenario test but failed a dedicated
+  determinism test comparing `Advance(100)` in one call against the same total split across smaller
+  calls, because a base captured partway through a large call got zero production credit for that
+  call (production was computed once, before the capture), while the same capture landing in an
+  *earlier*, smaller call let the base receive production normally in the *next* call. The fix
+  (`Match.Advance`, `Match.cs`) walks forward one segment at a time - from now to the next army
+  arrival tick (or the requested end, whichever comes first) - applying production for exactly that
+  span, then resolving whatever arrives at that tick, before finding the next segment. Why this
+  matters as a concept: "produce the same output regardless of how the caller batches calls" is a
+  correctness property that unit tests for individual scenarios can't catch by construction - only a
+  test that deliberately varies the batching (this codebase's recurring `Advance(7); Advance(3)` vs.
+  `Advance(10)` pattern, going back to #8) exercises it. Pitfall: the fix trades a single O(1)
+  arithmetic diff for a loop bounded by the number of *distinct arrival ticks* in the requested
+  range, not by the tick count itself - correct and still cheap for a handful of in-flight armies,
+  but worth remembering if a future feature ever has hundreds of armies in flight simultaneously.
+
+Try next: add a `--dump-state` line reporting in-flight armies (source, target, unit count, ticks
+remaining) as flagged in #13's entry, now that FR-4 actually has armies to report - and, before
+wiring it up, sketch a test that advances a match in different chunk sizes with an army mid-flight
+to confirm the dump would show identical numbers regardless of chunking, the same property this
+feature's `Advance` fix depends on.
