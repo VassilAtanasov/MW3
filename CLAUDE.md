@@ -184,11 +184,16 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Core gameplay loop** (`docs/core-gameplay-loop/`). Phase 1 "Welcome screen" is
-  shipped except FR-4 — CI does **not** yet build or publish an APK (`ci.yml` installs the `android`
-  workload but has no `upload-artifact` step), so the only installable build is whatever was made
-  locally. Kicked off 27-07-2026 as issue #21 on board 18; build it before or alongside phase 2
-  rather than letting it rot.
+- Active project: **Base upgrades and types** (`docs/base-upgrades-and-types/`), discovered
+  28-07-2026. Phases 1 and 2 are both complete — phase 1's FR-4 APK artifact shipped as issue #21,
+  and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. No phase-3
+  feature has been kicked off yet, so there is no board and nothing for `/autopilot` to drain until
+  `/kickoff` has run at least once.
+- **Device QA is blocked** by follow-up #28: the MI Pad 4 is listed by `adb` but shows as
+  `unauthorized` — its USB-debugging dialog was never approved on the tablet itself, which this
+  automation cannot do. Every device-blocking criterion on #24 and #25 was reported *not
+  verifiable* rather than passed. Phase 3 keeps device criteria blocking, so this must be cleared
+  by a physical tap on the device before the first feature reaches `qa-verifier`.
 - Android QA device: **attached since 27-07-2026** — MI PAD 4 (`43e75e5`), Android 11, 1920x1200
   panel resolution, in the landscape lock. The MonoGame viewport is smaller than the panel —
   roughly `1808x1018` — because `MainActivity` requests no fullscreen/immersive theme, so Android
@@ -210,6 +215,7 @@ These run without a human gate and never block or reopen a feature:
 |---|---|---|---|---|---|
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | — | — | filled by the first `/kickoff` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -231,6 +237,17 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 | 5 | Tap and mouse input sends armies between bases on both heads | `06e4c2f2ddb8` (issue #20) |
 | 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` (issue #24) |
 | 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` (issue #25) |
+
+Phase 3 features, in dependency order (`/kickoff` one at a time — none kicked off yet):
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Garrison caps, base levels, and the upgrade command in the core rules | `4ec5d7b58f7c` |
+| 2 | Tap an owned base to open an action menu offering upgrade | `bea15b8431a8` |
+| 3 | Tower base type: conversion between producer and tower in the core rules | `ace16ed72ce6` |
+| 4 | Towers shoot enemy armies passing within range, in the core rules | `b7427e502078` |
+| 5 | The action menu gains convert, and towers, ranges, and transit losses drawn | `b6e8bc28daa9` |
+| 6 | The AI opponent upgrades, converts, and respects garrison caps | `7eea0544b808` |
 
 ### Quality gate
 
