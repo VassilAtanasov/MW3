@@ -568,3 +568,72 @@ better than a premature abstraction" would say that's fine at two call sites) �
 work (the next issue) introduces a *third* kind of boundary tick to walk to, that's the point to sketch
 whether a small shared "walk to next boundary" helper actually pays for itself, or whether it's still
 just two-and-a-bit call sites that don't yet justify one.
+
+## 2026-07-27 — #25 Victory and defeat end the match and return to the welcome screen
+Concepts: a monotonic-invariant argument used to justify reflection-constructing an unreachable state, reflecting into an internal property *setter* (not just a private method), a "frozen" guard repeated at every layer boundary, an interface seam growing a second method as a new capability appears, capturing press-time context to decide release-time behavior
+- **Proving a state is unreachable through the public API before reflecting past it** —
+  `MatchOutcomeTests.Outcome_SimultaneousElimination_DefeatTakesPrecedence` (`tests/MW3.Core.Tests/MatchOutcomeTests.cs`)
+  constructs "both players own zero bases" directly via reflection, rather than driving there through
+  ordinary `SendArmyCommand`s. Why here: a capture (`Match.ResolveArrival`, `src/MW3.Core/Match.cs`)
+  always transfers ownership *to* the attacker, never to neither player, so the combined
+  human-plus-AI owned-base count can only stay the same or grow from its starting value of 2 — it
+  can never reach 0 for both at once through legitimate play. That's a genuine mathematical proof
+  (documented as D-20 in `docs/core-gameplay-loop/ARCHITECTURE.md`), not a hunch, and it's what
+  justifies reaching for reflection here instead of treating an unreachable test as a smell to
+  eliminate. Pitfall: this kind of argument only holds as long as the invariant it rests on does —
+  if a later feature ever added a way for a base to revert to neutral (a "raze" command, say), the
+  proof would silently stop applying, and this test would need re-justifying, not just re-passing.
+- **Reflecting into a property's *setter*, not just calling a private method** — the same test uses
+  `typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { null })`
+  to null out `Base.Owner` (declared `internal set` specifically so nothing outside `Match` can do
+  this normally). This extends the reflection pattern already used elsewhere in this codebase for
+  private *methods* (`Match.ComputeTravelTicks` in `SendArmyTests`, `HitTester.FindNearestBaseId` in
+  `HitTesterTests`) to a private *setter* instead. Why here: there's no other way to construct this
+  exact state, since every public path (`Execute`, `Advance`) enforces the invariant above. Pitfall:
+  `GetSetMethod(nonPublic: true)` returns `null` if the property has no setter at all (not even a
+  private one) — calling `.Invoke` on that `null` throws `NullReferenceException` with a message that
+  gives no hint the property itself was the problem, so a rename or a switch to a computed-only
+  property would fail this test in a confusing way rather than a clear one.
+- **The same "once decided, do nothing" guard repeated at three layers on purpose** —
+  `Match.Advance` and `Match.Execute` (`src/MW3.Core/Match.cs`) both check `Outcome != InProgress`
+  and return/reject immediately, and `MatchRunner.Advance` (`src/MW3.Core/MatchRunner.cs`) checks it
+  *again* before consulting the brain. Why here: each layer owns a different consequence of being
+  frozen — `Match` itself must never let state drift after a decision (D-13), while `MatchRunner`
+  must never take an *action* (asking the brain, submitting its answer) even though the underlying
+  `Match.Advance` call it makes would already no-op harmlessly on its own. Duplicating the check
+  isn't redundancy here: removing the `MatchRunner`-level check would still be *correct* (no state
+  would change) but would waste a brain consultation every single tick forever after a match ends,
+  for a match a screen might legitimately keep advancing (e.g. while the player looks at the result).
+  Pitfall: three independent checks of the same condition is exactly the kind of duplication that
+  looks removable at a glance — removing the "wrong" one (the one that only saves work rather than
+  preventing a state bug) would pass every functional test while quietly reintroducing pointless work.
+- **`IScreenNavigator` growing from one method to two, as a genuinely new capability appears** —
+  `Push` (phase 1) was the interface's only member until this feature added `Pop()`
+  (`src/MW3.Game/IScreenNavigator.cs`), because until now no screen ever needed to dismiss *itself*
+  (back requests were handled centrally in `ScreenManager.Update`, invisible to any screen). Why
+  here: `MatchScreen`'s new dismissal rule (pop on a release, not just on a back request) genuinely
+  needs a screen-initiated pop, which back-request handling structurally can't provide (it runs
+  *before* a screen's own `Update`, so a screen can never trigger it from inside that method).
+  Pitfall: growing a seam interface only when a real caller needs the new member (rather than
+  speculatively) keeps `ScreenManager`'s two pop paths (`Update`'s back-request branch and the new
+  `Pop()` method) doing textually similar but conceptually distinct things — collapsing them into one
+  code path later would need to preserve the "don't pop the last screen" guard in both callers, not
+  just one.
+- **Capturing decision-time context at press, reading it back at release** —
+  `MatchScreen.HandleInput`'s `_pressBeganAfterOutcomeDecided` field (`src/MW3.Game/MatchScreen.cs`)
+  is set once, at the press edge, from whatever `_match.Outcome` is *at that instant*, and is never
+  re-evaluated later. Why here: the acceptance rule is specifically about when the *press* began, not
+  when the *release* happens — by the time a release is processed, `Outcome` might already differ
+  from what it was at press time, so the only correct way to answer "did this press begin after the
+  decision" is to snapshot the answer when it's still true and carry it forward, extending the same
+  edge-detection idea `WelcomeScreen`'s `_pressStartedInsideButton` used in #9 to a condition that
+  isn't spatial (inside a button) but temporal (before or after an event). Pitfall: exactly like
+  `_wasPointerPressed` in #9, forgetting to update this field on every press edge (not just the ones
+  that end up mattering) would let a stale decision leak into a later, unrelated press.
+
+Try next: `MatchRunner.Advance` and `Match.Advance` are now two independent "stop once frozen" checks
+guarding one property (`Outcome`) — if a third layer ever needs the same guard (a hypothetical
+multiplayer session wrapper, say), that's the point to reconsider whether `Match` should expose a
+single `ThrowIfDecided()`-style helper instead of three call sites each re-deriving the same
+condition, the same "two is fine, watch for three" judgment call this log has hit before (#14's
+segment-walking entry, revisited by #24's boundary-walking entry).
