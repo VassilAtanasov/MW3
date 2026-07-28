@@ -297,9 +297,23 @@ because morale (**G-1**) and forges (**G-6**) are both known to stack into the s
 a direct multiply is precisely the shape that has to be torn out to admit them. Chosen: a combat
 resolver taking the full `a` and `d`, with the morale and forge contributions **present in the
 signature and fixed at 1.0**, so those systems later supply a term instead of forcing a rewrite. The
-resolver is integer arithmetic on whole units with a stated, tested rounding rule — a percentage is
-a ratio of integers, never a `float` field on match state, because the first float in the simulation
-is how D-12 dies quietly. What this makes true and is worth stating: a level-1 tower and a level-5
+resolver is integer arithmetic on whole units — a percentage is a ratio of integers, never a `float`
+field on match state, because the first float in the simulation is how D-12 dies quietly.
+
+**The rounding rule, settled at FR-3b's kickoff 28-07-2026: round nothing in the decision.** MW2
+computes in real numbers and MW3 cannot, and the naive translation `Bu = floor(Wu × a / d)` has a
+sharp failure — one unit attacking an *empty* level-1 tower gives `floor(100/140) = 0`, so
+`Du_new = 0` and the defender "holds", making a drained building uncapturable and breaking a rule
+FR-1 and FR-3 both shipped. Considered: flooring with a minimum of 1 damage, and rounding to nearest;
+both patch the symptom and both need a special case for the empty-garrison boundary anyway. Chosen:
+decide capture by **cross-multiplication** — the attacker takes the base iff `Wu × a > Du × d` —
+which is algebraically identical to `Du − (a/d) × Wu < 0` and therefore matches MW2 exactly, with no
+division and no rounding in the decision at all. The empty-base case then needs no rule: `Du × d` is
+zero. Only the remainder rounds — the attacker's surviving garrison is `(Wu × a − Du × d) / d`
+floored with a minimum of 1, and a holding defender keeps `Du − (Wu × a) / d` floored. Strictly
+greater, so an exact tie leaves the defender holding zero. Worth knowing: at `a = d = 100%` this is
+bit-identical to phase 2's arithmetic, which is why level-1 combat tests survive the change
+untouched. What this makes true and is worth stating: a level-1 tower and a level-5
 village both defend at 140%, so the tower stops being a building that trades production for range
 and becomes the defensive structure MW2 has.
 

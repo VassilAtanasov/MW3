@@ -294,11 +294,48 @@ that phase 3's staging numbers are replaced by the reference's. Closes parity **
   - Acceptance: `MW3.Core` still targets `netstandard2.1` and is engine-free;
     `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-3b (wf: f585a0868ecc): The developer can have a base's level buy defence as well as economy,
-with combat resolved by MW2's `Bu = (a/d) × Wu` rather than 1:1, so that a level-1 tower is as
-defensible as a level-5 village and the formula morale and forges later feed already exists. Closes
-parity **G-9**, **G-10**, and most of **G-7**. Deliberately reverses D-15 and D-22's "levels buy
-economy only, never combat strength"; depends on FR-3a for the tables the defence column hangs on.
+FR-3b (wf: f585a0868ecc, issue #39): The developer can have a base's level buy defence as well as
+economy, with combat resolved by MW2's `Bu = (a/d) × Wu` rather than 1:1, so that a level-1 tower is
+as defensible as a level-5 village and the formula morale and forges later feed already exists.
+Closes parity **G-9**, **G-10**, and most of **G-7**. Deliberately reverses D-15 and D-22's "levels
+buy economy only, never combat strength"; **depends on FR-3a (#38)** for the tables the defence
+column hangs on, and must not be started before it merges.
+  - Acceptance: the village ladder gains defence 100/110/120/130/140 (`MW2-RULES.md` §2.2) and the
+    tower ladder 140/170/190/200 (§2.3), as integer percentages in the tables with none repeated at
+    a call site. A level-1 tower and a level-5 village defend identically, asserted directly. A
+    neutral base is a level-1 producer at 100%, so taking neutrals is unchanged.
+  - Acceptance: one Core resolver takes `a`, `d`, `Wu`, and `Du` — no arithmetic inline in
+    `ResolveArrival` (D-29). `a` and `d` are composed from named contributions: the building's own
+    defence, plus a morale and a forge term on both sides, each a named constant fixed at 100 with a
+    comment naming parity **G-1** and **G-6**. A later feature supplies a value; it does not add a
+    parameter.
+  - Acceptance: **no stacking rule is chosen.** `MW2-RULES.md` §4.3 marks multiplicative-versus-
+    additive stacking `[?]`, and with exactly one live term it is unobservable — resolving it here
+    would be an unsourced divergence.
+  - Acceptance: the attacker captures **iff `Wu × a > Du × d`**, as integer cross-multiplication
+    with no division and no rounding in the decision — algebraically identical to MW2's
+    `Du − (a/d) × Wu < 0` (§4.1). Strictly greater, so an exact tie leaves the defender holding zero.
+  - Acceptance: on a capture the attacker's surviving garrison is `(Wu × a − Du × d) / d` floored,
+    minimum 1; on a hold the defender keeps `Du − (Wu × a) / d` floored, never negative.
+    Reinforcement is untouched — defence never applies to your own arriving units — and no
+    floating-point value appears anywhere on the path (D-12, D-24).
+  - Acceptance (worked cases, exact integers): 100% is unchanged from today (10 v 10 holds at 0, 11
+    captures with 1); a level-1 tower holding 10 survives a 14-unit wave at zero and falls to 15 with
+    1; a single unit captures an empty level-4 tower and arrives with 1, which falls out of the exact
+    comparison rather than needing a special case; a level-3 village holding 10 survives 12 and falls
+    to 13.
+  - Acceptance: capture demotion (D-23), elimination and outcome (D-20), and the freeze once decided
+    are all unchanged. Determinism (D-12) across chunked advances on a run containing an attack on an
+    upgraded base, an attack on a tower, and a capture. The resolver allocates nothing per arrival.
+  - Acceptance (corrections in the same PR): `ResolveArrival`'s XML doc; **D-15** and **D-22**
+    annotated as superseded with the reason rather than deleted; FR-3's claim that a tower fights
+    with no defence bonus of any kind; any other doc stating combat is 1:1. `MW2-PARITY.md` moves
+    **G-9** and **G-10** out of §2 and records **G-7** as partially closed.
+  - Acceptance: level-1 combat tests pass **unchanged**; where an upgraded base or a tower is
+    involved the expectation is re-authored in place to assert the same behaviour under the new
+    arithmetic — never weakened, deleted, or dodged by lowering a defence percentage to suit a test.
+    `MW3.Core` stays `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and
+    `./gate.ps1` both pass.
 
 FR-3c (wf: a4c8cacb426a): The developer can have an upgrade or a conversion take MW2's build time
 instead of completing instantly, and a building retaken within one second not demote a further
