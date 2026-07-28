@@ -31,9 +31,24 @@ unknown (its AI is undocumented), where the reference is marked `[?]`, where the
 the IP layer, or where closing a gap would contradict a shipped `REQUIREMENTS.md` — that last one is
 the user's call, never a build-mode decision.
 
-Two hard limits. Never copy an MW2 tuning *number* into `MW3.Core`: MW2's economy is seconds-based
-and larger, so parity means same behaviour and same ratios, not same literals, and every constant
-enters through a kickoff-settled §"Tuning values" table (D-22). And
+**Default to settling, not asking** (strengthened 28-07-2026 at the user's request, to automate
+development further now that the reference exists). At `/kickoff`, a design question the reference
+answers is not ambiguity — it is research already done, and re-asking it spends the user's attention
+re-deciding something decided. So write the criterion and **cite the source section** rather than
+raising a question. When questions genuinely survive the four exceptions above, batch them into a
+single `AskUserQuestion` with a recommendation first, rather than a back-and-forth. Two habits that
+follow: when offering a scope choice, propose the decomposition into shippable slices alongside it,
+because a wide answer is not licence to write one oversized feature; and never treat "the reference
+doesn't mention it" as "the reference forbids it" — check `MW2-RULES.md` §10's list of what is
+genuinely unpublished before concluding MW2 is silent.
+
+Two hard limits. Never copy an MW2 tuning *number* directly to a call site: every constant enters
+through a kickoff-settled §"Tuning values" table (D-22). Note that the *rationale* for this changed
+on 28-07-2026 — it used to be that parity meant same ratios but never same literals, because MW2's
+economy is seconds-based and larger. The user settled the opposite: MW2's published values **are**
+the target, and the tick rate is chosen to make them expressible (50 ms; see
+`docs/reference/MW2-PARITY.md` §3 and phase 3's D-27). Only the routing rule survives — a number
+lives in the table, not inline. And
 `docs/<project-slug>/REQUIREMENTS.md` still outranks `docs/reference/` whenever they disagree —
 where a shipped phase diverges from MW2, that is recorded as a **gap** in `MW2-PARITY.md` §2 and
 closed by a future phase, not fixed in build mode.
