@@ -399,20 +399,30 @@ construction. **Depends on FR-3a (#38)** for the tick rate every duration is exp
     `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1`
     both pass.
 
-> **FR-4, FR-5, and FR-6 below are pending re-discovery** (28-07-2026). They were settled against
-> phase 3's staging economy, and FR-3a/b/c change the ladder, the tick rate, and combat underneath
-> them. FR-4 is kicked off as issue #36 but **not built** — no branch, no code — so its kickoff is
-> re-run rather than corrected. The text below is the pre-correction record and is superseded by
-> that re-discovery; nothing in it may be built as-is.
+> **FR-5 and FR-6 below are pending re-discovery** (28-07-2026). They were settled against phase 3's
+> staging economy, and FR-3a/b/c change the ladder, the tick rate, and combat underneath them.
+> Nothing in them may be built as-is.
+>
+> **FR-4 has been re-kicked-off** (28-07-2026) and its entry below is current. Issue #36 was updated
+> in place rather than replaced, since it was still Todo with no branch and no code.
 
 FR-4 (wf: b7427e502078, issue #36): The developer can have a tower fire on enemy armies passing
 within its range, removing units from them in transit and destroying them outright when their count
 reaches zero, so that towers do something and armies stop being inert. Core only; this is the
 phase's deliberate reversal of phase 2 FR-4, and it touches the elimination rule (D-20).
-  - Acceptance: `LevelTable` gains a tower range and a tower fire period per level — 0.20 / 0.25 /
-    0.30 normalized map units, firing every 4 / 3 / 2 ticks, one unit removed per shot — read by
-    both the simulation and the tests with no tuning number at a call site (D-22). The producer
-    columns are untouched and a tower still produces nothing (FR-3).
+**Re-kicked-off 28-07-2026** against FR-3a's tick rate and four-level tower ladder; issue #36 was
+updated in place. **Depends on FR-3a (#38)**; FR-3b (#39) and FR-3c (#40) are soft dependencies.
+  - Acceptance (re-tuned at the 28-07-2026 re-kickoff): the tower ladder gains a range and a fire
+    period per level, read by both the simulation and the tests with no tuning number at a call site
+    (D-22). Ranges are **0.20 / 0.22 / 0.25 / 0.28** — MW2's published radius *ratios*
+    (100/110/125/140%, `MW2-RULES.md` §2.3) applied to a level-1 anchor of 0.20 chosen by MW3,
+    because MW2 gives the radius only as a percentage of an unstated base (**G-22**). Fire periods
+    are **6 / 5 / 4 / 3** ticks at one unit per shot — MW3's own numbers, since MW2 never publishes
+    tower damage (**G-13**) and §2.3's "shooting speed" column is marked `[?]` and explicitly
+    unusable as a tuning input. The village ladder is untouched and a tower still produces nothing.
+  - Acceptance: every range stays at or below 0.30 (the closest pair of bases) and below 0.34 (a
+    home base to its nearest neutral), asserted against `MapLayout` rather than assumed, so a tower
+    guards its own approach rather than reaching a neighbouring base.
   - Acceptance: only an **owned** tower fires, and only at armies whose owner is not the tower's
     owner; a player's own armies fly through their own towers untouched. A tower fires regardless of
     its own garrison — drained to zero by a send it still shoots, and can still be taken by a single
@@ -431,17 +441,27 @@ phase's deliberate reversal of phase 2 FR-4, and it touches the elimination rule
     values every time and never accumulated across ticks, which is what keeps D-12 free.
   - Acceptance: tower fire is evaluated once per tick inside `Advance`, on **every** tick — `Advance`
     may not skip ticks for fire the way it computes production in closed form over a span; production
-    stays closed-form and fire does not. Within a tick fire resolves **before** arrivals, so a tower
-    gets a final shot at an army landing on it that tick and an army reduced to zero on its arrival
-    tick is destroyed and never lands. No tower fires once the outcome is decided (phase 2 FR-7).
+    stays closed-form and fire does not. The within-tick order is **construction completion → tower
+    fire → arrivals → outcome**: fire before arrivals gives a tower a final shot at an army landing
+    on it that tick, so an army reduced to zero on its arrival tick is destroyed and never lands, and
+    construction before fire means a base whose conversion to a tower completes on tick T fires on
+    tick T. If FR-3c (#40) has not merged there is no construction step and the rest of the order is
+    unchanged. No tower fires once the outcome is decided (phase 2 FR-7).
   - Acceptance: a shot removes exactly one unit; strength never goes negative and never rises. An
     army at zero strength is destroyed that tick — removed from `ArmiesInFlight`, never arriving,
-    delivering neither reinforcement nor attack. A survivor arrives with its **current** strength,
-    resolving under phase 2's unchanged 1:1 arithmetic. Army strength is mutable state inside the
-    aggregate with no public setter, changed only by `Advance` (D-13), consistent with `Base`.
-  - Acceptance (tuning sanity): roughly 3 / 5 / 8 units are removed from a full-strength army flying
-    straight at a level 1 / 2 / 3 tower and arriving at it. Tests assert exact integers for
-    constructed scenarios rather than these approximations, which vary by a shot with tick alignment.
+    delivering neither reinforcement nor attack. A survivor arrives with its **current** strength and
+    resolves under whatever arrival arithmetic is in force — phase 2's 1:1 today, FR-3b's
+    `Bu = (a/d) × Wu` once #39 has merged. This feature adds no combat rule of its own. Army strength
+    is mutable state inside the aggregate with no public setter, changed only by `Advance` (D-13),
+    consistent with `Base`.
+  - Acceptance (tuning sanity, re-tuned 28-07-2026): roughly **3 / 4 / 6 / 9** units are removed from
+    a full-strength army flying straight at a level 1 / 2 / 3 / 4 tower and arriving at it. Tests
+    assert exact integers for constructed scenarios rather than these approximations, which vary by a
+    shot with tick alignment. An army merely *passing* a tower crosses a chord rather than a radius
+    and can take up to double, which is the intended reason to route around a defended position.
+  - Acceptance (scope guard): this feature does **not** close parity **G-13** or **G-22**. The range
+    anchor and the damage per shot are MW3's own and must be recorded as such; neither gap leaves
+    `MW2-PARITY.md` §2.4 on the strength of this feature.
   - Acceptance: elimination (D-20) — a player owning zero bases whose last in-flight army is shot
     down is eliminated on that tick and the outcome decided accordingly. This is the case phase 2's
     rule always described but nothing could reach, and it is asserted directly.
@@ -524,6 +544,11 @@ Towers — four levels, a flat 20 units per upgrade, and **no garrison cap at al
 | 2 | 20 units | none |
 | 3 | 20 units | none |
 | 4 | 20 units | none |
+
+The tower's **gunnery columns arrive with FR-4**, the feature that reads them, exactly as FR-3
+deferred them before: ranges 0.20 / 0.22 / 0.25 / 0.28 and fire periods 6 / 5 / 4 / 3 ticks at one
+unit per shot, settled at FR-4's re-kickoff 28-07-2026 and recorded in full in that FR's entry
+above. FR-3a itself adds only the upgrade cost and the ring thickness.
 
 The absent cap is a decision, settled at FR-3a's kickoff 28-07-2026. MW2's tower table publishes
 defence, radius, shooting speed, price, and build time — **no unit-capacity column** — and no other
