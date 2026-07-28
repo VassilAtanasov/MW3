@@ -287,9 +287,12 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// A base's garrison as of <paramref name="futureTick"/> if nothing else changes: unowned
-    /// bases never produce, so only an owned base's count grows, by whole production periods
-    /// crossed between now and then - the same arithmetic <see cref="Match"/> itself applies.
+    /// A base's garrison as of <paramref name="futureTick"/> if nothing else changes: unowned bases
+    /// never produce, so only an owned base's count grows - through
+    /// <see cref="ProductionCalculator"/>, the same arithmetic <see cref="Match"/> itself applies,
+    /// rather than a second copy of it. Sharing it is what keeps the prediction honest about the
+    /// garrison cap: extrapolating past a base's ceiling would have the AI credit a defender with
+    /// units it can never have, and refuse attacks it would actually win.
     /// </summary>
     private static int PredictGarrison(Base b, long currentTick, long futureTick)
     {
@@ -298,8 +301,9 @@ public sealed class AiBrain : IPlayerBrain
             return b.GarrisonCount;
         }
 
-        var periodsCrossed = (futureTick / Match.ProductionPeriodTicks) - (currentTick / Match.ProductionPeriodTicks);
-        return b.GarrisonCount + (int)periodsCrossed;
+        return ProductionCalculator
+            .Advance(new ProductionState(b.GarrisonCount, b.ProductionProgressTicks), b.Level, futureTick - currentTick)
+            .GarrisonCount;
     }
 
     private static int ClampedSendSize(int garrison) => Math.Max(1, garrison / 2);

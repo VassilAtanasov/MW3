@@ -5,13 +5,22 @@ namespace MW3.Core.Tests;
 public class BaseTests
 {
     [Fact]
-    public void PublicSurface_ExposesOnlyIdPositionGarrisonAndOwner_NoneSettableFromOutsideAssembly()
+    public void PublicSurface_ExposesOnlyTheAgreedMembers_NoneSettableFromOutsideAssembly()
     {
         var properties = typeof(Base).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var propertyNames = properties.Select(p => p.Name).OrderBy(name => name).ToArray();
 
         Assert.Equal(
-            new[] { nameof(Base.GarrisonCount), nameof(Base.Id), nameof(Base.Owner), nameof(Base.Position) },
+            new[]
+            {
+                nameof(Base.GarrisonCap),
+                nameof(Base.GarrisonCount),
+                nameof(Base.Id),
+                nameof(Base.Level),
+                nameof(Base.Owner),
+                nameof(Base.Position),
+                nameof(Base.ProductionProgressTicks),
+            },
             propertyNames);
 
         foreach (var property in properties)

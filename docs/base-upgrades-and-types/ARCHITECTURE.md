@@ -102,6 +102,21 @@ requires — the cap's job is to force upgrading and expansion, and it does that
 reinforcements can exceed it. What it enables, deliberately: massing a strike force at a staging
 base. That is strategy, not a leak.
 
+**D-21a: production is per-base state, not a global count of periods crossed.** Discovered building
+FR-1 (#30), and recorded because it is the structural change the cap actually forced. Phase 2's
+`Match.ApplyProduction` credited every owned base with `(toTick / 10) - (fromTick / 10)` — one
+global figure, correct only while every base shares one period and no base can stop. A cap makes
+bases stop independently, and levels give them different periods, so neither premise survives.
+Chosen: each `Base` carries its own `ProductionProgressTicks`, advanced per segment by
+`ProductionCalculator` in closed form (no tick-by-tick loop over spans that reach thousands of
+ticks, no allocation). Two consequences worth knowing before touching this again. First, reaching
+the cap leaves progress at exactly zero — the tick that produced the capping unit consumed the
+progress that bought it, and every later tick at the cap is discarded — which is *why* "held at cap,
+then drained, produces a full period later" needs no special case. Second, a base captured
+mid-match now produces one period after **it** changed hands rather than on the match's global
+multiples of 10, and its previous owner's partial progress is discarded rather than inherited; the
+phase-2 documents that stated the old rule are corrected in the same PR.
+
 **D-22: levels are a short fixed ladder defined by constant tables in `MW3.Core`, and they buy
 economy only — never combat strength.** Considered: a formula (`cap = 20 * level`), and a content
 file so levels could be tuned without a rebuild. Rejected the formula because every interesting

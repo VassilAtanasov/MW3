@@ -59,8 +59,17 @@ that the game has a rules foundation before anything is drawn.
   - Acceptance: starting garrisons are 10 (human), 10 (AI), and 5 for each neutral.
   - Acceptance: the tick duration (100 ms) and production period (10 ticks per unit) are named
     Core constants, so heads and tests read one source rather than each hardcoding the number.
+    **Corrected by phase 3 FR-1 (#30)**: the production period moved out of `Match` into
+    `LevelTable`, because it is per level now rather than one global number. It is still a named
+    Core constant with a single source — `LevelTable.ProductionPeriodTicks(level)`, 10 ticks at
+    level 1 — and `Match.TickDurationMilliseconds` is untouched.
   - Acceptance: an owned base gains exactly one unit per 10 ticks — 100 ticks from a fresh match
-    leaves the human's and the AI's bases holding exactly 20 each.
+    leaves the human's and the AI's bases holding exactly 20 each. **Corrected by phase 3 FR-1
+    (#30)**: exactly true *at* 100 ticks and no longer true beyond it. A level-1 base's garrison cap
+    is 20, so 100 ticks is precisely where an untouched starting base stops growing; it produces
+    again only once drained below its cap or upgraded (D-21). Production also became per-base rather
+    than credited from global tick boundaries, so a base captured mid-match produces one period
+    after *it* changed hands, not on the match's own multiples of 10.
   - Acceptance: partial production carries — 7 ticks then 3 equals 10 in one call, and 9 ticks from
     a fresh match adds no unit.
   - Acceptance: neutral bases never produce — after 1000 ticks each still holds exactly 5.
@@ -134,7 +143,12 @@ count rising live, so that the match state is legible before it is interactive.
     reproduces its own screenshot byte-for-byte.
   - Acceptance: the late dump reports ≥ 40 elapsed ticks and is internally consistent — every owned
     base holds exactly `10 + elapsedTicks / 10`, every neutral base exactly 5; the early dump is
-    consistent the same way for its own elapsed count. **Corrected by FR-6**: `match-late.txt` now
+    consistent the same way for its own elapsed count. **Further corrected by phase 3 FR-1 (#30)**:
+    the formula is now bounded — an owned base holds `min(20, 10 + elapsedTicks / 10)` at level 1,
+    because 20 is its production cap (D-21). Both scripts end well short of that ceiling
+    (`match-late.txt` at tick 64 shows the human's base at 16), so what they actually assert is
+    unchanged; the *rule* as written was what stopped being true in general.
+    **Corrected by FR-6**: `match-late.txt` now
     runs long enough for the AI to have acted (its first decision is at tick 20), so its own bases
     no longer hold `10 + elapsedTicks / 10` once it has sent a unit or captured a base — only the
     human's base and any base the AI has not touched still do. `match-early.txt` ends at tick 4,

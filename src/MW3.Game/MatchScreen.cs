@@ -31,8 +31,8 @@ internal sealed class MatchScreen : IScreen
     private Texture2D? _circleTexture;
 
     // Garrison text is formatted only when a base's count actually changes (at most once every
-    // ProductionPeriodTicks per base), not on every Draw call - frame-loop code allocates nothing
-    // per frame (docs/CONVENTIONS.md).
+    // production period per base, and not at all while it sits at its cap), not on every Draw call
+    // - frame-loop code allocates nothing per frame (docs/CONVENTIONS.md).
     private string[]? _garrisonText;
     private int[]? _lastGarrisonCount;
 
