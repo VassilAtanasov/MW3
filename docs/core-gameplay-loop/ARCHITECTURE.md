@@ -136,6 +136,13 @@ script again reproduces its own screenshot byte-for-byte. Each dump reports elap
 every owned base, a garrison of exactly `10 + elapsedTicks / 10`; neutral bases stay at exactly 5
 in both.
 
+**Corrected by phase 3 FR-1 (#30)**: that garrison formula is now bounded by the base's production
+cap — `min(20, 10 + elapsedTicks / 10)` for an untouched level-1 base (D-21). Neither script gets
+near the ceiling (`match-late.txt` ends at tick 64 with the human's base at 16), so both dumps read
+exactly as before; the general rule is what changed. Production is also per base now rather than
+credited from global tick boundaries, so a base captured mid-match produces one period after it
+changed hands rather than on the match's own multiples of 10.
+
 FR-5 adds six more, exercising the drag interaction (D-18) through the same `down`/`up`
 vocabulary — a drag is just `down` at the source followed by `up` at the target, so no directive
 changed:
@@ -221,6 +228,12 @@ all six bases. `victory.txt` drives the exact fixed, hand-authored command seque
 `MatchOutcomeTests` in `MW3.Core.Tests` — every drag's timing is chosen so it lands on the intended
 tick precisely under `--time-scale 25` (each frame after `Play`'s release advances the match by
 exactly 4 ticks): its dump reports human victory with the human owning all six bases.
+
+**Corrected by phase 3 FR-1 (#30)**: both sequences were re-derived, because garrison caps changed
+the arithmetic they were tuned around. The frame↔tick mapping (`frame = 5 + tick/4`, `down` two
+frames before its `up`) is unchanged, and so is everything else about the format — only the drags
+themselves differ. Defeat now lands at tick 377 rather than deep into the thousands, because a cap
+stops the passive human's capital out-growing the AI's expansion; victory lands at tick 556.
 `dismiss-ending.txt` waits past defeat, then presses back: its final screenshot is byte-identical to
 the FR-2 welcome baseline, proving the return is a real pop rather than a redrawn lookalike (and
 `--dump-state`, given alongside it, would write nothing, since the final screen showing is

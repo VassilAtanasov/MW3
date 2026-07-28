@@ -128,7 +128,7 @@ public class SendArmyTests
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutrals[0].Id, 10));
         Assert.Equal(0, human.GarrisonCount);
 
-        match.Advance(Match.ProductionPeriodTicks);
+        match.Advance(LevelTable.ProductionPeriodTicks(LevelTable.MinLevel));
 
         Assert.Equal(1, human.GarrisonCount);
     }

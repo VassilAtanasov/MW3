@@ -3,7 +3,8 @@ namespace MW3.Core;
 /// <summary>
 /// Core-side AI seam (D-16): decides at most one command per decision for the player it acts for,
 /// reading only <see cref="Match"/> state that is already publicly exposed and never calling
-/// <see cref="Match.Execute"/> itself - only <see cref="MatchRunner"/> submits a brain's decision.
+/// <see cref="Match.Execute(SendArmyCommand)"/> itself - only <see cref="MatchRunner"/> submits a
+/// brain's decision.
 /// </summary>
 public interface IPlayerBrain
 {

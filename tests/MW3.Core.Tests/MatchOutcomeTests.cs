@@ -11,29 +11,39 @@ public class MatchOutcomeTests
     // floor(source garrison / 2) at the moment of the send - identical to what a real drag produces
     // (MatchScreen.HandleDrag) - so this same sequence also backs qa/scripts/victory.txt. Reused by
     // every test below that needs a match to actually reach a decided outcome.
+    //
+    // Re-derived for #30: garrison caps changed the arithmetic every count in the phase-2 sequence
+    // was tuned around, so it no longer reached victory. The cap is not a handicap peculiar to the
+    // human - it throttles the AI's bases identically - so the winning shape is now to take and
+    // hold the near flank early and feed a single staging base, rather than to out-accumulate the
+    // opponent from one capital. The final send of 21 is above a single base's cap of 20 precisely
+    // because arrivals stack above it (D-21); this sequence would be impossible under a hard cap.
     private static readonly (long Tick, int Source, int Target, int Count)[] _winningSequence =
     {
         (20, 0, 2, 6),
-        (40, 0, 3, 4),
-        (80, 0, 3, 4),
-        (100, 2, 4, 4),
-        (120, 0, 4, 4),
-        (140, 2, 5, 4),
-        (160, 0, 1, 4),
-        (180, 3, 5, 5),
-        (200, 3, 5, 3),
-        (220, 2, 1, 6),
-        (240, 0, 5, 6),
-        (260, 2, 4, 5),
-        (280, 3, 5, 6),
-        (300, 0, 1, 6),
-        (320, 2, 4, 5),
-        (340, 3, 4, 6),
-        (360, 0, 1, 6),
-        (380, 2, 4, 6),
-        (400, 5, 1, 7),
-        (420, 3, 4, 7),
-        (460, 0, 4, 8),
+        (40, 0, 2, 4),
+        (60, 0, 2, 3),
+        (80, 2, 3, 6),
+        (100, 0, 2, 3),
+        (120, 2, 3, 6),
+        (140, 0, 2, 4),
+        (160, 2, 1, 7),
+        (180, 0, 2, 4),
+        (200, 3, 2, 5),
+        (220, 2, 5, 9),
+        (240, 0, 2, 5),
+        (260, 3, 5, 5),
+        (280, 2, 1, 11),
+        (300, 2, 5, 7),
+        (320, 0, 2, 6),
+        (340, 3, 2, 7),
+        (360, 1, 0, 5),
+        (380, 0, 2, 6),
+        (400, 0, 2, 7),
+        (420, 3, 2, 7),
+        (460, 1, 2, 7),
+        (500, 5, 2, 9),
+        (540, 2, 4, 21),
     };
 
     /// <summary>Submits every command in <see cref="_winningSequence"/>, at its exact tick, through <paramref name="runner"/>.</summary>

@@ -8,8 +8,6 @@ public sealed class Match
 {
     public const long TickDurationMilliseconds = 100;
 
-    public const long ProductionPeriodTicks = 10;
-
     /// <summary>
     /// Distance in normalized map units (<see cref="MapPoint"/>) an army covers per tick. Tuned so
     /// the full map width (1.0) takes 5 seconds - 50 ticks at <see cref="TickDurationMilliseconds"/>.
@@ -55,7 +53,8 @@ public sealed class Match
 
     /// <summary>
     /// Armies currently in flight. Read-only view over <see cref="Match"/>'s internal state; an
-    /// army is added only by <see cref="Execute"/> and removed only by <see cref="Advance"/>, in
+    /// army is added only by <see cref="Execute(SendArmyCommand)"/> and removed only by
+    /// <see cref="Advance"/>, in
     /// the same call that resolves its arrival.
     /// </summary>
     public IReadOnlyList<Army> ArmiesInFlight => _armies;
@@ -63,7 +62,8 @@ public sealed class Match
     /// <summary>
     /// Whether the match is still undecided, or has been won or lost - read-only, changing only
     /// inside <see cref="Advance"/> (D-13, FR-7). Once decided, the simulation is frozen: further
-    /// <see cref="Advance"/> calls change nothing and <see cref="Execute"/> rejects every command.
+    /// <see cref="Advance"/> calls change nothing and both <see cref="Execute(SendArmyCommand)"/>
+    /// and <see cref="Execute(UpgradeCommand)"/> reject every command.
     /// </summary>
     public MatchOutcome Outcome { get; private set; } = MatchOutcome.InProgress;
 
@@ -76,6 +76,13 @@ public sealed class Match
         if (command is null)
         {
             throw new ArgumentNullException(nameof(command));
+        }
+
+        // A null issuer is a caller bug, not an ordinary rejection: without this it would compare
+        // equal to a neutral base's absent owner and pass the ownership gate.
+        if (command.IssuingPlayer is null)
+        {
+            throw new ArgumentException("The command's issuing player cannot be null.", nameof(command));
         }
 
         if (Outcome != MatchOutcome.InProgress)
@@ -123,6 +130,64 @@ public sealed class Match
             ArrivalTick: ElapsedTicks + travelTicks));
 
         return SendArmyOutcome.Accepted;
+    }
+
+    /// <summary>
+    /// Validates and applies an <see cref="UpgradeCommand"/>, paying for the level out of the
+    /// base's own garrison. A rejection leaves every base exactly as it was. Spending down to a
+    /// garrison of zero is deliberately legal: a base emptied by a send is already legal, stays
+    /// owned, keeps producing, and can be taken by a single unit, and an upgrade is no different -
+    /// the strongest economy, briefly undefended, is a gamble the rules allow rather than forbid.
+    /// </summary>
+    public UpgradeOutcome Execute(UpgradeCommand command)
+    {
+        if (command is null)
+        {
+            throw new ArgumentNullException(nameof(command));
+        }
+
+        // As on the send path: a null issuer would compare equal to a neutral base's absent owner
+        // and slip past the ownership gate, leaving only the cost check between it and upgrading a
+        // base nobody owns.
+        if (command.IssuingPlayer is null)
+        {
+            throw new ArgumentException("The command's issuing player cannot be null.", nameof(command));
+        }
+
+        if (Outcome != MatchOutcome.InProgress)
+        {
+            return UpgradeOutcome.MatchAlreadyDecided;
+        }
+
+        var target = FindBase(command.BaseId);
+        if (target is null)
+        {
+            return UpgradeOutcome.BaseNotFound;
+        }
+
+        if (target.Owner != command.IssuingPlayer)
+        {
+            return UpgradeOutcome.BaseNotOwnedByIssuer;
+        }
+
+        if (target.Level >= LevelTable.MaxLevel)
+        {
+            return UpgradeOutcome.AlreadyAtMaxLevel;
+        }
+
+        var cost = LevelTable.UpgradeCost(target.Level);
+        if (target.GarrisonCount < cost)
+        {
+            return UpgradeOutcome.GarrisonBelowCost;
+        }
+
+        target.GarrisonCount -= cost;
+        target.Level++;
+
+        // Production progress is deliberately left alone, so the new cap and the new (shorter)
+        // period take effect from this tick against the progress already banked: upgrading at an
+        // awkward moment never silently burns ticks a player cannot see.
+        return UpgradeOutcome.Accepted;
     }
 
     /// <summary>
@@ -205,26 +270,42 @@ public sealed class Match
         return earliest;
     }
 
+    /// <summary>
+    /// Runs production for every owned base across one segment. Production is <em>per base</em>,
+    /// not a single global count of periods crossed: each base carries its own progress toward its
+    /// next unit, because levels give bases different production periods and a base at its cap
+    /// stops accumulating while its neighbours keep going (D-21, D-22). Neutral bases never
+    /// produce, so they never accumulate progress either.
+    /// </summary>
     private void ApplyProduction(long fromTick, long toTick)
     {
-        var unitsToAdd = (toTick / ProductionPeriodTicks) - (fromTick / ProductionPeriodTicks);
-        if (unitsToAdd == 0)
+        var spanTicks = toTick - fromTick;
+        if (spanTicks <= 0)
         {
             return;
         }
 
         foreach (var b in _bases)
         {
-            if (b.Owner is not null)
+            if (b.Owner is null)
             {
-                b.GarrisonCount += (int)unitsToAdd;
+                continue;
             }
+
+            var produced = ProductionCalculator.Advance(
+                new ProductionState(b.GarrisonCount, b.ProductionProgressTicks),
+                b.Level,
+                spanTicks);
+
+            b.GarrisonCount = produced.GarrisonCount;
+            b.ProductionProgressTicks = produced.ProgressTicks;
         }
     }
 
     /// <summary>
     /// Resolves every army whose arrival tick is exactly <paramref name="tick"/>, in ascending
-    /// creation order (the order <see cref="Execute"/> was called) - a deterministic, documented
+    /// creation order (the order <see cref="Execute(SendArmyCommand)"/> was called) - a
+    /// deterministic, documented
     /// order so several arrivals at the same base on the same tick apply one at a time.
     /// </summary>
     private void ResolveArrivalsAtTick(long tick)
@@ -270,6 +351,16 @@ public sealed class Match
         if (target.Owner == army.Owner)
         {
             target.GarrisonCount += army.UnitCount;
+
+            // Reaching the cap discards progress toward the next unit, whether the cap was reached
+            // by producing or - as here - by reinforcement. Enforced at the write site rather than
+            // left to the next Advance, so a base reinforced to its cap and drained again within
+            // the same tick cannot smuggle banked progress through (D-21).
+            if (target.GarrisonCount >= target.GarrisonCap)
+            {
+                target.ProductionProgressTicks = 0;
+            }
+
             return;
         }
 
@@ -277,6 +368,18 @@ public sealed class Match
         {
             target.GarrisonCount = army.UnitCount - target.GarrisonCount;
             target.Owner = army.Owner;
+
+            // The structure survives the fighting, but one level of the previous owner's
+            // investment burns with it (D-23), floored at the minimum so an undeveloped base is
+            // simply taken as-is. Progress toward the next unit belonged to the previous owner and
+            // does not transfer: inheriting it would let the timing of a capture shift when the new
+            // owner's first unit appears.
+            if (target.Level > LevelTable.MinLevel)
+            {
+                target.Level--;
+            }
+
+            target.ProductionProgressTicks = 0;
         }
         else
         {

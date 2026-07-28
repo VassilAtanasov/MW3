@@ -5,10 +5,9 @@ namespace MW3.Core.Tests;
 public class MatchTests
 {
     [Fact]
-    public void Constants_MatchTheAgreedTickDurationAndProductionPeriod()
+    public void Constants_MatchTheAgreedTickDuration()
     {
         Assert.Equal(100, Match.TickDurationMilliseconds);
-        Assert.Equal(10, Match.ProductionPeriodTicks);
     }
 
     [Fact]

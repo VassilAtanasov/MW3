@@ -38,6 +38,9 @@ public sealed class MatchRunner
     /// <summary>Submits a command - the only path either the human or the AI's commands take.</summary>
     public SendArmyOutcome Execute(SendArmyCommand command) => _match.Execute(command);
 
+    /// <summary>Submits an upgrade, through the same single path every other command takes.</summary>
+    public UpgradeOutcome Execute(UpgradeCommand command) => _match.Execute(command);
+
     /// <summary>
     /// Advances the match by <paramref name="ticks"/> whole ticks, stopping at every decision tick
     /// crossed to let the AI brain decide, before continuing to the requested total. Once
