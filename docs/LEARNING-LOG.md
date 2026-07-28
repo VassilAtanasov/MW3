@@ -760,3 +760,66 @@ same "don't reformat what hasn't changed" idea in one file. Try sketching a smal
 the army cache also needs *pruning* when an army resolves, which the other two don't.
 
 to feel the difference, because the bounded space here is genuinely small enough to enumerate.
+
+## 2026-07-28 — #34 Tower base type: conversion between producer and tower in the core rules
+Concepts: skip-at-the-source vs. compute-then-clamp to enforce an invariant, extending an established command/outcome pattern to a third case, orthogonal mutations of the same field from two independent rules, a reflection-based whitelist test as an executable contract
+- **Skipping the computation entirely, rather than computing and clamping the result** —
+  `Match.ApplyProduction` (`src/MW3.Core/Match.cs`) changed its per-base guard from
+  `if (b.Owner is null) continue;` to `if (b.Owner is null || b.Type == BaseType.Tower) continue;`,
+  rather than letting `ProductionCalculator.Advance` run for a tower and then zeroing its result
+  afterward. Why here: the acceptance criterion is "production progress is zero at every tick, not
+  merely frozen at a value" — if the calculator ran and something later reset the field, there would
+  be a real (if instantaneous) moment where progress held a nonzero number, and any future refactor
+  that removed the reset would silently reintroduce banked progress. Skipping the call is what makes
+  "always zero" true by construction instead of true by convention. Pitfall: this only works because
+  `ProductionCalculator` is stateless and side-effect-free — the same trick on a method with side
+  effects (logging, mutating a second field) would silently skip those too, not just the value you
+  meant to suppress.
+- **A third command/outcome pair extending, not inventing, the shape** — `ConvertCommand`/
+  `ConvertOutcome` (`src/MW3.Core/ConvertCommand.cs`, `ConvertOutcome.cs`) are a positional `record`
+  plus a closed `enum`, the same two-type shape `UpgradeCommand`/`UpgradeOutcome` and
+  `SendArmyCommand`/`SendArmyOutcome` already established. Why here: `docs/base-upgrades-and-types/
+  ARCHITECTURE.md`'s "one command type family for humans and AI" convention means a third command
+  has to look exactly like the first two or the pattern itself stops being trustworthy — a caller
+  learns the shape once ("submit through `Match.Execute`, get back a rejection reason, never a
+  bool") and can then guess correctly at a type it has never seen. Pitfall: mechanically copying an
+  existing pattern is only safe if the *reasons* for its shape still apply — `ConvertCommand` needed
+  a `BaseType TargetType` field that neither sibling has, because "convert" (unlike "upgrade" or
+  "send") is meaningless without saying *to what*; a pattern followed too literally would have
+  modeled it as a parameterless toggle instead, which silently breaks idempotent replay (submitting
+  the same stale command twice would flip the type back and forth instead of doing the same thing
+  twice).
+- **Two independent rules writing the same field for different reasons, kept orthogonal** — `Level`
+  is reset by two unrelated code paths: `Match.Execute(ConvertCommand)` sets it to
+  `LevelTable.MinLevel` unconditionally (a conversion burns the whole ladder, D-22's tuning
+  decision), while `Match.ResolveArrival`'s capture branch decrements it by exactly one, floored at
+  the minimum (D-23's demotion rule). Why here: the acceptance criteria explicitly call out that the
+  conversion reset is "independent of D-23's capture demotion" — a level-3 base converted loses all
+  three levels, but the same base captured loses only one, and the two rules coexist correctly only
+  because each is written once, at its own call site, with no shared helper trying to unify "reset
+  vs. decrement" into one parameterized method. Pitfall: the temptation to write a single
+  `AdjustLevel(base, delta)` helper here would make the two call sites shorter but would hide the
+  fact that they are answering genuinely different questions ("what level does a fresh tower start
+  at" vs. "how much does losing a fight cost") — a future change to one rule's amount could then
+  silently affect the other if the helper's parameter were ever miscopied between call sites.
+- **A reflection-based whitelist test as an executable contract, not a formality** —
+  `BaseTests.PublicSurface_ExposesOnlyTheAgreedMembers_NoneSettableFromOutsideAssembly`
+  (`tests/MW3.Core.Tests/BaseTests.cs`, introduced in #8's entry) failed the moment `Base.Type` was
+  added, listing the exact property name missing from its expected array — this is the same
+  reflection pattern #8 covered, encountered again from the *other* side: not writing the test, but
+  being caught by one already in place. Why worth logging: the failure message
+  (`Expected: [...] Actual: [..., "Type"]`) pointed at the fix directly (add `nameof(Base.Type)` to
+  the array) with no debugging required, which is what "a whitelist test as a contract" is supposed
+  to feel like in practice — a `-warnaserror` build failure often points at symptoms one step removed
+  from the cause, but this test's failure output *is* the diff. Pitfall: a test like this has to be
+  updated in the same commit as the property it's guarding, and nothing enforces that ordering except
+  the gate itself — skipping a local `dotnet test` run before committing would have shipped a red
+  gate to CI for a one-line, entirely mechanical omission.
+
+Try next: `ApplyProduction`'s guard is now `b.Owner is null || b.Type == BaseType.Tower` — two
+independent conditions checked with `||` at one call site. FR-4 adds tower fire, which will need the
+opposite selection ("every owned tower", not "every non-tower") over the same `_bases` list on every
+tick. Sketch whether that's a third inline condition at a new call site (consistent with this
+feature's choice not to introduce a shared "bases matching X" helper) or whether tower fire's
+per-tick cost characteristics (evaluated against every in-flight army, not just once per base) make
+that call different enough to justify a small filtered-view helper this feature didn't need.
