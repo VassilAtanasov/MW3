@@ -186,9 +186,8 @@ These run without a human gate and never block or reopen a feature:
   the gitignored `.env`.
 - Active project: **Base upgrades and types** (`docs/base-upgrades-and-types/`), discovered
   28-07-2026. Phases 1 and 2 are both complete — phase 1's FR-4 APK artifact shipped as issue #21,
-  and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. No phase-3
-  feature has been kicked off yet, so there is no board and nothing for `/autopilot` to drain until
-  `/kickoff` has run at least once.
+  and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. Phase 3's
+  board is **20**; FR-1 is kicked off as issue #30 (Todo). Features 2-6 still need `/kickoff`.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -222,7 +221,7 @@ These run without a human gate and never block or reopen a feature:
 |---|---|---|---|---|---|
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | — | — | filled by the first `/kickoff` |
+| Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -245,11 +244,11 @@ Phase 2 features, in dependency order (`/kickoff` one at a time):
 | 6 | AI opponent reinforces and attacks with simple heuristics | `e4164ec62a52` (issue #24) |
 | 7 | Victory and defeat end the match and return to the welcome screen | `94ecc30a06a5` (issue #25) |
 
-Phase 3 features, in dependency order (`/kickoff` one at a time — none kicked off yet):
+Phase 3 features, in dependency order (`/kickoff` one at a time):
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Garrison caps, base levels, and the upgrade command in the core rules | `4ec5d7b58f7c` |
+| 1 | Garrison caps, base levels, and the upgrade command in the core rules | `4ec5d7b58f7c` (issue #30) |
 | 2 | Tap an owned base to open an action menu offering upgrade | `bea15b8431a8` |
 | 3 | Tower base type: conversion between producer and tower in the core rules | `ace16ed72ce6` |
 | 4 | Towers shoot enemy armies passing within range, in the core rules | `b7427e502078` |

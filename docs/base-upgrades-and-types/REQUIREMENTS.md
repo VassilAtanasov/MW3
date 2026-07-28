@@ -63,9 +63,51 @@ Observable outcomes, not features:
 Acceptance conditions are intentionally empty here — `/kickoff <feature>` settles them with the
 user and writes them into both the Workflowy note and the GitHub issue.
 
-FR-1 (wf: 4ec5d7b58f7c): The developer can cap a base's self-production, give bases a level, and
-spend units from a base's own garrison to raise that level, so that growth becomes finite and
-investment becomes possible. Core only; draws nothing.
+FR-1 (wf: 4ec5d7b58f7c, issue #30): The developer can cap a base's self-production, give bases a
+level, and spend units from a base's own garrison to raise that level, so that growth becomes
+finite and investment becomes possible. Core only; draws nothing.
+  - Acceptance: the level ladder is named Core constants — three levels, caps 20/35/50, production
+    periods 10/7/5 ticks, upgrade costs 6 to reach level 2 and 16 to reach level 3 — read by both
+    the simulation and the tests, with no tuning number repeated at a call site (D-22).
+  - Acceptance: every base starts at level 1, so a fresh match is unchanged from phase 2 (10/10/5,
+    one unit per 10 ticks); level and current cap are readable with no public setter (D-13).
+  - Acceptance: an owned level-1 base reaches exactly 20 and stops — still exactly 20 after 1000
+    ticks; neutral bases still never produce, cap or no cap.
+  - Acceptance: at or above cap, production progress does not accumulate **at all** — a base held
+    at cap for 500 ticks then dropped below it by a send produces its next unit a full period
+    later, not immediately (D-21).
+  - Acceptance: a garrison may exceed its cap with nothing destroyed; the base simply does not
+    produce until it is back under.
+  - Acceptance: `UpgradeCommand` carries the issuing player and base id, is submitted only through
+    `Match.Execute`, and returns acceptance or each rejection reason in the type system, mirroring
+    `SendArmyCommand` — never a bool, an exception for an ordinary rejection, or a silent no-op.
+  - Acceptance: rejected leaving all state untouched — unknown base id, base not owned by the
+    issuer (neutral included), already at max level, garrison below the cost, or the match outcome
+    already decided (phase 2 FR-7's freeze covers this command too).
+  - Acceptance: an accepted upgrade subtracts the cost immediately and raises the level by exactly
+    one, with the new cap and period effective from that tick.
+  - Acceptance: upgrading down to zero garrison is legal — the base stays owned, resumes producing,
+    and can be taken by one unit, exactly as a base emptied by a send does.
+  - Acceptance: production progress carries across an upgrade — 6 ticks into a 10-tick period
+    becomes 6 ticks into the new 7-tick period and produces on the next tick; progress frozen at
+    the cap resumes rather than banking units.
+  - Acceptance: a base changing owner through combat drops one level, flooring at 1 (the level half
+    of D-23); reinforcing a base its owner already holds never changes its level; demotion may
+    leave the garrison above the new lower cap, which is legal and merely blocks production.
+  - Acceptance: determinism (D-12) — identical levels, garrisons, caps, and production progress
+    whether `Advance` runs in one call or irregular chunks, proved on a run containing a capped
+    base, an upgrade, and a capture.
+  - Acceptance: `MW3.Core` still targets `netstandard2.1`, contains no `Microsoft.Xna` or
+    `MonoGame` text, and no `DateTime`, `DateTimeOffset`, `Stopwatch`, `Environment.TickCount`, or
+    `Random`; tests advance whole matches rather than asserting getters.
+  - Acceptance: every pre-existing test and committed `qa/scripts/` script still passes within its
+    documented budget, and where the cap legitimately invalidates a phase-2 expectation it is
+    corrected in place in the same PR — never weakened or dodged by raising the cap.
+    `qa/scripts/victory.txt` and `MatchOutcomeTests`' hand-authored victory sequence are the known
+    casualties and are re-authored so victory is still reached and still proved attainable under
+    the cap; the passive-human defeat test still reaches defeat with the AI owning all six bases,
+    its tick budget re-stated in phase 2's docs if capped garrisons genuinely change it.
+  - Acceptance: `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-2 (wf: bea15b8431a8): The player can tap a base they own to open an action menu laid out around
 it, see each action's unit cost, see an unaffordable action greyed out, dismiss the menu by tapping
@@ -90,21 +132,23 @@ FR-6 (wf: 7eea0544b808): The player can face an AI opponent that upgrades its ba
 un-builds towers, and stops pouring production into a capped base, so that the new decisions are
 decisions the opponent also makes. Extends phase 2's three-clause brain rather than replacing it.
 
-### Tuning values — proposed, not decided
+### Tuning values
 
-Every number below is a **starting proposal for `/kickoff` to confirm or change**, not a settled
-requirement. They are recorded here so build mode never has to invent one, and so that the shape of
-the constant tables (D-22) is concrete during feature kickoff:
+The economy columns are **settled** by FR-1's kickoff (28-07-2026) and are contract, not proposal.
+The tower columns remain a **starting proposal for FR-3/FR-4's kickoff to confirm or change**,
+recorded so build mode never has to invent one and so the shape of the constant table (D-22) is
+concrete:
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
-| 1 | 20 | 10 | — (starting level) | 12 ticks | 0.12 |
-| 2 | 35 | 7 | 10 units | 8 ticks | 0.15 |
-| 3 | 50 | 5 | 20 units | 5 ticks | 0.18 |
+| 1 | 20 | 10 | — (starting level) | 12 ticks *(proposed)* | 0.12 *(proposed)* |
+| 2 | 35 | 7 | 6 units | 8 ticks *(proposed)* | 0.15 *(proposed)* |
+| 3 | 50 | 5 | 16 units | 5 ticks *(proposed)* | 0.18 *(proposed)* |
 
-Plus: conversion between producer and tower costs 10 units in either direction, and a tower shot
-removes 1 unit from the army it hits. Whether three levels is the right ladder length is itself a
-kickoff question.
+The first upgrade is deliberately cheap enough (6) to be affordable from the starting garrison of
+10 without waiting, so "grow first" is a live option on the opening move rather than something a
+player only saves toward. Still proposed: conversion between producer and tower costing 10 units in
+either direction, and a tower shot removing 1 unit from the army it hits.
 
 ## 5. Non-functional requirements
 
