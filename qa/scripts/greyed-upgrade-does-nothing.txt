@@ -1,11 +1,13 @@
-# Tap Play, drag half the human base's garrison away (10 -> 5, below the level-1 upgrade cost of
-# 6), open its action menu (Upgrade reads greyed - GarrisonBelowCost), then press and release the
-# greyed button - submits nothing and leaves the menu open.
+# Tap Play, drag half the human base's garrison away twice (10 -> 5 -> 3, below the level-1
+# upgrade cost of 5), open its action menu (Upgrade reads greyed - GarrisonBelowCost), then press
+# and release the greyed button - submits nothing and leaves the menu open.
 0 down 0.500000 0.591667
 5 up 0.500000 0.591667
 10 down 0.120000 0.500000
 15 up 0.350000 0.250000
 20 down 0.120000 0.500000
-25 up 0.120000 0.500000
-30 down 0.120000 0.260000
-35 up 0.120000 0.260000
+25 up 0.350000 0.250000
+30 down 0.120000 0.500000
+35 up 0.120000 0.500000
+40 down 0.120000 0.260000
+45 up 0.120000 0.260000

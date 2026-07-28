@@ -30,10 +30,14 @@ public class MatchRunnerTests
         var match = new Match();
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
-        runner.Advance(MatchRunner.DecisionIntervalTicks);
+        // The AI's first winnable move needs two level-1 production periods (120 ticks): with a
+        // starting garrison of 10, floor(garrison/2) only exceeds a neutral's 5-unit garrison once
+        // the AI base holds 12 - three decision ticks in, since nothing is won at 40 or 80.
+        var decisionTick = 3 * MatchRunner.DecisionIntervalTicks;
+        runner.Advance(decisionTick);
 
         var firstArmy = Assert.Single(match.ArmiesInFlight);
-        Assert.Equal(MatchRunner.DecisionIntervalTicks, firstArmy.LaunchTick);
+        Assert.Equal(decisionTick, firstArmy.LaunchTick);
     }
 
     [Fact]

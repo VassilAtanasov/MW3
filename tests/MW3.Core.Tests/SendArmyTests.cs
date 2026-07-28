@@ -128,7 +128,7 @@ public class SendArmyTests
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutrals[0].Id, 10));
         Assert.Equal(0, human.GarrisonCount);
 
-        match.Advance(LevelTable.ProductionPeriodTicks(LevelTable.MinLevel));
+        match.Advance(LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel));
 
         Assert.Equal(1, human.GarrisonCount);
     }
@@ -140,12 +140,12 @@ public class SendArmyTests
         var neutral = neutrals[0];
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 5)); // ties: 5 vs 5
-        match.Advance(17);
+        match.Advance(34);
         Assert.Null(neutral.Owner);
         Assert.Equal(0, neutral.GarrisonCount);
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 1)); // now 1 > 0
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         Assert.Equal(1, neutral.GarrisonCount);
@@ -156,12 +156,14 @@ public class SendArmyTests
     [Fact]
     public void ArmySpeedConstant_MatchesFullMapWidthInFiveSeconds()
     {
-        Assert.Equal(0.02, Match.ArmySpeedUnitsPerTick);
-        Assert.Equal(50, 1.0 / Match.ArmySpeedUnitsPerTick);
+        Assert.Equal(0.01, Match.ArmySpeedUnitsPerTick);
+        // 100 ticks at 50 ms/tick = 5000 ms = 5 seconds to cross the full map width (1.0).
+        Assert.Equal(100, 1.0 / Match.ArmySpeedUnitsPerTick);
+        Assert.Equal(5000, (1.0 / Match.ArmySpeedUnitsPerTick) * Match.TickDurationMilliseconds);
     }
 
     [Fact]
-    public void TravelTime_HumanToNearestNeutral_IsRoughlySeventeenTicks()
+    public void TravelTime_HumanToNearestNeutral_IsRoughlyThirtyFourTicks()
     {
         var (match, human, _, neutrals) = NewMatch();
         var nearest = neutrals.OrderBy(n => Distance(human.Position, n.Position)).First();
@@ -169,18 +171,18 @@ public class SendArmyTests
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, nearest.Id, 1));
 
         var army = Assert.Single(match.ArmiesInFlight);
-        Assert.Equal(17, army.ArrivalTick - army.LaunchTick);
+        Assert.Equal(34, army.ArrivalTick - army.LaunchTick);
     }
 
     [Fact]
-    public void TravelTime_HumanToAiBase_IsRoughlyThirtyEightTicks()
+    public void TravelTime_HumanToAiBase_IsRoughlySeventySixTicks()
     {
         var (match, human, ai, _) = NewMatch();
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, ai.Id, 1));
 
         var army = Assert.Single(match.ArmiesInFlight);
-        Assert.Equal(38, army.ArrivalTick - army.LaunchTick);
+        Assert.Equal(76, army.ArrivalTick - army.LaunchTick);
     }
 
     [Fact]
@@ -224,16 +226,16 @@ public class SendArmyTests
     {
         var (match, human, ai, neutrals) = NewMatch();
 
-        match.Execute(new SendArmyCommand(match.AiPlayer, ai.Id, human.Id, 10)); // arrives tick 38
+        match.Execute(new SendArmyCommand(match.AiPlayer, ai.Id, human.Id, 10)); // arrives tick 76
 
         match.Advance(1);
-        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, ai.Id, 2)); // witness, arrives tick 39
+        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, ai.Id, 2)); // witness, arrives tick 77
 
-        match.Advance(36); // elapsed 37
-        var drainAmount = human.GarrisonCount - 1;
-        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutrals[0].Id, drainAmount)); // leaves 1 unit
+        match.Advance(74); // elapsed 75: one level-1 period (60 ticks) has restored exactly one unit
+        var drainAmount = human.GarrisonCount;
+        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutrals[0].Id, drainAmount)); // leaves 0 units
 
-        match.Advance(1); // elapsed 38: the AI's army captures the now nearly-empty human base
+        match.Advance(1); // elapsed 76: the AI's army captures the now-empty human base
 
         Assert.Equal(match.AiPlayer, human.Owner);
 
@@ -262,7 +264,7 @@ public class SendArmyTests
         var (match, human, _, neutrals) = NewMatch();
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutrals[0].Id, 1));
 
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Empty(match.ArmiesInFlight);
     }
@@ -275,12 +277,12 @@ public class SendArmyTests
         var (match, human, _, neutrals) = NewMatch();
         var neutral = neutrals[0];
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 6));
-        match.Advance(17); // captures: 6 > 5
+        match.Advance(34); // captures: 6 > 5
         Assert.Equal(match.HumanPlayer, neutral.Owner);
 
         var garrisonBeforeReinforcement = neutral.GarrisonCount;
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 2));
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.True(neutral.GarrisonCount >= garrisonBeforeReinforcement + 2);
         Assert.Equal(match.HumanPlayer, neutral.Owner);
@@ -293,7 +295,7 @@ public class SendArmyTests
         var neutral = neutrals[0];
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 8));
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         Assert.Equal(3, neutral.GarrisonCount);
@@ -306,7 +308,7 @@ public class SendArmyTests
         var neutral = neutrals[0];
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 3));
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Null(neutral.Owner);
         Assert.Equal(2, neutral.GarrisonCount);
@@ -319,7 +321,7 @@ public class SendArmyTests
         var neutral = neutrals[0];
 
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 5));
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Null(neutral.Owner);
         Assert.Equal(0, neutral.GarrisonCount);
@@ -328,12 +330,13 @@ public class SendArmyTests
     [Fact]
     public void Resolution_UsesTheTargetsOwnerAtArrival_NotAtLaunch()
     {
-        // Human (17 ticks from the neutral) and AI (30 ticks from the same neutral) both launch at
-        // tick 0. Human's army lands first and captures it. AI's army - launched when the base was
-        // still neutral - lands later and, because ownership is read live, correctly attacks the
-        // now-human base rather than treating it as an uncontested neutral capture. A further human
-        // reinforcement, launched while the base was still its own, lands after the AI's later
-        // recapture and - again reading live ownership - attacks instead of blindly reinforcing.
+        // Human (34 ticks from the neutral, a near-flank base) and AI (59 ticks from the same
+        // neutral, a far-flank base from the AI's side) both launch at tick 0. Human's army lands
+        // first and captures it. AI's army - launched when the base was still neutral - lands later
+        // and, because ownership is read live, correctly attacks the now-human base rather than
+        // treating it as an uncontested neutral capture. A further human reinforcement, launched
+        // while the base was still its own, lands after the AI's later recapture and - again reading
+        // live ownership - attacks instead of blindly reinforcing.
         var match = new Match();
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var ai = match.Bases.Single(b => b.Owner == match.AiPlayer);
@@ -341,18 +344,18 @@ public class SendArmyTests
             .OrderBy(n => Distance(human.Position, n.Position))
             .First();
 
-        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 8)); // arrives tick 17
-        match.Execute(new SendArmyCommand(match.AiPlayer, ai.Id, neutral.Id, 10)); // arrives tick 30
+        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 8)); // arrives tick 34
+        match.Execute(new SendArmyCommand(match.AiPlayer, ai.Id, neutral.Id, 10)); // arrives tick 59
 
-        match.Advance(17);
+        match.Advance(34);
         Assert.Equal(match.HumanPlayer, neutral.Owner); // 8 > 5, captured with 3
 
-        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 2)); // arrives tick 37
+        match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 2)); // arrives tick 68
 
-        match.Advance(13); // elapsed 30: AI's army lands
+        match.Advance(25); // elapsed 59: AI's army lands
         Assert.Equal(match.AiPlayer, neutral.Owner); // AI's 10 beats whatever the base grew to, captured
 
-        match.Advance(7); // elapsed 37: human's reinforcement-turned-attack lands
+        match.Advance(9); // elapsed 68: human's reinforcement-turned-attack lands
         Assert.Equal(match.AiPlayer, neutral.Owner); // human's 2 is not enough: repelled, AI keeps it
     }
 
@@ -368,7 +371,7 @@ public class SendArmyTests
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 5));
         match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 5));
 
-        match.Advance(17);
+        match.Advance(34);
 
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         Assert.Equal(5, neutral.GarrisonCount);
@@ -381,14 +384,14 @@ public class SendArmyTests
         var oneShotHuman = oneShot.Bases.Single(b => b.Owner == oneShot.HumanPlayer);
         var oneShotNeutral = oneShot.Bases.First(b => b.Owner is null);
         oneShot.Execute(new SendArmyCommand(oneShot.HumanPlayer, oneShotHuman.Id, oneShotNeutral.Id, 8));
-        oneShot.Advance(100); // arrival was due at tick 17, jumped straight past it in one call
+        oneShot.Advance(100); // arrival was due at tick 34, jumped straight past it in one call
 
         var stepped = new Match();
         var steppedHuman = stepped.Bases.Single(b => b.Owner == stepped.HumanPlayer);
         var steppedNeutral = stepped.Bases.First(b => b.Owner is null);
         stepped.Execute(new SendArmyCommand(stepped.HumanPlayer, steppedHuman.Id, steppedNeutral.Id, 8));
-        stepped.Advance(17); // reach the arrival tick exactly, one tick at a time from here on
-        for (var i = 0; i < 83; i++)
+        stepped.Advance(34); // reach the arrival tick exactly, one tick at a time from here on
+        for (var i = 0; i < 66; i++)
         {
             stepped.Advance(1);
         }

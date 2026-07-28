@@ -9,7 +9,8 @@
 > should behave the way MW2 behaves.
 >
 > Stated by the user 28-07-2026. Reconciled against the repo the same day: phase 3 with FR-1/FR-2/FR-3
-> merged (issues #30, #32, #34) and FR-4 (#36) kicked off.
+> merged (issues #30, #32, #34) and FR-4 (#36) kicked off. Updated 29-07-2026: FR-3a (`f5f3320ec408`,
+> issue #38) merged, closing G-8 and G-14 and shipping §3's tick-rate decision.
 
 ## 0. How Ivan uses this file
 
@@ -53,20 +54,22 @@ Nothing to do. Recorded so it is not re-litigated.
 | Combat randomness | None in either game |
 | Primary input verb | Tap a building; buildings are the only clickable object |
 | Base action menu | MW2's radial menu ≈ MW3's arc menu (phase 3 FR-2) |
+| Village and tower ladder length | Villages have 5 levels (4 reachable by upgrading, per MW2-RULES.md §2.2's `[?]`), towers have 4 — both games. Closed **G-8**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
+| Conversion and upgrade costs | Conversion costs 30; upgrades cost 5/10/20 (villages) and a flat 20 (towers) — both games. Closed **G-14**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
 
 ## 2. Gaps to close 🔴
 
 Ordered by how much each one changes how the game plays. Each row is a candidate feature for a
 future phase.
 
-> **Eight of these are now assigned** (28-07-2026). Discovery added three correction features to
-> phase 3, sitting between FR-3 and FR-4 in dependency order, which together close **G-7** (in
-> part), **G-8**, **G-9**, **G-10**, **G-11**, **G-12**, and **G-14**, and settle §3's tick-rate
-> question:
+> **Eight of these were assigned** (28-07-2026), to three correction features sitting between FR-3
+> and FR-4 in dependency order. **FR-3a merged 29-07-2026**, closing **G-8** and **G-14** and
+> settling §3's tick-rate question — both have moved to §1. FR-3b and FR-3c remain assigned but not
+> yet merged, so **G-7** (in part), **G-9**, **G-10**, **G-11**, and **G-12** stay in this table:
 >
 > | Feature | wf | Closes |
 > |---|---|---|
-> | FR-3a — the MW2 ladder, caps, costs, and the 50 ms tick | `f5f3320ec408` | G-8, G-14, §3 |
+> | FR-3a — the MW2 ladder, caps, costs, and the 50 ms tick | `f5f3320ec408` | G-8, G-14, §3 — **merged** |
 > | FR-3b — levels buy defence; combat becomes `(a/d) × Wu` | `f585a0868ecc` | G-9, G-10, most of G-7 |
 > | FR-3c — build time and the one-second recapture grace | `a4c8cacb426a` | G-11, G-12 |
 >
@@ -90,13 +93,11 @@ future phase.
 
 | # | MW2 | MW3 today | Notes |
 |---|---|---|---|
-| G-8 | Villages have **5 levels** (4 reachable by upgrading **[?]**); towers have **4** | 3 levels, uniform across types | See §3 — closing this is partly a tuning question |
 | G-9 | **Levels buy defence**: villages +10pp/level (100→140%), towers 140→200% | No defence bonus at all | Phase 3 §6 refused this deliberately, to keep every phase-2 combat test meaningful. Now a gap — §4 |
 | G-10 | Towers are **far more defensible** than villages — a level-1 tower already matches a level-5 village | Towers defend identically to producers | Follows from G-9. Currently MW3's tower trades production for range only |
 | G-11 | **Build/upgrade time**: 5 / 5 / 10 / 15 s, and conversion takes time too | Instant | Settled as "no build time" at FR-3's kickoff. Now a gap — §4 |
 | G-12 | **Recapture grace**: retake a building within 1 second and it does not demote further | No such rule | Small, cheap, and a genuinely good anti-thrash rule. The same 1-second window governs the Domination loss condition |
 | G-13 | Tower shots have a **damage radius** (implied by Kenor's Explosive Shells) | 1 unit per shot, single target, closest army | MW2's own tower damage is **never published** — closing this needs observation, not research |
-| G-14 | Conversion costs **30**; upgrades cost 5 / 10 / 20 (villages) and a flat 20 (towers) | Conversion 10; upgrades 6 / 16 | Tuning, not behaviour — §3 |
 
 ### 2.3 Modes, maps, meta
 
@@ -118,34 +119,37 @@ future phase.
 
 ## 3. Parity means behaviour, not literals
 
-Two different questions hide inside "as close as possible", and they need separating before G-8 or
-G-14 can be actioned:
+Two different questions hide inside "as close as possible", separated below and both now settled
+and shipped by phase 3 **FR-3a** (`f5f3320ec408`, merged 29-07-2026):
 
 - **Behavioural parity** — five village levels exist; a level buys defence; conversion resets to
   level 1. This is what "close to MW2" plainly means and it is not in question.
 - **Numeric parity** — caps are literally 20/40/60/80/100, a village makes literally 0.33 units/sec,
   conversion costs literally 30.
 
-MW3's economy is deliberately *tick-based and smaller*: caps 20/35/50 against MW2's 20/40/60/80/100,
-and 1 unit per 10 ticks against 0.33/sec. Phase 3's FR-4 is the standing warning about copying
-across — discovery proposed tower ranges that, checked against MW3's army speed, would have made
-towers **literally unable to fire**. The numbers were recalibrated at kickoff and the reasoning is in
-`docs/base-upgrades-and-types/REQUIREMENTS.md` §"Tuning values".
+MW3's economy used to be *tick-based and smaller*: caps 20/35/50 against MW2's 20/40/60/80/100, and
+1 unit per 10 ticks against 0.33/sec — the staging ladder FR-1 and FR-3 shipped before
+`docs/reference/` existed. Phase 3's FR-4 remains the standing warning about copying MW2 numbers
+across without checking them against MW3's own speeds — discovery proposed tower ranges that,
+checked against MW3's army speed, would have made towers **literally unable to fire** — but for the
+village and tower ladders themselves, the answer below is no longer a warning; it is what shipped.
 
-**Settled 28-07-2026: adopt MW2's literal numbers, and choose the tick rate to make them work.**
-MW2's published tables are the target values — caps 20/40/60/80/100, upgrade costs 5/10/20,
-conversion 30, five village levels and four tower levels — rather than ratios rescaled to MW3's
-current economy. This buys the closest possible parity and makes MW2's own balance data directly
-consultable; the price is that the shipped phase-1-to-3 tuning is provisional, and the tests and QA
-scripts pinned to it will be re-authored by whichever phase closes **G-8** and **G-14**.
+**Settled 28-07-2026, shipped 29-07-2026: MW2's literal numbers, on a tick rate chosen to make them
+work.** MW2's published tables are now the values in force — caps 20/40/60/80/100, upgrade costs
+5/10/20, conversion 30, five village levels and four tower levels — rather than ratios rescaled to
+a smaller economy. This buys the closest possible parity and makes MW2's own balance data directly
+consultable. `docs/base-upgrades-and-types/REQUIREMENTS.md` §"Tuning values" carries the ladder now
+in force; the reasoning that produced it is retained below and in that same file's superseded
+staging-ladder section.
 
-Consequence: **`Match.TickDurationMilliseconds` is provisional too.** It is 100 ms today (10 Hz),
-and 10 Hz cannot express MW2's production ladder — the level-4 village's 1.33 units/sec needs a
-0.75-second period, which is 7.5 ticks. The tick duration must be chosen so every MW2 production
-period lands on a whole tick, since D-24 keeps all simulation arithmetic on integer ticks.
+Consequence: **`Match.TickDurationMilliseconds` is 50 ms (20 Hz).** The prior 100 ms (10 Hz)
+could not express MW2's production ladder — the level-4 village's 1.33 units/sec needs a
+0.75-second period, which is 7.5 ticks at 10 Hz. The tick duration had to be chosen so every MW2
+production period lands on a whole tick, since D-24 keeps all simulation arithmetic on integer
+ticks.
 
-**[D] 50 ms (20 Hz) is the natural choice** — the longest integer-millisecond tick that makes all
-five MW2 periods whole, and it produces a strikingly clean ladder:
+**[D] 50 ms (20 Hz) is the tick rate that shipped** — the longest integer-millisecond tick that
+makes all five MW2 periods whole, and it produces a strikingly clean ladder:
 
 | Village level | MW2 units/sec | Period | Ticks at 50 ms |
 |---|---|---|---|
@@ -156,18 +160,18 @@ five MW2 periods whole, and it produces a strikingly clean ladder:
 | 5 | 1.66 (5/3) | 0.60 s | 12 |
 
 That is exactly `60 / level` ticks. For comparison, 100 ms fails at level 4 and 20 ms fails at
-level 4; 25 ms works but doubles the tick count for nothing. Halving the tick duration also means
-halving `ArmySpeedUnitsPerTick` from 0.02 to 0.01 to preserve the current 5-second map crossing.
+level 4; 25 ms works but doubles the tick count for nothing. Halving the tick duration also meant
+halving `ArmySpeedUnitsPerTick` from 0.02 to 0.01 to preserve the 5-second map crossing.
 
-**Settled 28-07-2026 in discovery: 50 ms it is.** The proposal above was put to the user against
-25 ms and against keeping 100 ms with rounded periods, and 50 ms was chosen for the reason derived
-here — it is the longest integer-millisecond tick making all five periods whole, and 25 ms doubles
-the tick count for headroom nothing in this phase uses. Rounding at 100 ms was rejected because it
-would make numeric parity permanently unreachable while leaving no failing test to say so. The
-change is owned by phase 3 **FR-3a** (`f5f3320ec408`) together with the ladder it exists to express
-and the test and QA-script re-authoring both force; the reasoning now lives in
+**Settled 28-07-2026 in discovery, shipped 29-07-2026: 50 ms it is.** The proposal above was put to
+the user against 25 ms and against keeping 100 ms with rounded periods, and 50 ms was chosen for the
+reason derived here — it is the longest integer-millisecond tick making all five periods whole, and
+25 ms doubles the tick count for headroom nothing in this phase uses. Rounding at 100 ms was
+rejected because it would make numeric parity permanently unreachable while leaving no failing test
+to say so. The change shipped as phase 3 **FR-3a** (`f5f3320ec408`) together with the ladder it
+exists to express and the full test and QA-script re-authoring both forced; the reasoning lives in
 `docs/base-upgrades-and-types/ARCHITECTURE.md` **D-27**. Still true, and still the point of this
-section: none of it happens in build mode.
+section: none of this happened in build mode — it was a discovery decision, only executed there.
 
 ## 4. Shipped decisions that the new goal reopens ⚠️
 

@@ -21,7 +21,7 @@ public class GarrisonCapTests
     {
         var match = new Match();
 
-        Assert.All(match.Bases, b => Assert.Equal(LevelTable.GarrisonCap(LevelTable.MinLevel), b.GarrisonCap));
+        Assert.All(match.Bases, b => Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel), b.GarrisonCap));
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class GarrisonCapTests
         match.Advance(1000);
 
         var humanBase = HumanBase(match);
-        Assert.Equal(LevelTable.GarrisonCap(LevelTable.MinLevel), humanBase.GarrisonCount);
+        Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel), humanBase.GarrisonCount);
         Assert.Equal(20, humanBase.GarrisonCount);
     }
 
@@ -53,7 +53,7 @@ public class GarrisonCapTests
         var humanBase = HumanBase(match);
         var neutral = match.Bases.First(b => b.Owner is null);
 
-        match.Advance(100); // reaches the cap of 20 exactly
+        match.Advance(600); // reaches the cap of 20 exactly: (20-10) units at 60 ticks/unit
         Assert.Equal(20, humanBase.GarrisonCount);
 
         match.Advance(500); // held at the cap: nothing may accumulate here
@@ -62,7 +62,7 @@ public class GarrisonCapTests
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 5)));
         Assert.Equal(15, humanBase.GarrisonCount);
 
-        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+        var period = LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel);
         match.Advance(period - 1);
         Assert.Equal(15, humanBase.GarrisonCount); // no banked unit popped out
 
@@ -80,10 +80,12 @@ public class GarrisonCapTests
         var humanBase = HumanBase(match);
         var neutral = match.Bases.First(b => b.Owner is null);
 
-        // Take a neutral, then let the capital refill while the captured base idles at 5.
+        // Take a neutral, then let both bases reach the level-1 cap of 20.
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
-        match.Advance(200);
+        match.Advance(1200);
         Assert.Equal(match.HumanPlayer, neutral.Owner);
+        Assert.Equal(20, neutral.GarrisonCount);
+        Assert.Equal(20, humanBase.GarrisonCount);
 
         // Drain the captured base to a garrison well below its cap, and leave it partway through a
         // production period.
@@ -100,7 +102,7 @@ public class GarrisonCapTests
 
         // Drain it below the cap again: the next unit is a full period away, exactly as it is for a
         // base that reached its cap by producing.
-        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+        var period = LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel);
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 20)));
         var afterDrain = neutral.GarrisonCount;
         Assert.True(afterDrain < neutral.GarrisonCap);
@@ -123,11 +125,13 @@ public class GarrisonCapTests
         var match = new Match();
         var humanBase = HumanBase(match);
         var neutral = match.Bases.First(b => b.Owner is null);
-        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+        var period = LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel);
 
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
-        match.Advance(200);
+        match.Advance(1200); // both bases reach the level-1 cap of 20
         Assert.Equal(match.HumanPlayer, neutral.Owner);
+        Assert.Equal(20, neutral.GarrisonCount);
+        Assert.Equal(20, humanBase.GarrisonCount);
 
         // Leave the staging base below its cap and partway through a period.
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
@@ -166,7 +170,7 @@ public class GarrisonCapTests
         // Take a neutral, then feed everything back into it from the capital so the captured base
         // is pushed above its own cap by arrivals rather than by production.
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
-        match.Advance(200);
+        match.Advance(1200); // 20 units at 60 ticks/unit, from both bases
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         Assert.Equal(20, neutral.GarrisonCount);
         Assert.Equal(20, humanBase.GarrisonCount);
@@ -191,19 +195,19 @@ public class GarrisonCapTests
         var humanBase = HumanBase(match);
         var neutral = match.Bases.First(b => b.Owner is null);
 
-        // 35 + a 17-tick flight lands the capture on tick 52 - deliberately not a multiple of the
-        // production period, so a base still credited from global tick boundaries would produce at
-        // tick 60 (8 ticks later) instead of 62.
+        // 35 + a 34-tick flight lands the capture on tick 69 - deliberately not a multiple of the
+        // 60-tick production period, so a base still credited from global tick boundaries would
+        // produce at tick 120 (51 ticks later) instead of 129.
         match.Advance(35);
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
 
         var army = Assert.Single(match.ArmiesInFlight);
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
         Assert.Equal(match.HumanPlayer, neutral.Owner);
-        Assert.Equal(52, match.ElapsedTicks);
+        Assert.Equal(69, match.ElapsedTicks);
 
         var atCapture = neutral.GarrisonCount;
-        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+        var period = LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel);
 
         match.Advance(period - 1);
         Assert.Equal(atCapture, neutral.GarrisonCount);

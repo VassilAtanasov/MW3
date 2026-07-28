@@ -1,59 +1,65 @@
 # Tap Play, then drive the same fixed, hand-authored command sequence proven against the live AI
-# in MatchOutcomeTests (MW3.Core.Tests) - run with --time-scale 25, under which each frame after
-# Play's release advances the match by exactly 4 ticks, so every drag below lands on its intended
-# tick precisely (frame = 5 + tick/4).
+# in MatchOutcomeTests (MW3.Core.Tests). Run with no --time-scale (or --time-scale 1): at 50ms per
+# tick the per-frame tick rate at any faster integer time-scale (the old script used 25) only ever
+# lands on multiples of that rate, and this sequence's tick gaps are not uniform enough to stay on
+# such a grid. At time-scale 1 each frame delivers 16ms, a rate of 16/50 = 0.32 ticks/frame - under
+# 1, so the cumulative tick count (floor(frame_ms / 50)) never skips an integer, and every tick
+# this sequence needs is reachable at some exact frame. The clock's tick 0 is frame 5, right after
+# Play's release navigates to the match screen (frame = 5 + N, ticks = floor(16N / 50)).
 #
-# Re-derived for #30: garrison caps changed the arithmetic the phase-2 sequence was tuned around,
-# so it no longer reached victory. The shape that wins under a cap is to take the near flank early
-# and feed one staging base, rather than out-accumulating from a single capital.
+# Re-derived for #38: the tick rate halved (50ms) and the whole village ladder retuned to MW2's
+# published numbers, so every tick in the phase-3 sequence changed. The winning shape now sweeps
+# the near flank first, then the far flank, reinforcing the capital along the way, and finishes
+# with two grinding strikes against the AI's own capped capital once nothing else on the board is
+# winnable outright.
 0 down 0.500000 0.591667
 5 up 0.500000 0.591667
-8 down 0.120000 0.500000
-10 up 0.350000 0.250000
-13 down 0.120000 0.500000
-15 up 0.350000 0.250000
-18 down 0.120000 0.500000
-20 up 0.350000 0.250000
-23 down 0.350000 0.250000
-25 up 0.350000 0.750000
-28 down 0.120000 0.500000
-30 up 0.350000 0.250000
-33 down 0.350000 0.250000
-35 up 0.350000 0.750000
-38 down 0.120000 0.500000
-40 up 0.350000 0.250000
-43 down 0.350000 0.250000
-45 up 0.880000 0.500000
-48 down 0.120000 0.500000
-50 up 0.350000 0.250000
-53 down 0.350000 0.750000
-55 up 0.350000 0.250000
-58 down 0.350000 0.250000
-60 up 0.650000 0.750000
-63 down 0.120000 0.500000
-65 up 0.350000 0.250000
-68 down 0.350000 0.750000
-70 up 0.650000 0.750000
-73 down 0.350000 0.250000
-75 up 0.880000 0.500000
-78 down 0.350000 0.250000
-80 up 0.650000 0.750000
-83 down 0.120000 0.500000
-85 up 0.350000 0.250000
-88 down 0.350000 0.750000
-90 up 0.350000 0.250000
-93 down 0.880000 0.500000
-95 up 0.120000 0.500000
-98 down 0.120000 0.500000
-100 up 0.350000 0.250000
-103 down 0.120000 0.500000
-105 up 0.350000 0.250000
-108 down 0.350000 0.750000
-110 up 0.350000 0.250000
-118 down 0.880000 0.500000
-120 up 0.350000 0.250000
-128 down 0.650000 0.750000
-130 up 0.350000 0.250000
-138 down 0.350000 0.250000
-140 up 0.650000 0.250000
-190 wait
+379 down 0.120000 0.500000
+380 up 0.350000 0.250000
+504 down 0.120000 0.500000
+505 up 0.650000 0.250000
+692 down 0.120000 0.500000
+693 up 0.350000 0.250000
+1379 down 0.120000 0.500000
+1380 up 0.880000 0.500000
+1879 down 0.350000 0.250000
+1880 up 0.880000 0.500000
+2129 down 0.120000 0.500000
+2130 up 0.350000 0.250000
+2442 down 0.120000 0.500000
+2443 up 0.880000 0.500000
+2692 down 0.120000 0.500000
+2693 up 0.880000 0.500000
+3004 down 0.350000 0.250000
+3005 up 0.880000 0.500000
+3379 down 0.120000 0.500000
+3380 up 0.350000 0.250000
+3942 down 0.880000 0.500000
+3943 up 0.650000 0.250000
+4317 down 0.120000 0.500000
+4318 up 0.650000 0.250000
+4629 down 0.880000 0.500000
+4630 up 0.650000 0.250000
+5004 down 0.120000 0.500000
+5005 up 0.650000 0.250000
+5379 down 0.880000 0.500000
+5380 up 0.650000 0.250000
+5629 down 0.120000 0.500000
+5630 up 0.650000 0.250000
+6004 down 0.880000 0.500000
+6005 up 0.650000 0.250000
+7129 down 0.120000 0.500000
+7130 up 0.350000 0.750000
+7379 down 0.880000 0.500000
+7380 up 0.350000 0.750000
+7629 down 0.650000 0.250000
+7630 up 0.650000 0.750000
+7817 down 0.120000 0.500000
+7818 up 0.350000 0.750000
+7819 down 0.880000 0.500000
+7820 up 0.350000 0.250000
+8004 down 0.650000 0.250000
+8005 up 0.350000 0.250000
+8067 down 0.120000 0.500000
+8068 up 0.650000 0.750000
+8168 wait

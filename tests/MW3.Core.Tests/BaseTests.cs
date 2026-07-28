@@ -17,10 +17,14 @@ public class BaseTests
                 nameof(Base.GarrisonCount),
                 nameof(Base.Id),
                 nameof(Base.Level),
+                nameof(Base.MaxLevel),
+                nameof(Base.MaxUpgradableLevel),
                 nameof(Base.Owner),
                 nameof(Base.Position),
                 nameof(Base.ProductionProgressTicks),
+                nameof(Base.RingThicknessFractionOfRadius),
                 nameof(Base.Type),
+                nameof(Base.UpgradeCost),
             },
             propertyNames);
 

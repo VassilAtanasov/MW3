@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MW3.Core;
@@ -69,7 +70,8 @@ internal sealed class BaseActionMenu
 
         _lastGarrisonCount = b.GarrisonCount;
         _lastLevel = b.Level;
-        _garrisonLabel = FormattableString.Invariant($"{b.GarrisonCount} / {b.GarrisonCap}");
+        var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
+        _garrisonLabel = FormattableString.Invariant($"{b.GarrisonCount} / {cap}");
         _actions = _match.AvailableActions(_owner, BaseId);
 
         if (_labels.Length != _actions.Count)

@@ -7,7 +7,7 @@ public class MatchTests
     [Fact]
     public void Constants_MatchTheAgreedTickDuration()
     {
-        Assert.Equal(100, Match.TickDurationMilliseconds);
+        Assert.Equal(50, Match.TickDurationMilliseconds);
     }
 
     [Fact]
@@ -66,11 +66,13 @@ public class MatchTests
     }
 
     [Fact]
-    public void Advance_OneHundredTicks_HumanAndAiBasesEachGainTwentyUnitsTotal()
+    public void Advance_SixHundredTicks_HumanAndAiBasesBothReachTheLevelOneCapOfTwenty()
     {
+        // Production actually happens, and both sides get identical treatment: (20-10) units at
+        // 60 ticks/unit reaches the level-1 cap of 20 in exactly 600 ticks.
         var match = new Match();
 
-        match.Advance(100);
+        match.Advance(600);
 
         var humanBase = Assert.Single(match.Bases, b => b.Owner == match.HumanPlayer);
         var aiBase = Assert.Single(match.Bases, b => b.Owner == match.AiPlayer);
