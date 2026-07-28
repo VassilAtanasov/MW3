@@ -112,6 +112,51 @@ public class GarrisonCapTests
     }
 
     [Fact]
+    public void ReinforcedToCapAndDrainedOnTheSameTick_StillTakesAFullPeriod_WithNoAdvanceInBetween()
+    {
+        // The half of the fix the test above does not reach. There, the arrival lands *inside* an
+        // Advance, so the next production segment would zero the progress even without the write-site
+        // fix in Match.ResolveArrival. Here the drain happens at the same elapsed tick as the
+        // arrival, with no Advance between them - reachable from real input, because MatchScreen
+        // advances the match and then processes a released drag within the same frame. Only the
+        // write-site zeroing saves this case.
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var neutral = match.Bases.First(b => b.Owner is null);
+        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
+        match.Advance(200);
+        Assert.Equal(match.HumanPlayer, neutral.Owner);
+
+        // Leave the staging base below its cap and partway through a period.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
+        match.Advance(4);
+        Assert.True(neutral.ProductionProgressTicks > 0);
+        Assert.True(neutral.GarrisonCount < neutral.GarrisonCap);
+
+        // Reinforce it past its cap, and stop the advance exactly on the arrival tick.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 20)));
+        // The earlier drain is still in flight toward the capital, so pick the reinforcement by its
+        // target rather than assuming it is the only army on the map.
+        var army = match.ArmiesInFlight.Single(a => a.TargetBaseId == neutral.Id);
+        match.Advance(army.ArrivalTick - match.ElapsedTicks);
+        Assert.Equal(army.ArrivalTick, match.ElapsedTicks);
+        Assert.True(neutral.GarrisonCount >= neutral.GarrisonCap);
+        Assert.Equal(0, neutral.ProductionProgressTicks); // zeroed by the arrival itself
+
+        // Drain it on that same tick - no Advance has run since the arrival resolved.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 20)));
+        var afterDrain = neutral.GarrisonCount;
+        Assert.True(afterDrain < neutral.GarrisonCap);
+
+        match.Advance(period - 1);
+        Assert.Equal(afterDrain, neutral.GarrisonCount);
+        match.Advance(1);
+        Assert.Equal(afterDrain + 1, neutral.GarrisonCount);
+    }
+
+    [Fact]
     public void GarrisonAboveCap_IsNeverDestroyed_AndSimplyDoesNotProduce()
     {
         var match = new Match();
