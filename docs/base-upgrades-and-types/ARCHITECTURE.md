@@ -273,6 +273,19 @@ says a village upgrades three times, so the row exists, `UpgradeCommand` rejects
 existing `AlreadyAtMaxLevel`, and no new rejection reason is invented for it. That asymmetry —
 a defined tier no command can reach — is deliberate and must not be "fixed" in build mode.
 
+**A tower has no cap column at all**, settled at FR-3a's kickoff 28-07-2026. MW2's tower table
+publishes defence, radius, shooting speed, price, and build time and no unit capacity, so there is
+nothing to source. Considered: reusing the village's `20 × level`, which keeps one rule for both
+types and is nearly consequence-free because D-21 makes the cap a production ceiling and a tower
+never produces. Rejected in favour of modelling the absence — a ceiling on something that cannot
+produce is a rule that does nothing, and carrying an inert number invites a later feature to give it
+meaning by accident. Chosen: the tower ladder has no cap column and "the cap of this base" is an
+optional value, empty for a tower, which every reader handles explicitly. What this forbids: a
+sentinel — `0`, `int.MaxValue`, or a magic negative — standing in for "no cap". `Cap=none` is the
+`--dump-state` rendering, fixed here so FR-5 inherits it rather than inventing one. This falsifies
+FR-3's shipped criterion that a tower "still reports a garrison cap from its level", which FR-3a's
+PR corrects in place.
+
 **D-29: levels buy defence, and combat becomes MW2's ratio formula with its later terms present as
 identity.** Added 28-07-2026 for FR-3b, and it is a deliberate reversal of **D-22**'s "levels buy
 economy only, never combat strength" and of **D-15**'s 1:1 arithmetic — both of which are corrected

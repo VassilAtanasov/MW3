@@ -244,11 +244,55 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     within its budget — every base starts a producer, so nothing about an existing match differs —
     and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-3a (wf: f5f3320ec408): The developer can play the match on MW2's literal economy — five village
-levels and four tower levels, MW2's caps and production rates, upgrade costs of 5/10/20 and a flat
-20 for towers, and a conversion price of 30 — on a 50 ms tick that can express them, so that phase
-3's staging numbers are replaced by the reference's. Closes parity **G-8**, **G-14**, and §3's
-tick-rate decision. Core, plus the FR-2 presentation the new ladder invalidates.
+FR-3a (wf: f5f3320ec408, issue #38): The developer can play the match on MW2's literal economy —
+five village levels and four tower levels, MW2's caps and production rates, upgrade costs of 5/10/20
+and a flat 20 for towers, and a conversion price of 30 — on a 50 ms tick that can express them, so
+that phase 3's staging numbers are replaced by the reference's. Closes parity **G-8**, **G-14**, and
+§3's tick-rate decision. Core, plus the FR-2 presentation the new ladder invalidates.
+  - Acceptance: `LevelTable` splits into a village ladder and a tower ladder (D-28); a `Base` reads
+    the ladder for its own `BaseType` and no caller selects a table by hand.
+  - Acceptance: villages have five levels, caps 20/40/60/80/100, production periods 60/30/20/15/12
+    ticks, and upgrades costing 5/10/20 to reach levels 2/3/4 (`MW2-RULES.md` §2.2); towers have
+    four levels at a flat 20 per upgrade (§2.3); conversion costs 30 both directions and still
+    resets to level 1 (§2.1). Every value read from its table with none repeated at a call site.
+  - Acceptance: village level 5 is defined and not reachable by upgrading — `UpgradeCommand` on a
+    level-4 village is rejected with the existing `AlreadyAtMaxLevel` and no new rejection reason is
+    invented. A level-4 tower rejects the same way.
+  - Acceptance: **a tower has no garrison cap** — absent in the type system rather than present and
+    inert, because MW2 publishes no capacity column for towers. Every reader handles the empty case
+    explicitly and none substitutes a sentinel; `Cap=none` is the dump rendering, defined here so
+    FR-5 inherits it. Nothing about a tower's behaviour changes, since a tower never produces.
+  - Acceptance: `Match.TickDurationMilliseconds` is 50 and `ArmySpeedUnitsPerTick` is 0.01, with the
+    map still taking five seconds to cross, asserted directly. `MatchRunner.DecisionIntervalTicks`
+    becomes 40, preserving the AI's two-second cadence rather than silently doubling how often it
+    acts.
+  - Acceptance: five village and four tower ring thicknesses, adjacent ones distinguishable at
+    1280x720 and 1808x1018; the action menu reads `Max` at village level 4, not 3, and shows the new
+    caps; `--dump-state` is unchanged in field name, order, and meaning with only the values moving.
+    No new field, script directive, or command-line flag.
+  - Acceptance: behaviour survives the re-tuning — a level-1 village stops at exactly 20 and stays
+    there; progress does not accumulate at or above cap (D-21, D-21a); a garrison may exceed its cap
+    with nothing destroyed; progress carries across an upgrade; capture drops one level flooring at
+    1 (D-23); the opening move is unchanged in kind (garrison 10, first upgrade 5).
+  - Acceptance: **a level-1 base cannot be converted at all** — cap 20 against a cost of 30 — so a
+    tower requires reaching level 2 first. MW2's actual shape, asserted as a board state so it
+    cannot regress silently.
+  - Acceptance: determinism (D-12) across single-call and irregular-chunk advances, proved on a run
+    containing a capped base, an upgrade, a conversion, and a capture.
+  - Acceptance (corrections in the same PR): `LevelTable`'s XML doc, FR-3's claim below that a tower
+    "still reports a garrison cap from its level", and any doc naming the staging numbers as
+    current. `MW2-PARITY.md` moves **G-8** and **G-14** out of §2 and records §3's tick rate as
+    shipped.
+  - Acceptance: every pre-existing test and committed script still passes; where the new numbers
+    invalidate an expectation it is re-authored in place to assert the same behaviour — never
+    weakened, deleted, or dodged by adjusting a tuning value to suit a test. Budgets are re-authored
+    for the roughly 3× slower economy; `qa/scripts/victory.txt` and `MatchOutcomeTests`' victory
+    sequence are the known casualties again.
+  - Acceptance (device, blocking): on the MI Pad 4 (`43e75e5`), a base upgraded twice shows three
+    visibly distinct ring thicknesses and a menu reading the new caps, against a freshly installed
+    APK whose `lastUpdateTime` is newer than the branch build.
+  - Acceptance: `MW3.Core` still targets `netstandard2.1` and is engine-free;
+    `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-3b (wf: f585a0868ecc): The developer can have a base's level buy defence as well as economy,
 with combat resolved by MW2's `Bu = (a/d) × Wu` rather than 1:1, so that a level-1 tower is as
@@ -385,14 +429,24 @@ Villages — capacity is `20 × level`, production `0.33 × level` units/sec, wh
 | 4 | 80 | 15 | 20 units |
 | 5 | 100 | 12 | **not reachable by upgrading** |
 
-Towers — four levels, a flat 20 units per upgrade:
+Towers — four levels, a flat 20 units per upgrade, and **no garrison cap at all**:
 
-| Tower level | Cost to reach this level |
-|---|---|
-| 1 | — (arrived at by conversion) |
-| 2 | 20 units |
-| 3 | 20 units |
-| 4 | 20 units |
+| Tower level | Cost to reach this level | Garrison cap |
+|---|---|---|
+| 1 | — (arrived at by conversion) | none |
+| 2 | 20 units | none |
+| 3 | 20 units | none |
+| 4 | 20 units | none |
+
+The absent cap is a decision, settled at FR-3a's kickoff 28-07-2026. MW2's tower table publishes
+defence, radius, shooting speed, price, and build time — **no unit-capacity column** — and no other
+source supplies one, so there is nothing to copy. Rather than carry a cap that is present and inert,
+a tower's cap is **absent in the type system**: the tower ladder has no cap column and "the cap of
+this base" is an optional value that is empty for a tower, handled explicitly by every reader with
+no sentinel like `0` or `int.MaxValue` standing in. Nothing about a tower's behaviour changes, since
+D-21 makes the cap a production ceiling and a tower never produces. This does falsify FR-3's shipped
+criterion that a tower "still reports a garrison cap from its level"; that line is corrected in
+place by FR-3a's PR.
 
 **Conversion costs 30 units** in either direction, still resetting the base to level 1.
 
