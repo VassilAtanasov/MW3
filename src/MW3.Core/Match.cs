@@ -191,6 +191,39 @@ public sealed class Match
     }
 
     /// <summary>
+    /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: exactly one
+    /// <see cref="BaseAction"/> (Upgrade) this phase, its cost read from <see cref="LevelTable"/>
+    /// and never named by the caller (D-25). Returns an empty list for an unknown base or one
+    /// <paramref name="player"/> does not own - the widget that renders this answer never learns
+    /// why there is nothing to show, because there is nothing for it to compute either way.
+    /// </summary>
+    public IReadOnlyList<BaseAction> AvailableActions(Player player, int baseId)
+    {
+        if (player is null)
+        {
+            throw new ArgumentNullException(nameof(player));
+        }
+
+        var target = FindBase(baseId);
+        if (target is null || target.Owner != player)
+        {
+            return Array.Empty<BaseAction>();
+        }
+
+        if (target.Level >= LevelTable.MaxLevel)
+        {
+            return new[] { new BaseAction(BaseActionKind.Upgrade, Cost: 0, BaseActionAvailability.AlreadyAtMaxLevel) };
+        }
+
+        var cost = LevelTable.UpgradeCost(target.Level);
+        var availability = target.GarrisonCount >= cost
+            ? BaseActionAvailability.Affordable
+            : BaseActionAvailability.GarrisonBelowCost;
+
+        return new[] { new BaseAction(BaseActionKind.Upgrade, cost, availability) };
+    }
+
+    /// <summary>
     /// Advances the match by <paramref name="ticks"/> whole ticks. Production and army arrivals are
     /// processed in strict chronological order - one segment per distinct arrival tick reached,
     /// production applied only across each segment's span - so the same starting state and the same

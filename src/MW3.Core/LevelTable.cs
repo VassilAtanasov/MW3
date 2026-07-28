@@ -27,6 +27,12 @@ public static class LevelTable
     // "grow first" is a live opening move rather than something a player only saves toward.
     private static readonly int[] _upgradeCosts = { 6, 16 };
 
+    // A dimensionless fraction of a base's drawn radius, not a pixel count - MW3.Core has no notion
+    // of pixels (D-2). MW3.Game multiplies this by whatever radius the viewport produced, so the
+    // ring stays a fixed proportion of the base at any resolution (D-14) with no per-level literal
+    // duplicated at the call site (D-22).
+    private static readonly double[] _ringThicknessFractionOfRadius = { 0.06, 0.14, 0.24 };
+
     /// <summary>
     /// The garrison a base of this level produces up to. It is a production ceiling, not a storage
     /// limit (D-21): arriving armies stack above it freely and nothing is ever destroyed for
@@ -54,6 +60,13 @@ public static class LevelTable
 
         return _upgradeCosts[fromLevel - MinLevel];
     }
+
+    /// <summary>
+    /// How thick a base's level ring is drawn, as a fraction of its radius - the only place a
+    /// level's visible ring thickness is defined, so <c>MatchScreen</c> reads it rather than
+    /// hardcoding one number per level.
+    /// </summary>
+    public static double RingThicknessFractionOfRadius(int level) => _ringThicknessFractionOfRadius[IndexOfLevel(level)];
 
     private static int IndexOfLevel(int level)
     {

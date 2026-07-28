@@ -48,6 +48,19 @@ internal sealed class MatchScreen : IScreen
     private int? _selectedSourceBaseId;
     private bool _pressBeganAfterOutcomeDecided;
 
+    // The action menu is presentation state only - MW3.Core never learns it exists (D-26).
+    private BaseActionMenu? _openMenu;
+    private int? _pressBeganOnMenuButtonIndex;
+    private bool _pressBeganOnGreyedMenuButton;
+    private bool _pressDismissedMenuOnThisPress;
+
+    private Texture2D? _buttonTexture;
+
+    // A base's per-level ring is drawn as an enlarged, darker-tinted copy of its own fill circle -
+    // no second texture, and its thickness comes from LevelTable rather than a literal here (D-22).
+    private static readonly Color _ringDarkenTarget = Color.Black;
+    private const float _ringDarkenAmount = 0.4f;
+
     public MatchScreen()
     {
         _runner = new MatchRunner(_match, new AiBrain(_match.AiPlayer));
@@ -62,6 +75,7 @@ internal sealed class MatchScreen : IScreen
 
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
+        _buttonTexture = CreateButtonTexture(graphicsDevice);
 
         _garrisonText = new string[_match.Bases.Count];
         _lastGarrisonCount = new int[_match.Bases.Count];
@@ -95,6 +109,22 @@ internal sealed class MatchScreen : IScreen
             _selectedSourceBaseId = null;
         }
 
+        // The menu dismisses itself with no player input the moment its base stops being human-owned
+        // (captured, or demoted below ownership is impossible - only capture changes owner) or the
+        // outcome is decided - checked every frame, independently of any press or release.
+        if (_openMenu is not null)
+        {
+            var anchorBase = FindBase(_openMenu.BaseId);
+            if (anchorBase is null || anchorBase.Owner != _match.HumanPlayer || _match.Outcome != MatchOutcome.InProgress)
+            {
+                _openMenu = null;
+            }
+            else
+            {
+                _openMenu.Refresh();
+            }
+        }
+
         HandleInput(input, viewport, navigator);
     }
 
@@ -114,13 +144,23 @@ internal sealed class MatchScreen : IScreen
         if (input.IsPointerPressed && !_wasPointerPressed)
         {
             _pressBeganAfterOutcomeDecided = outcomeDecided;
+            _pressBeganOnMenuButtonIndex = null;
+            _pressBeganOnGreyedMenuButton = false;
+            _pressDismissedMenuOnThisPress = false;
 
             if (!outcomeDecided)
             {
-                var point = ToNormalized(input.PointerPosition, viewport);
-                var pressedBaseId = HitTester.FindBaseAt(point, _match.Bases);
-                var pressedBase = pressedBaseId is int id ? FindBase(id) : null;
-                _selectedSourceBaseId = pressedBase is not null && pressedBase.Owner == _match.HumanPlayer ? pressedBase.Id : null;
+                if (_openMenu is not null)
+                {
+                    HandlePressWhileMenuOpen(input, viewport);
+                }
+                else
+                {
+                    var point = ToNormalized(input.PointerPosition, viewport);
+                    var pressedBaseId = HitTester.FindBaseAt(point, _match.Bases);
+                    var pressedBase = pressedBaseId is int id ? FindBase(id) : null;
+                    _selectedSourceBaseId = pressedBase is not null && pressedBase.Owner == _match.HumanPlayer ? pressedBase.Id : null;
+                }
             }
         }
         else if (!input.IsPointerPressed && _wasPointerPressed)
@@ -134,15 +174,40 @@ internal sealed class MatchScreen : IScreen
                     return;
                 }
             }
+            else if (_pressDismissedMenuOnThisPress)
+            {
+                // The down that started this gesture already dismissed a menu - its release does
+                // nothing at all: no army, no highlight, no new menu (D-26).
+            }
+            else if (_pressBeganOnGreyedMenuButton)
+            {
+                // Pressing a greyed button does nothing at all: no command submitted, and the menu
+                // stays open exactly as it was.
+            }
+            else if (_pressBeganOnMenuButtonIndex is int buttonIndex)
+            {
+                _openMenu?.Activate(buttonIndex, _runner);
+                _openMenu = null;
+            }
             else if (_selectedSourceBaseId is int sourceId)
             {
                 var point = ToNormalized(input.PointerPosition, viewport);
                 var targetId = HitTester.FindBaseAt(point, _match.Bases);
 
-                if (targetId is int target && target != sourceId)
+                if (targetId is int target)
                 {
                     var source = FindBase(sourceId);
-                    if (source is not null && source.Owner == _match.HumanPlayer)
+                    if (target == sourceId)
+                    {
+                        // A press and release on the same base the human owns opens its action menu
+                        // (phase 2's silent cancel on this gesture is gone) - `source` is guaranteed
+                        // human-owned already, since only such a base is ever selected on press.
+                        if (source is not null)
+                        {
+                            _openMenu = new BaseActionMenu(_match, _match.HumanPlayer, sourceId);
+                        }
+                    }
+                    else if (source is not null && source.Owner == _match.HumanPlayer)
                     {
                         var unitCount = Math.Max(1, source.GarrisonCount / 2);
                         if (unitCount <= source.GarrisonCount)
@@ -157,6 +222,37 @@ internal sealed class MatchScreen : IScreen
         }
 
         _wasPointerPressed = input.IsPointerPressed;
+    }
+
+    /// <summary>
+    /// While a menu is open, a press (the down) on one of its buttons is remembered so the matching
+    /// release can activate it; a press anywhere else dismisses the menu immediately and swallows
+    /// its own release - no selection is made even if the press lands on another owned base (D-26).
+    /// </summary>
+    private void HandlePressWhileMenuOpen(IInputSource input, Viewport viewport)
+    {
+        var point = ToNormalized(input.PointerPosition, viewport);
+        var buttonIndex = _openMenu!.HitTestButton(point, viewport);
+
+        if (buttonIndex is int index)
+        {
+            // Read from Core's own answer, cached on the menu since its last refresh - not computed
+            // here (D-25). Whether this gesture can activate is decided once, at press time; the
+            // release always honours it even if the answer changes underneath a held press.
+            if (_openMenu.Actions[index].Availability == BaseActionAvailability.Affordable)
+            {
+                _pressBeganOnMenuButtonIndex = index;
+            }
+            else
+            {
+                _pressBeganOnGreyedMenuButton = true;
+            }
+        }
+        else
+        {
+            _openMenu = null;
+            _pressDismissedMenuOnThisPress = true;
+        }
     }
 
     // Indexed rather than foreach: _match.Bases is IReadOnlyList<Base>, and enumerating a List<T>
@@ -249,6 +345,17 @@ internal sealed class MatchScreen : IScreen
                 spriteBatch.Draw(_circleTexture, highlightDestination, _selectionHighlightColor);
             }
 
+            // The level ring is drawn first, as a larger copy of the same circle in a darker shade of
+            // the owner's tint, so the fill drawn on top of it leaves exactly a ring of that shade
+            // visible around the rim - three thicknesses distinguishable at both target resolutions,
+            // with no per-level literal here (the fraction lives in LevelTable, D-22).
+            var ringThickness = radius * (float)LevelTable.RingThicknessFractionOfRadius(b.Level);
+            var ringRadius = radius + ringThickness;
+            var ringDiameter = (int)(ringRadius * 2);
+            var ringDestination = new Rectangle(
+                (int)(center.X - ringRadius), (int)(center.Y - ringRadius), ringDiameter, ringDiameter);
+            spriteBatch.Draw(_circleTexture, ringDestination, DarkenOwnerColor(GetOwnerColor(b.Owner)));
+
             var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
             spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(b.Owner));
 
@@ -268,11 +375,18 @@ internal sealed class MatchScreen : IScreen
 
         DrawArmiesInFlight(spriteBatch, viewport);
 
+        if (_openMenu is not null && _buttonTexture is not null)
+        {
+            _openMenu.Draw(spriteBatch, _buttonTexture, _font, viewport);
+        }
+
         if (_match.Outcome != MatchOutcome.InProgress)
         {
             DrawOutcomeBanner(spriteBatch, viewport);
         }
     }
+
+    private static Color DarkenOwnerColor(Color color) => Color.Lerp(color, _ringDarkenTarget, _ringDarkenAmount);
 
     /// <summary>
     /// Victory/defeat text over the final board, sized and positioned from the viewport (D-14) - a
@@ -346,9 +460,10 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
-    /// Writes the match's elapsed ticks, one line per base (id, owner, garrison), and one line per
-    /// in-flight army (id, owner, source, target, count, launch tick, arrival tick) to
-    /// <paramref name="path"/>, for `--dump-state` to give QA exact numbers instead of pixels.
+    /// Writes the match's elapsed ticks, one line per base (id, owner, garrison, level, cap), one
+    /// line per in-flight army, and one menu line to <paramref name="path"/>, for `--dump-state` to
+    /// give QA exact numbers instead of pixels. The menu line is written by the screen, never by
+    /// <see cref="MW3.Core.Match"/> - menu state is presentation state (D-26).
     /// </summary>
     internal void WriteStateDump(string path)
     {
@@ -359,7 +474,8 @@ internal sealed class MatchScreen : IScreen
         foreach (var b in _match.Bases)
         {
             var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
-            writer.WriteLine(FormattableString.Invariant($"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount}"));
+            writer.WriteLine(FormattableString.Invariant(
+                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={b.GarrisonCap}"));
         }
 
         foreach (var army in _match.ArmiesInFlight)
@@ -367,11 +483,32 @@ internal sealed class MatchScreen : IScreen
             writer.WriteLine(FormattableString.Invariant(
                 $"Army {army.Id}: Owner={army.Owner.ControllerKind} Source={army.SourceBaseId} Target={army.TargetBaseId} Count={army.UnitCount} Launch={army.LaunchTick} Arrival={army.ArrivalTick}"));
         }
+
+        writer.WriteLine(FormatMenuDumpLine());
+    }
+
+    private string FormatMenuDumpLine()
+    {
+        if (_openMenu is null)
+        {
+            return "Menu: none";
+        }
+
+        var anchorBase = FindBase(_openMenu.BaseId);
+        var action = _openMenu.Actions.Count > 0 ? _openMenu.Actions[0] : null;
+        if (anchorBase is null || action is null)
+        {
+            return "Menu: none";
+        }
+
+        return FormattableString.Invariant(
+            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{anchorBase.GarrisonCap} Upgrade={action.Availability} Cost={action.Cost}");
     }
 
     public void Dispose()
     {
         _circleTexture?.Dispose();
+        _buttonTexture?.Dispose();
     }
 
     private static Color GetOwnerColor(Player? owner)
@@ -406,6 +543,13 @@ internal sealed class MatchScreen : IScreen
         }
 
         texture.SetData(data);
+        return texture;
+    }
+
+    private static Texture2D CreateButtonTexture(GraphicsDevice graphicsDevice)
+    {
+        var texture = new Texture2D(graphicsDevice, 1, 1);
+        texture.SetData(new[] { Color.White });
         return texture;
     }
 }

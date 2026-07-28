@@ -64,6 +64,51 @@ Each feature's `/kickoff` fixes the exact line format and the scripts that exerc
 standing rule from phase 2 holds: a dump is only meaningful while the match screen is showing, and
 `--dump-state` writes nothing otherwise.
 
+**FR-2's `--dump-state` line format**, settled at kickoff: the per-base line gains `Level=` and
+`Cap=` after the existing `Garrison=`, with every other field unchanged in name, order, and meaning
+(`Base 1: Owner=Human Garrison=12 Level=2 Cap=35`). Exactly one further line is always written
+while the match screen is showing - `Menu: none`, or
+`Menu: Base=1 Garrison=12/35 Upgrade=Affordable Cost=16` with `Upgrade=` one of `Affordable`,
+`GarrisonBelowCost`, `AlreadyAtMaxLevel` (`Cost=0` at max level) - and it is written by
+`MatchScreen`, never by `MW3.Core`, since menu state is presentation state (D-26).
+
+FR-2 adds six scripts under `qa/scripts/`, each opening or driving the action menu through the
+existing `down`/`up` vocabulary - no new directive, no new flag:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/open-action-menu.txt --screenshot open.png --dump-state open.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-menu-on-empty-space.txt --screenshot dismiss.png --dump-state dismiss.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/upgrade-from-menu.txt --screenshot upgrade.png --dump-state upgrade.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/greyed-upgrade-does-nothing.txt --screenshot greyed.png --dump-state greyed.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/drag-suppressed-while-menu-open.txt --screenshot suppressed.png --dump-state suppressed.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/menu-clamped-on-top-row-base.txt --screenshot clamp.png --dump-state clamp.txt
+```
+
+`open-action-menu.txt` presses and releases on the human base: its dump shows
+`Menu: Base=0 Garrison=10/20 Upgrade=Affordable Cost=6`. `dismiss-menu-on-empty-space.txt` opens
+that menu, then presses empty space: `Menu: none`, no other state changed.
+`upgrade-from-menu.txt` opens the menu and presses its Upgrade button: the dump shows the base's
+garrison down by exactly its cost, `Level=2`, and `Menu: none`. `greyed-upgrade-does-nothing.txt`
+drains the human base below the level-1 cost first (a send halves it to 5), opens the menu (reading
+`Upgrade=GarrisonBelowCost`), then presses the greyed button: the dump shows the level and garrison
+unchanged and the menu **still open** (`Menu: Base=0 Garrison=5/20 Upgrade=GarrisonBelowCost
+Cost=6`) - pressing a greyed button neither submits a command nor closes the menu.
+`drag-suppressed-while-menu-open.txt` opens the menu, then repeats the exact press-drag-release
+`send-army.txt` uses (human base to the nearest neutral): with the menu open this sends no army at
+all - the down dismisses the menu (it did not land on the button) and the matching release does
+nothing, so the dump shows zero armies in flight and the human base's garrison unaffected by any
+send. `menu-clamped-on-top-row-base.txt` captures the top-row neutral base at y=0.25 with two
+sends launched before the first lands (5 v 5 first drains it to zero without capturing, the second
+takes it a couple of ticks later), then opens its menu - exercising the viewport clamp for a base
+near the top edge rather than the middle, kept short enough that the AI's first decision (tick 20)
+cannot land before the script ends. Re-running any of the six individually reproduces its own
+screenshot byte-for-byte.
+
+A `--screenshot` at 1808x1018 - the attached MI Pad 4's viewport, per `docs/core-gameplay-loop/
+ARCHITECTURE.md`'s note on Android's chrome - is checked directly on device (D-3, D-8) rather than
+by resizing the desktop window, exactly as FR-3 established for the base-layout criterion this
+phase reuses for the menu.
+
 ## 3. Project layout
 
 No new projects. Within the existing ones:

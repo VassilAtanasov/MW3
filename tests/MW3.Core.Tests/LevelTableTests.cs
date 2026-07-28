@@ -62,6 +62,24 @@ public class LevelTableTests
         Assert.Throws<ArgumentOutOfRangeException>(() => LevelTable.UpgradeCost(fromLevel));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void RingThicknessFractionOfRadius_IsDefinedForEveryLevel_AndPositive(int level)
+    {
+        Assert.True(LevelTable.RingThicknessFractionOfRadius(level) > 0);
+    }
+
+    [Fact]
+    public void RingThicknessFractionOfRadius_StrictlyIncreasesWithLevel()
+    {
+        for (var level = LevelTable.MinLevel; level < LevelTable.MaxLevel; level++)
+        {
+            Assert.True(LevelTable.RingThicknessFractionOfRadius(level + 1) > LevelTable.RingThicknessFractionOfRadius(level));
+        }
+    }
+
     [Fact]
     public void HigherLevels_AreStrictlyBetterEconomy_NeverWorse()
     {

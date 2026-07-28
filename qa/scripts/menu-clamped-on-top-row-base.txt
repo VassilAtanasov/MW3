@@ -1,0 +1,13 @@
+# Tap Play, then two quick sends from the human base to the top-row neutral at y=0.25 - the first
+# ties it down to zero (5 v 5, stays neutral), the second (launched before the first lands) captures
+# it a couple of ticks later - then open that base's action menu. Exercises the viewport clamp for a
+# base near the top edge rather than the middle (FR-2). Kept short (well under the AI's own 17-tick
+# reach to the nearest base) so the AI's first decision (tick 20) cannot land before the script ends.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.350000 0.250000
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000
+170 down 0.350000 0.250000
+175 up 0.350000 0.250000

@@ -1,0 +1,9 @@
+# Tap Play, open the human base's action menu, then press-drag-release from the human base to a
+# neutral base exactly as send-army.txt does - while the menu is open this sends no army: the press
+# (not on a button) dismisses the menu and its matching release does nothing (D-26).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000

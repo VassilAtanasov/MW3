@@ -1,0 +1,8 @@
+# Tap Play, open the human base's action menu, then press and release its Upgrade button -
+# submits the upgrade and dismisses the menu.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.120000 0.260000
+25 up 0.120000 0.260000
