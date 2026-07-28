@@ -304,8 +304,16 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-Every column is now **settled** and is contract, not proposal — the economy columns by FR-1's
-kickoff, the conversion cost by FR-3's, and the tower columns by FR-4's (all 28-07-2026):
+Every column is **settled for this phase** and is contract, not proposal — the economy columns by
+FR-1's kickoff, the conversion cost by FR-3's, and the tower columns by FR-4's (all 28-07-2026).
+Nothing in phase 3 may deviate from them.
+
+> **Provisional beyond this phase** (noted 28-07-2026). The project targets MW2's *literal* numbers
+> — five village levels, caps 20/40/60/80/100, upgrade costs 5/10/20, conversion 30 — with the tick
+> rate chosen to fit them; see `docs/reference/MW2-PARITY.md` §3. The three-level ladder below is a
+> staging value, and the phase that closes parity gaps **G-8** and **G-14** will re-tune it and
+> re-author the tests and QA scripts pinned to it. That is a discovery decision, never a build-mode
+> one.
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
@@ -382,17 +390,27 @@ Only the ones that genuinely constrain design:
 
 ## 6. Out of scope
 
-Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
+Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
 
-- **A third base type.** Producer and tower, and nothing else. No forge, no watchtower, no wall, no
-  building that grants an ability — MW2 has several; this phase earns two.
-- **Tribe abilities, a rage meter, and any active power** the player triggers outside a base.
+> **Read these as sequencing, not as design positions** (corrected 28-07-2026). The project's goal
+> is a game as close as possible to Mushroom Wars 2, shipping as Bug Wars with only the IP layer
+> reskinned. So where a bullet below excludes something MW2 has, it is excluded **from this phase**
+> and owed by a later one — not rejected. Each such item is tracked as a numbered gap in
+> `docs/reference/MW2-PARITY.md` §2, cross-referenced below. Every exclusion still binds phase 3 in
+> full; none of them may be closed in build mode.
+
+- **A third base type.** Producer and tower this phase, and nothing else. No forge, no watchtower,
+  no wall, no building that grants an ability. MW2's forge is owed (parity **G-6**) and brings the
+  attack/defence multipliers with it; this phase earns two types and stops there.
+- **Tribe abilities, a rage meter, and any active power** the player triggers outside a base. Owed
+  as MW2's hero and energy systems (parity **G-4**, **G-5**).
 - **Unit types.** One unit, as phase 2 established. Levels change how fast units appear and how many
   fit, never what they are.
 - **A send-strength picker.** Phase 2 fixed a send at half the garrison rounded down, minimum 1, and
-  scoped a slider out; MW2's `25/50/75/100%` control is deliberately **not** taken this phase, even
-  though the menu widget FR-2 introduces would make it easy to add. It is a separate decision about
-  how the game plays, and it deserves its own phase rather than riding in on a UI feature.
+  scoped a slider out; MW2's `25/50/75/100%` control is **not** taken this phase, even though the
+  menu widget FR-2 introduces would make it easy to add. It changes how the game plays and needs its
+  own phase rather than riding in on a UI feature — and that phase is owed rather than optional
+  (parity **G-3**), since the picker is also the precondition for MW2's snaking technique.
 - **A second map, a map file format, and map selection.** Still one hardcoded six-base layout — now
   with more that can happen on it.
 - **Campaign structure**: no level list, progression, stars, score, statistics, or save data.
@@ -402,18 +420,20 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
 - **Randomized combat and difficulty levels** (D-15). Tower fire is deterministic integer damage,
   not a hit chance. AI tuning surfaces stay out, as does a switch to disable the AI — refused in
   phase 2 for the same reason it would be refused now.
-- **A defence bonus from levels.** Settled in discovery: a level buys production rate and cap only,
-  and combat stays phase 2's plain 1:1 arithmetic. This keeps every existing combat test meaning
-  exactly what it meant.
+- **A defence bonus from levels.** A level buys production rate and cap only this phase, and combat
+  stays phase 2's plain 1:1 arithmetic — which keeps every existing combat test meaning exactly what
+  it meant. MW2 does give levels a defence bonus (villages 100→140%, towers 140→200%), so this is
+  owed (parity **G-9**, **G-10**) and arrives with the combat formula it feeds (**G-7**).
 - **Army recall, rally points, and interception by armies.** FR-4 makes armies vulnerable to
   *towers* specifically. Armies still do not fight each other in transit, still cannot be recalled,
   and still travel base-to-base in a straight line — no pathfinding, no fog of war.
 - **Repair, decay, and over-cap bleed.** Settled in discovery: the cap is a production ceiling, so
   arrivals stack above it freely and nothing decays back down. Nor is there a refund for converting
   a base back — conversion costs 10 each way with nothing returned.
-- **Build time.** Settled at FR-3's kickoff (28-07-2026): upgrading and converting are instant, and
-  no base is ever "under construction". A build delay would be a new mechanic, a new state to draw,
-  and a new thing for the AI to predict, for a feel benefit this phase cannot yet measure.
+- **Build time.** Settled at FR-3's kickoff (28-07-2026): upgrading and converting are instant this
+  phase, and no base is ever "under construction". A build delay is a new mechanic, a new state to
+  draw, and a new thing for the AI to predict, for a feel benefit this phase cannot yet measure.
+  MW2 does have one (5/5/10/15 s), so it is owed (parity **G-11**).
 - **The cap and the level as numbers on the map.** Settled at FR-2's kickoff (28-07-2026): the map
   circle keeps the bare garrison count, the level is carried non-textually as ring thickness, and
   the cap is legible only inside the action menu — three numbers in one small circle is unreadable

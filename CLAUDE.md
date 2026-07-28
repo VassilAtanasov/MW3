@@ -19,6 +19,30 @@ now — recorded in the active project's `docs/<project-slug>/REQUIREMENTS.md` �
 mid-build, or left unresolved at the end of any session — send a push notification listing them,
 so the user never has to poll to find out their decision is blocking progress.
 
+**The already-answered rule**: the goal is a game **as close as possible to Mushroom Wars 2**,
+shipping later as **Bug Wars** with the IP layer reskinned (see below). `docs/reference/` is the
+researched record of how MW2 works — rules, buildings, units, heroes, items, with sources and
+confidence markers — and it therefore functions as close to a specification. **Read
+`docs/reference/MW2-PARITY.md` before asking the user a design question in `/discover` or
+`/kickoff`.** The default answer to "how should this behave?" is **"the way MW2 does it"**; state
+the rule and its source instead of asking. Reading a sourced reference is not guessing, so this
+narrows the never-guess rule rather than weakening it. Ask only where MW2's behaviour is genuinely
+unknown (its AI is undocumented), where the reference is marked `[?]`, where the question is about
+the IP layer, or where closing a gap would contradict a shipped `REQUIREMENTS.md` — that last one is
+the user's call, never a build-mode decision.
+
+Two hard limits. Never copy an MW2 tuning *number* into `MW3.Core`: MW2's economy is seconds-based
+and larger, so parity means same behaviour and same ratios, not same literals, and every constant
+enters through a kickoff-settled §"Tuning values" table (D-22). And
+`docs/<project-slug>/REQUIREMENTS.md` still outranks `docs/reference/` whenever they disagree —
+where a shipped phase diverges from MW2, that is recorded as a **gap** in `MW2-PARITY.md` §2 and
+closed by a future phase, not fixed in build mode.
+
+**The IP layer is the one permanent divergence.** The final game is **Bug Wars**: insect heroes and
+armies matched to the region of each **geolocated** map, original branding and items, and **Fame** in
+place of MW2's ranking. Mechanics may follow MW2; assets never do (S-6), and the repo is public.
+Every "MW3" and "mushroom" name in this repository is placeholder.
+
 ## The plan lives in Workflowy
 
 | Level | Workflowy item | Maps to |

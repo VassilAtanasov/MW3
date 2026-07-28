@@ -7,9 +7,21 @@
 
 ## 1. Overview
 
-MW3 is an enhanced clone of Mushroom Wars 2: a 2D real-time strategy game, Android-first, adding
-new single-player cooperative campaigns. It is a personal project, built by Claude Code through the
-Ivan pipeline, and it is optimized for a cheap and fast build/run loop above all else.
+MW3 is a clone of Mushroom Wars 2: a 2D real-time strategy game, Android-first, adding new
+single-player cooperative campaigns. It is a personal project, built by Claude Code through the Ivan
+pipeline, and it is optimized for a cheap and fast build/run loop above all else.
+
+**The target is to be as close as possible to MW2 mechanically**, and to ship as **Bug Wars** with
+the IP layer replaced: insect heroes and armies matched to the region of each geolocated map,
+original branding and items, and **Fame** in place of MW2's ranking. `MW3` and every "mushroom" name
+in this repository is placeholder. Mechanics may follow MW2; assets never do (S-6).
+
+MW2 is documented in `docs/reference/` — rules, buildings, units, heroes and items, with sources and
+confidence markers — and therefore serves as close to a specification for everything except the IP
+layer. `docs/reference/MW2-PARITY.md` lists where the build does not yet match, is read at
+`/discover` and `/kickoff` so known answers are not re-asked, and is meant to trend toward empty.
+Product truth stays in each phase's `REQUIREMENTS.md`, which outranks the reference on any
+disagreement.
 
 One .NET solution. Game rules live in an engine-free library; MonoGame game code sits on top of it;
 thin platform heads launch it.
