@@ -20,6 +20,7 @@ public class BaseTests
                 nameof(Base.Owner),
                 nameof(Base.Position),
                 nameof(Base.ProductionProgressTicks),
+                nameof(Base.Type),
             },
             propertyNames);
 

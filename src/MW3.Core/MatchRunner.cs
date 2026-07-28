@@ -41,6 +41,9 @@ public sealed class MatchRunner
     /// <summary>Submits an upgrade, through the same single path every other command takes.</summary>
     public UpgradeOutcome Execute(UpgradeCommand command) => _match.Execute(command);
 
+    /// <summary>Submits a conversion, through the same single path every other command takes.</summary>
+    public ConvertOutcome Execute(ConvertCommand command) => _match.Execute(command);
+
     /// <summary>
     /// Advances the match by <paramref name="ticks"/> whole ticks, stopping at every decision tick
     /// crossed to let the AI brain decide, before continuing to the requested total. Once

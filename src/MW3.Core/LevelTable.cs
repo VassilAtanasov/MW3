@@ -18,6 +18,14 @@ public static class LevelTable
 
     public const int MaxLevel = 3;
 
+    /// <summary>
+    /// Units a <see cref="ConvertCommand"/> costs, identical in both directions (producer to tower
+    /// and back). Conversion also resets the base to <see cref="MinLevel"/>, which is the load-bearing
+    /// half of the cost: this constant alone is deliberately cheap, since repurposing a developed
+    /// base is paid for mostly through the level it loses, not through this number.
+    /// </summary>
+    public const int ConversionCost = 10;
+
     private static readonly int[] _garrisonCaps = { 20, 35, 50 };
 
     private static readonly long[] _productionPeriodTicks = { 10, 7, 5 };
