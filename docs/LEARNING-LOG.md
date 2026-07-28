@@ -637,3 +637,72 @@ multiplayer session wrapper, say), that's the point to reconsider whether `Match
 single `ThrowIfDecided()`-style helper instead of three call sites each re-deriving the same
 condition, the same "two is fine, watch for three" judgment call this log has hit before (#14's
 segment-walking entry, revisited by #24's boundary-walking entry).
+
+## 2026-07-28 — #30 Garrison caps, base levels, and the upgrade command
+Concepts: readonly structs as allocation-free multi-value returns, integer division/modulo as carried state, computed properties with no backing field, XML `cref` and overload resolution, record equality vs null in guard clauses
+
+- **`readonly struct` as an allocation-free multi-value return** — a value type whose fields cannot
+  change after construction, so it lives on the stack rather than the heap. Why here:
+  `ProductionCalculator.Advance` has to return *two* things — a garrison and a progress counter —
+  for every owned base on every advance, which on the Android head is every frame. A class would
+  allocate six objects per frame and hand the GC a steady drip on the target platform;
+  `ProductionState` (`src/MW3.Core/ProductionState.cs:9`) allocates nothing. The alternative,
+  `out` parameters, works but reads badly at the call site and can't be composed. Pitfall: the
+  "no allocation" guarantee is fragile — box the struct (assign it to `object`, store it in a
+  non-generic collection, capture it in a lambda, or expose it through an interface) and the
+  allocation comes back silently, with nothing in the type system to warn you. `readonly` also
+  matters for a second reason: without it, the compiler makes defensive copies whenever the struct
+  is accessed through a `readonly` field, so the "cheap" type quietly gets more expensive.
+
+- **Integer division and modulo as carried state** — using `/` and `%` (here spelled as
+  `available - produced * period`) to split a running total into "whole units earned" and "remainder
+  to carry". Why here: production had to survive being chunked arbitrarily — `Advance(100)` and a
+  hundred `Advance(1)` calls must agree exactly (D-12). Storing the *remainder* rather than a
+  timestamp is what makes that fall out of the arithmetic instead of needing a special case:
+  `var produced = availableTicks / period` then carry `availableTicks - (produced * period)`
+  (`src/MW3.Core/ProductionCalculator.cs:49`). Pitfall: C# integer division truncates *toward zero*,
+  not toward negative infinity, so `-1 / 10 == 0` and `-1 % 10 == -1` — carry arithmetic that can
+  ever see a negative operand will drift. This code is safe only because the span is guarded
+  non-negative first; the guard is load-bearing, not decoration. Second pitfall in the same line:
+  `produced` is `long` and the garrison is `int`, so the `(int)` cast is only sound because the
+  branch it sits in has already proved `produced < room ≤ 50`.
+
+- **Computed property with no backing field** — `public int GarrisonCap => LevelTable.GarrisonCap(Level);`
+  (`src/MW3.Core/Base.cs:49`). Why here: the cap is *derived* from the level, so storing it would
+  create two facts that can disagree — and an upgrade would have to remember to update both. As an
+  expression-bodied getter it cannot drift, and it satisfies "no public setter" for free because
+  there is nothing to set. Pitfall: it recomputes on every read, including inside per-tick loops;
+  that is fine for an array index but would not be for anything expensive. A subtler one showed up
+  in the tests — you cannot set a computed property by reflection, which is why the demotion tests
+  set `Level` and let the cap follow, rather than setting the cap directly.
+
+- **XML `cref` and overload resolution** — adding `Execute(UpgradeCommand)` alongside
+  `Execute(SendArmyCommand)` turned every existing `<see cref="Execute"/>` into error CS0419
+  ("ambiguous reference"), and with `-warnaserror` that is a *build failure* in five files that had
+  nothing to do with the change. The fix is to name the parameter types:
+  `<see cref="Execute(SendArmyCommand)"/>` (`src/MW3.Core/Match.cs:56`). Why worth knowing: it is
+  the one case where documentation is compiled, so doc comments rot loudly instead of silently —
+  which is a feature, but it means adding an overload is never a purely additive change. Pitfall:
+  the error points at the *doc comment*, not at the new overload that caused it, so the first
+  instinct is to fix the comment rather than to notice that a second method just appeared.
+
+- **Record equality vs `null` in a guard clause** — `Player` is a `record`, so `==` and `!=` are
+  value equality, and `null == null` is `true`. That made `target.Owner != command.IssuingPlayer`
+  return `false` when *both* were null — so a command with a null issuing player passed the
+  ownership gate on a neutral base, whose owner is legitimately absent. Caught in review; fixed by
+  rejecting the null issuer up front (`src/MW3.Core/Match.cs:83`, `:152`). Why here: this codebase
+  deliberately models neutrality as the *absence* of an owner (D-11) rather than a sentinel id, and
+  the cost of that otherwise-good decision is that `null` is a meaningful value on one side of the
+  comparison — so any equality test against an owner has to say what it means when both sides are
+  absent. Pitfall: the bug was invisible because it was unreachable in practice (neutral garrisons
+  never reached the upgrade cost), which is exactly the kind of latent hole a tuning change turns
+  into a real one months later.
+
+Try next: `ProductionCalculator.Advance` is now the single source of production arithmetic, shared by
+`Match` and `AiBrain` — the review's brute-force check (every level × garrison × progress × chunk
+pair, ~1.5M cases, asserting `Advance(Advance(s,n1),n2) == Advance(s,n1+n2)`) is a *property test*
+written by hand. Try expressing that same property with a generative testing library (FsCheck or
+CsCheck both work with xUnit) and compare: the hand-rolled loop is exhaustive over a bounded space
+and dead simple to read, the generative one is shorter and shrinks failures to a minimal case but
+only samples. Knowing which of those two you want is the actual skill; this feature is a good place
+to feel the difference, because the bounded space here is genuinely small enough to enumerate.
