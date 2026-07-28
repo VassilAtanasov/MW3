@@ -706,3 +706,57 @@ CsCheck both work with xUnit) and compare: the hand-rolled loop is exhaustive ov
 and dead simple to read, the generative one is shorter and shrinks failures to a minimal case but
 only samples. Knowing which of those two you want is the actual skill; this feature is a good place
 to feel the difference, because the bounded space here is genuinely small enough to enumerate.
+
+## 2026-07-28 — #32 Tap an owned base to open an action menu offering upgrade
+Concepts: records as pure-answer DTOs, enums as a closed set replacing a bool/exception, cached
+recomputation gated on a dirty check, a small explicit state machine over boolean flags
+- **A `record` as the whole answer, not a partial one** — `BaseAction.cs`:
+  `public sealed record BaseAction(BaseActionKind Kind, int Cost, BaseActionAvailability Availability);`.
+  Why here: D-25 says the widget must decide nothing, so `Match.AvailableActions` has to hand back
+  everything a caller could possibly need to render a button — kind, cost, *and* whether it's
+  affordable — as one immutable value, rather than the widget re-deriving `Cost < Garrison` itself.
+  A record's structural equality is what makes `Assert.Equal` in `AvailableActionsTests.cs` compare
+  by value with no custom `Equals`. Pitfall: it's tempting to hand back a `bool CanAfford` instead of
+  a full `BaseActionAvailability` enum, which looks equivalent until "at max level" needs a *third*
+  state the caller must still special-case — the enum was chosen precisely to close that door.
+- **An enum closing off a set exceptions or bools would leave open** —
+  `BaseActionAvailability { Affordable, GarrisonBelowCost, AlreadyAtMaxLevel }`. Why here: the
+  acceptance criteria explicitly forbid "never a bool and never an exception" for this exact reason —
+  a `bool` can't distinguish "too poor to afford" from "already maxed, nothing to afford," and an
+  exception for an expected, everyday state (a base at max level) would violate
+  `docs/CONVENTIONS.md`'s "exceptions for exceptional conditions, not control flow." Pitfall: an enum
+  switch that isn't exhaustive fails silently at compile time unless every call site pattern-matches
+  or the compiler is told to warn on missing cases — `BaseActionMenu.FormatLabel` only handles two of
+  the three values explicitly and falls through to a default branch for the rest, which is correct
+  today but would misrender silently if a fourth availability value were ever added without touching
+  every switch.
+- **Recompute-on-change instead of recompute-every-frame** — `BaseActionMenu.Refresh()`
+  (`src/MW3.Game/BaseActionMenu.cs`) caches `_lastGarrisonCount`/`_lastLevel` and only calls back into
+  `Match.AvailableActions` (and reformats the label strings) when either actually changed since the
+  last check. Why here: `docs/CONVENTIONS.md`'s "frame-loop code allocates nothing per frame" rule
+  means formatting a string every `Draw` call is a defect, not a style nit — a menu sitting open for
+  thousands of ticks must not allocate for frames where nothing changed. Pitfall: the dirty check
+  compares the two fields the query result depends on, not the query result itself — if a future
+  action's availability ever depended on some *third* piece of base state, `Refresh` would need a
+  third comparison, and it is easy to add a new dependency to the Core query without remembering to
+  extend the cache-invalidation check that guards it in the widget.
+- **A handful of booleans as an explicit (if informal) state machine** —
+  `MatchScreen.HandleInput`/`HandlePressWhileMenuOpen` track `_pressBeganOnMenuButtonIndex`,
+  `_pressBeganOnGreyedMenuButton`, and `_pressDismissedMenuOnThisPress`, each set once on press and
+  read once on the matching release, to encode "what kind of gesture is this" without a formal
+  state-machine type. Why here: the acceptance criteria distinguish four outcomes for the *same*
+  physical gesture (a press-then-release) purely by where the press landed, so the decision has to be
+  captured at press time and carried forward — checking live state again at release time would let
+  the world change (menu dismissed, base recaptured) underneath the gesture and answer the wrong
+  question. Pitfall: every one of those flags must be reset on *every* new press, not only when it's
+  about to be reused — an easy bug is adding a fifth flag for a future gesture and forgetting to
+  clear it in the shared reset block, so it silently carries a stale value from two gestures ago.
+
+Try next: `BaseActionMenu.Refresh()`'s dirty check is hand-rolled (two `int` comparisons). Look at
+how `MatchScreen` already solves the same problem for garrison text (`_lastGarrisonCount` per base
+index) and army text (a `Dictionary<int, string>` keyed by army id) — three different shapes of the
+same "don't reformat what hasn't changed" idea in one file. Try sketching a small generic
+`ChangeGate<TKey, TState>` that any of the three could use, and notice why it's harder than it looks:
+the army cache also needs *pruning* when an army resolves, which the other two don't.
+
+to feel the difference, because the bounded space here is genuinely small enough to enumerate.
