@@ -1,0 +1,387 @@
+namespace MW3.Core.Tests;
+
+public class ConvertTests
+{
+    private static Base HumanBase(Match match) => match.Bases.Single(b => b.Owner == match.HumanPlayer);
+
+    private static Base AiBase(Match match) => match.Bases.Single(b => b.Owner == match.AiPlayer);
+
+    private static void SetLevel(Base b, int level) =>
+        typeof(Base).GetProperty(nameof(Base.Level))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { level });
+
+    private static void SetGarrison(Base b, int garrison) =>
+        typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
+
+    [Fact]
+    public void Convert_ToTower_SubtractsCost_SetsTheType_AndResetsTheLevel()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetLevel(humanBase, 3);
+        SetGarrison(humanBase, 40);
+
+        var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
+
+        Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
+        Assert.Equal(LevelTable.MinLevel, humanBase.Level);
+        Assert.Equal(30, humanBase.GarrisonCount);
+    }
+
+    [Fact]
+    public void Convert_BackToProducer_ResetsLevelAndZeroesProgress_StartingAFreshPeriod()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 35); // leaves room below the level-1 cap after both conversion costs
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        SetLevel(humanBase, 3);
+
+        var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Producer));
+
+        Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(BaseType.Producer, humanBase.Type);
+        Assert.Equal(LevelTable.MinLevel, humanBase.Level);
+        Assert.Equal(0, humanBase.ProductionProgressTicks);
+
+        // A fresh period, not progress inherited from before it was a tower: one tick short of the
+        // level-1 period produces nothing, the next tick produces exactly one unit.
+        var before = humanBase.GarrisonCount;
+        match.Advance(LevelTable.ProductionPeriodTicks(LevelTable.MinLevel) - 1);
+        Assert.Equal(before, humanBase.GarrisonCount);
+        match.Advance(1);
+        Assert.Equal(before + 1, humanBase.GarrisonCount);
+    }
+
+    [Fact]
+    public void Tower_NeverProduces_GarrisonUnchangedAfter1000TicksAtAnyLevel()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 40);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        SetLevel(humanBase, 3);
+        var garrison = humanBase.GarrisonCount;
+
+        match.Advance(1000);
+
+        Assert.Equal(garrison, humanBase.GarrisonCount);
+    }
+
+    [Fact]
+    public void Tower_ProductionProgressIsZero_AtEveryTick_NotMerelyFrozenAtAValue()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+
+        for (var i = 0; i < 5; i++)
+        {
+            match.Advance(37); // an arbitrary, non-period-aligned span
+            Assert.Equal(0, humanBase.ProductionProgressTicks);
+        }
+    }
+
+    [Fact]
+    public void Tower_ArrivalsStackAboveItsCap_WithNothingDestroyedOrProduced()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        // Capture the neutral base first, for a second human base to reinforce from.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 6)));
+        AdvanceToNextArrival(match);
+        Assert.Equal(match.HumanPlayer, neutral.Owner);
+
+        SetGarrison(humanBase, 18);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        Assert.Equal(8, humanBase.GarrisonCount);
+        Assert.Equal(LevelTable.GarrisonCap(LevelTable.MinLevel), humanBase.GarrisonCap);
+
+        SetGarrison(neutral, 20);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
+        AdvanceToNextArrival(match);
+
+        Assert.Equal(23, humanBase.GarrisonCount);
+        Assert.True(humanBase.GarrisonCount > humanBase.GarrisonCap);
+
+        match.Advance(1000);
+        Assert.Equal(23, humanBase.GarrisonCount); // still a tower: nothing produced, nothing destroyed
+    }
+
+    [Fact]
+    public void Tower_CanSendArmies_ExactlyAsAProducerCan_WithNoTowerBranchInTheSendPath()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var neutral = match.Bases.First(b => b.Owner is null);
+        SetGarrison(humanBase, 20);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+
+        var outcome = match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 5));
+
+        Assert.Equal(SendArmyOutcome.Accepted, outcome);
+        Assert.Equal(5, humanBase.GarrisonCount);
+    }
+
+    [Fact]
+    public void Tower_CanBeUpgraded_LevelRisesButProductionStaysZero()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 40);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        Assert.Equal(30, humanBase.GarrisonCount);
+
+        var outcome = match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id));
+
+        Assert.Equal(UpgradeOutcome.Accepted, outcome);
+        Assert.Equal(LevelTable.MinLevel + 1, humanBase.Level);
+        Assert.Equal(30 - LevelTable.UpgradeCost(LevelTable.MinLevel), humanBase.GarrisonCount);
+
+        var afterUpgrade = humanBase.GarrisonCount;
+        match.Advance(1000);
+        Assert.Equal(afterUpgrade, humanBase.GarrisonCount); // the higher level still buys nothing observable this feature
+    }
+
+    [Fact]
+    public void Tower_CanBeCaptured_WithPlainOneToOneCombat_AndNoDefenceBonus()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var aiBase = AiBase(match);
+        SetGarrison(aiBase, 15);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
+        Assert.Equal(5, aiBase.GarrisonCount);
+
+        SetGarrison(humanBase, 40);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 10)));
+        AdvanceToNextArrival(match);
+
+        Assert.Equal(match.HumanPlayer, aiBase.Owner);
+        Assert.Equal(5, aiBase.GarrisonCount); // plain 1:1: 10 attackers - 5 defenders
+        Assert.Equal(BaseType.Tower, aiBase.Type); // capture keeps the type
+        Assert.Equal(LevelTable.MinLevel, aiBase.Level); // was already level 1, floors there
+    }
+
+    [Fact]
+    public void Capture_OfATowerAboveMinLevel_KeepsTheTypeAndDropsExactlyOneLevel()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var aiBase = AiBase(match);
+
+        SetGarrison(aiBase, 40);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
+        SetLevel(aiBase, 3);
+        SetGarrison(aiBase, 1);
+        SetGarrison(humanBase, 40);
+
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 30)));
+        AdvanceToNextArrival(match);
+
+        Assert.Equal(match.HumanPlayer, aiBase.Owner);
+        Assert.Equal(BaseType.Tower, aiBase.Type); // still a tower, one level lower
+        Assert.Equal(2, aiBase.Level);
+        Assert.Equal(0, aiBase.ProductionProgressTicks); // still produces nothing for the new owner
+    }
+
+    [Fact]
+    public void Capture_OfAProducer_KeepsItAProducer()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var aiBase = AiBase(match);
+        SetGarrison(aiBase, 1);
+        SetGarrison(humanBase, 40);
+
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 10)));
+        AdvanceToNextArrival(match);
+
+        Assert.Equal(match.HumanPlayer, aiBase.Owner);
+        Assert.Equal(BaseType.Producer, aiBase.Type);
+    }
+
+    [Fact]
+    public void Convert_DownToExactlyZeroGarrison_IsLegal()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        Assert.Equal(10, humanBase.GarrisonCount); // the starting garrison, exactly the conversion cost
+
+        var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
+
+        Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(0, humanBase.GarrisonCount);
+        Assert.Equal(match.HumanPlayer, humanBase.Owner); // still owned at zero
+    }
+
+    [Fact]
+    public void Convert_ProducerAtOrAboveItsCap_IsLegal_AndTheResultingTowerKeepsThatGarrison()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 25); // above the level-1 cap of 20
+
+        var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
+
+        Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(15, humanBase.GarrisonCount); // 25 - 10, nothing else destroyed
+    }
+
+    [Fact]
+    public void PlayerHoldingOnlyTowers_IsNotEliminated_AndSimplyCannotProduce()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 20);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+
+        match.Advance(2000);
+
+        Assert.Equal(MatchOutcome.InProgress, match.Outcome);
+        Assert.Equal(match.HumanPlayer, humanBase.Owner);
+        Assert.Equal(10, humanBase.GarrisonCount); // 20 - 10 conversion cost, unchanged: it never produces
+    }
+
+    [Fact]
+    public void Convert_UnknownBaseId_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var before = Snapshot(match);
+
+        Assert.Equal(ConvertOutcome.BaseNotFound, match.Execute(new ConvertCommand(match.HumanPlayer, 99, BaseType.Tower)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_BaseOwnedByTheOtherPlayer_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var before = Snapshot(match);
+
+        Assert.Equal(
+            ConvertOutcome.BaseNotOwnedByIssuer,
+            match.Execute(new ConvertCommand(match.HumanPlayer, AiBase(match).Id, BaseType.Tower)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_NeutralBase_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var neutral = match.Bases.First(b => b.Owner is null);
+        var before = Snapshot(match);
+
+        Assert.Equal(
+            ConvertOutcome.BaseNotOwnedByIssuer,
+            match.Execute(new ConvertCommand(match.HumanPlayer, neutral.Id, BaseType.Tower)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_AlreadyOfTheTargetType_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var before = Snapshot(match);
+
+        Assert.Equal(
+            ConvertOutcome.AlreadyOfTargetType,
+            match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Producer)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_GarrisonBelowCost_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        // Spend down to 5, below the conversion cost of 10.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 5)));
+        Assert.Equal(5, humanBase.GarrisonCount);
+        var before = Snapshot(match);
+
+        Assert.Equal(
+            ConvertOutcome.GarrisonBelowCost,
+            match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_OnceTheMatchIsDecided_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var aiBase = AiBase(match);
+        SetGarrison(aiBase, 1);
+
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 10)));
+        match.Advance(200);
+        Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
+
+        var before = Snapshot(match);
+        Assert.Equal(
+            ConvertOutcome.MatchAlreadyDecided,
+            match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_NullCommand_Throws()
+    {
+        var match = new Match();
+
+        Assert.Throws<ArgumentNullException>(() => match.Execute((ConvertCommand)null!));
+    }
+
+    [Fact]
+    public void Convert_NullIssuingPlayer_Throws_RatherThanMatchingANeutralBasesAbsentOwner()
+    {
+        var match = new Match();
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        Assert.Throws<ArgumentException>(() => match.Execute(new ConvertCommand(null!, neutral.Id, BaseType.Tower)));
+
+        Assert.Null(neutral.Owner);
+        Assert.Equal(BaseType.Producer, neutral.Type);
+    }
+
+    [Fact]
+    public void MatchRunner_SubmitsConverts_ThroughTheSameSinglePath()
+    {
+        var match = new Match();
+        var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
+        var humanBase = HumanBase(match);
+
+        var outcome = runner.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
+
+        Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
+    }
+
+    [Fact]
+    public void Convert_OnATower_OffersOnlyUpgrade_NoConvertAction_ThisFeature()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 20);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+
+        var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
+
+        Assert.Equal(BaseActionKind.Upgrade, action.Kind);
+    }
+
+    private static void AdvanceToNextArrival(Match match)
+    {
+        var army = match.ArmiesInFlight.OrderBy(a => a.ArrivalTick).First();
+        match.Advance(army.ArrivalTick - match.ElapsedTicks);
+    }
+
+    private static (int Id, Player? Owner, BaseType Type, int Garrison, int Level, long Progress)[] Snapshot(Match match) =>
+        match.Bases.Select(b => (b.Id, b.Owner, b.Type, b.GarrisonCount, b.Level, b.ProductionProgressTicks)).ToArray();
+}

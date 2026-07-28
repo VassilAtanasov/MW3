@@ -2,9 +2,10 @@ namespace MW3.Core;
 
 /// <summary>
 /// A base on the map. Neutral is the absence of an owner, never a sentinel player id (D-11).
-/// Constructed only by <see cref="Match"/>; garrison count, owner, level and production progress
-/// change only through <see cref="Match.Advance"/> and <see cref="Match.Execute(SendArmyCommand)"/>
-/// / <see cref="Match.Execute(UpgradeCommand)"/> (D-13).
+/// Constructed only by <see cref="Match"/>; garrison count, owner, level, type and production
+/// progress change only through <see cref="Match.Advance"/> and
+/// <see cref="Match.Execute(SendArmyCommand)"/> / <see cref="Match.Execute(UpgradeCommand)"/> /
+/// <see cref="Match.Execute(ConvertCommand)"/> (D-13).
 /// </summary>
 public sealed class Base
 {
@@ -15,6 +16,7 @@ public sealed class Base
         GarrisonCount = garrisonCount;
         Owner = owner;
         Level = LevelTable.MinLevel;
+        Type = BaseType.Producer;
     }
 
     public int Id { get; }
@@ -33,6 +35,14 @@ public sealed class Base
     /// investment is burned with it (D-23).
     /// </summary>
     public int Level { get; internal set; }
+
+    /// <summary>
+    /// Whether this base is a <see cref="BaseType.Producer"/> or a <see cref="BaseType.Tower"/>.
+    /// Every base starts a producer (including neutral ones); changes only through a
+    /// <see cref="ConvertCommand"/> and never through <see cref="Match.Advance"/>. A capture keeps
+    /// the type while dropping one level - only <see cref="Level"/> is demoted (D-23).
+    /// </summary>
+    public BaseType Type { get; internal set; }
 
     /// <summary>
     /// Ticks accumulated toward this base's next unit. Exposed because it is real simulation state

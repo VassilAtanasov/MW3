@@ -62,8 +62,9 @@ public sealed class Match
     /// <summary>
     /// Whether the match is still undecided, or has been won or lost - read-only, changing only
     /// inside <see cref="Advance"/> (D-13, FR-7). Once decided, the simulation is frozen: further
-    /// <see cref="Advance"/> calls change nothing and both <see cref="Execute(SendArmyCommand)"/>
-    /// and <see cref="Execute(UpgradeCommand)"/> reject every command.
+    /// <see cref="Advance"/> calls change nothing and <see cref="Execute(SendArmyCommand)"/>,
+    /// <see cref="Execute(UpgradeCommand)"/>, and <see cref="Execute(ConvertCommand)"/> reject every
+    /// command.
     /// </summary>
     public MatchOutcome Outcome { get; private set; } = MatchOutcome.InProgress;
 
@@ -191,6 +192,62 @@ public sealed class Match
     }
 
     /// <summary>
+    /// Validates and applies a <see cref="ConvertCommand"/>, paying for it out of the base's own
+    /// garrison. A rejection leaves every base exactly as it was. Accepting resets the base to
+    /// <see cref="LevelTable.MinLevel"/> and zeroes its production progress in both directions
+    /// (D-23's demotion-on-capture is a separate, independent rule) - a new tower banks nothing, and
+    /// a base converted back to a producer starts a fresh period rather than inheriting progress from
+    /// before it was a tower.
+    /// </summary>
+    public ConvertOutcome Execute(ConvertCommand command)
+    {
+        if (command is null)
+        {
+            throw new ArgumentNullException(nameof(command));
+        }
+
+        // As on the send and upgrade paths: a null issuer would compare equal to a neutral base's
+        // absent owner and slip past the ownership gate.
+        if (command.IssuingPlayer is null)
+        {
+            throw new ArgumentException("The command's issuing player cannot be null.", nameof(command));
+        }
+
+        if (Outcome != MatchOutcome.InProgress)
+        {
+            return ConvertOutcome.MatchAlreadyDecided;
+        }
+
+        var target = FindBase(command.BaseId);
+        if (target is null)
+        {
+            return ConvertOutcome.BaseNotFound;
+        }
+
+        if (target.Owner != command.IssuingPlayer)
+        {
+            return ConvertOutcome.BaseNotOwnedByIssuer;
+        }
+
+        if (target.Type == command.TargetType)
+        {
+            return ConvertOutcome.AlreadyOfTargetType;
+        }
+
+        if (target.GarrisonCount < LevelTable.ConversionCost)
+        {
+            return ConvertOutcome.GarrisonBelowCost;
+        }
+
+        target.GarrisonCount -= LevelTable.ConversionCost;
+        target.Type = command.TargetType;
+        target.Level = LevelTable.MinLevel;
+        target.ProductionProgressTicks = 0;
+
+        return ConvertOutcome.Accepted;
+    }
+
+    /// <summary>
     /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: exactly one
     /// <see cref="BaseAction"/> (Upgrade) this phase, its cost read from <see cref="LevelTable"/>
     /// and never named by the caller (D-25). Returns an empty list for an unknown base or one
@@ -308,7 +365,10 @@ public sealed class Match
     /// not a single global count of periods crossed: each base carries its own progress toward its
     /// next unit, because levels give bases different production periods and a base at its cap
     /// stops accumulating while its neighbours keep going (D-21, D-22). Neutral bases never
-    /// produce, so they never accumulate progress either.
+    /// produce, so they never accumulate progress either - and neither does a tower (D-24), which
+    /// holds and defends a garrison but never grows it; skipping it here rather than teaching
+    /// <see cref="ProductionCalculator"/> about types is what keeps its progress at exactly zero on
+    /// every tick, not merely frozen at whatever it held when converted.
     /// </summary>
     private void ApplyProduction(long fromTick, long toTick)
     {
@@ -320,7 +380,7 @@ public sealed class Match
 
         foreach (var b in _bases)
         {
-            if (b.Owner is null)
+            if (b.Owner is null || b.Type == BaseType.Tower)
             {
                 continue;
             }
