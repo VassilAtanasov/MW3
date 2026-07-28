@@ -172,9 +172,61 @@ the convert options join it in FR-5.
   - Acceptance: `MW3.Core` still targets `netstandard2.1` with no `Microsoft.Xna` or `MonoGame`
     text, and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-3 (wf: ace16ed72ce6): The developer can convert an owned base between producer and tower in
-either direction at a cost in units, where a tower holds and defends a garrison but produces
+FR-3 (wf: ace16ed72ce6, issue #34): The developer can convert an owned base between producer and
+tower in either direction for 10 units, where a tower holds and defends a garrison but produces
 nothing, so that the second base type exists as rules. Core only; shooting is FR-4's job.
+  - Acceptance: every base carries a type in the type system — producer or tower, an enum, never a
+    bool or a string — readable with no public setter (D-13) and changed only through
+    `Match.Execute(ConvertCommand)`, never through `Advance`. Every base starts a producer and
+    neutral bases are producers, so a fresh match is exactly the match FR-1 left behind.
+  - Acceptance: an owned tower never produces — garrison unchanged after 1000 ticks at any level,
+    and production progress zero at every tick rather than frozen at a value. It still reports a
+    garrison cap from its level; the cap simply never binds, and arrivals stack above it exactly as
+    D-21 already allows.
+  - Acceptance: a tower is a base in every other respect this phase touches — reinforced, attacked,
+    captured, upgraded, and sent from — with combat staying phase 2's plain 1:1 arithmetic and no
+    defence bonus of any kind (D-15, D-22), and no tower branch added to the send path.
+  - Acceptance: `UpgradeCommand` is accepted on a tower at the same costs from the same table: the
+    level rises by one and the base still produces nothing. For a tower a level buys fire period and
+    range, which FR-4 reads; here it is asserted as the level changing while production stays zero.
+  - Acceptance: `ConvertCommand` carries the issuing player, the base id, and the **target type** —
+    not a toggle — is submitted only through `Match.Execute`, and returns acceptance or each
+    rejection reason in the type system, mirroring `UpgradeCommand` and `SendArmyCommand`.
+  - Acceptance: rejected leaving all state untouched — unknown base id, base not owned by the issuer
+    (neutral included), base already of the target type, garrison below the cost, or the match
+    outcome already decided (phase 2 FR-7's freeze covers this command too).
+  - Acceptance: the cost is one named Core constant — 10 units, identical in both directions — read
+    from the tuning table by both the simulation and the tests, with no tuning number at a call site
+    (D-22). The level table gains only this constant; the tower fire period and range columns arrive
+    with FR-4, the feature that reads them.
+  - Acceptance: an accepted convert subtracts 10 immediately, sets the type, and resets the level to
+    `LevelTable.MinLevel`, all effective from that tick, and zeroes production progress in both
+    directions — a new tower banks nothing, and a base converted back to a producer starts a fresh
+    period rather than inheriting progress from before it was a tower.
+  - Acceptance: converting down to exactly zero garrison is legal, as upgrading or sending to zero
+    already is; converting a producer at or above its cap is legal and the resulting tower keeps
+    that garrison.
+  - Acceptance: capture keeps the type while dropping one level (D-23, whose level half FR-1
+    implemented) — a captured tower is a tower one level lower that still produces nothing for its
+    new owner, and a captured producer is a producer.
+  - Acceptance: elimination and outcome are unchanged (D-20) — a tower is an owned base and counts
+    as one. A player holding only towers is not eliminated and simply cannot produce: a legal board
+    state, asserted as such rather than treated as a defect.
+  - Acceptance: determinism (D-12) — identical types, levels, garrisons, and production progress
+    whether `Advance` runs in one call or irregular chunks, proved on a run containing a conversion,
+    the upgrade of a tower, and the capture of a tower. The type check on the production path
+    allocates nothing per tick.
+  - Acceptance: `MW3.Core` still targets `netstandard2.1`, contains no `Microsoft.Xna` or `MonoGame`
+    text, and no `DateTime`, `DateTimeOffset`, `Stopwatch`, `Environment.TickCount`, or `Random`;
+    tests advance whole matches, including one that converts, upgrades, captures, and asserts a
+    board state.
+  - Acceptance (scope guard): the Core action query still offers exactly one action, Upgrade —
+    convert is not offered until FR-5, so `MW3.Game` is untouched, the action menu gains no button,
+    and no screenshot changes. `--dump-state` gains no `Type=` field, which arrives with FR-5 exactly
+    as FR-1 deferred `Level=` and `Cap=` to FR-2. No new script directive and no new flag.
+  - Acceptance: every pre-existing test and committed `qa/scripts/` script still passes unchanged
+    within its budget — every base starts a producer, so nothing about an existing match differs —
+    and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-4 (wf: b7427e502078): The developer can have a tower fire on enemy armies passing within its
 range, removing units from them in transit and destroying them outright when their count reaches
@@ -192,10 +244,10 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-The economy columns are **settled** by FR-1's kickoff (28-07-2026) and are contract, not proposal.
-The tower columns remain a **starting proposal for FR-3/FR-4's kickoff to confirm or change**,
-recorded so build mode never has to invent one and so the shape of the constant table (D-22) is
-concrete:
+The economy columns are **settled** by FR-1's kickoff (28-07-2026), and the conversion cost by
+FR-3's (28-07-2026); both are contract, not proposal. The tower fire columns remain a **starting
+proposal for FR-4's kickoff to confirm or change**, recorded so build mode never has to invent one
+and so the shape of the constant table (D-22) is concrete:
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
@@ -205,8 +257,17 @@ concrete:
 
 The first upgrade is deliberately cheap enough (6) to be affordable from the starting garrison of
 10 without waiting, so "grow first" is a live option on the opening move rather than something a
-player only saves toward. Still proposed: conversion between producer and tower costing 10 units in
-either direction, and a tower shot removing 1 unit from the army it hits.
+player only saves toward. Still proposed: a tower shot removing 1 unit from the army it hits.
+
+**Conversion costs 10 units in either direction and resets the base to level 1** — settled at FR-3's
+kickoff. The reset is the load-bearing half. It makes a tower cheap to build early, since a level-1
+base loses nothing but the 10, and expensive to repurpose late, since a level-3 producer burns its
+whole 22-unit ladder with it; towers therefore get built deliberately rather than by cashing a
+developed economy into defence at a flat price. Two consequences to know before touching FR-4 or
+FR-6. A tower never produces, so **upgrading one means shipping units to it** — a level-3 tower
+costs 10 + 6 + 16 = 32 against a level-1 cap of 20 and cannot be self-funded. And the reset is
+deliberately *independent* of D-23's capture demotion: a capture drops one level, a conversion drops
+all of them.
 
 ## 5. Non-functional requirements
 
@@ -274,7 +335,11 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   *towers* specifically. Armies still do not fight each other in transit, still cannot be recalled,
   and still travel base-to-base in a straight line — no pathfinding, no fog of war.
 - **Repair, decay, and over-cap bleed.** Settled in discovery: the cap is a production ceiling, so
-  arrivals stack above it freely and nothing decays back down.
+  arrivals stack above it freely and nothing decays back down. Nor is there a refund for converting
+  a base back — conversion costs 10 each way with nothing returned.
+- **Build time.** Settled at FR-3's kickoff (28-07-2026): upgrading and converting are instant, and
+  no base is ever "under construction". A build delay would be a new mechanic, a new state to draw,
+  and a new thing for the AI to predict, for a feel benefit this phase cannot yet measure.
 - **The cap and the level as numbers on the map.** Settled at FR-2's kickoff (28-07-2026): the map
   circle keeps the bare garrison count, the level is carried non-textually as ring thickness, and
   the cap is legible only inside the action menu — three numbers in one small circle is unreadable
