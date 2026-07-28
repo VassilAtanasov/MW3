@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace MW3.Core.Tests;
 
@@ -12,38 +12,39 @@ public class MatchOutcomeTests
     // (MatchScreen.HandleDrag) - so this same sequence also backs qa/scripts/victory.txt. Reused by
     // every test below that needs a match to actually reach a decided outcome.
     //
-    // Re-derived for #30: garrison caps changed the arithmetic every count in the phase-2 sequence
-    // was tuned around, so it no longer reached victory. The cap is not a handicap peculiar to the
-    // human - it throttles the AI's bases identically - so the winning shape is now to take and
-    // hold the near flank early and feed a single staging base, rather than to out-accumulate the
-    // opponent from one capital. The final send of 21 is above a single base's cap of 20 precisely
-    // because arrivals stack above it (D-21); this sequence would be impossible under a hard cap.
+    // Re-derived for #38: the tick rate halved (50ms) and the whole village ladder retuned to MW2's
+    // published numbers (level-1 period 60 ticks, cap 20), so every count and timing tuned around
+    // FR-3a's ladder no longer applied. The winning shape now sweeps the near flank first (bases 2
+    // and 4), then the far flank (3 and 5), reinforcing the capital (base 1) along the way, and
+    // finishes with two grinding strikes against the AI's own capped capital (base 2, formerly
+    // AI-owned after a mid-game exchange) once nothing else on the board is winnable outright -
+    // repeated waves whittle down a capped defender no single strike can beat alone.
     private static readonly (long Tick, int Source, int Target, int Count)[] _winningSequence =
     {
-        (20, 0, 2, 6),
-        (40, 0, 2, 4),
-        (60, 0, 2, 3),
-        (80, 2, 3, 6),
-        (100, 0, 2, 3),
-        (120, 2, 3, 6),
-        (140, 0, 2, 4),
-        (160, 2, 1, 7),
-        (180, 0, 2, 4),
-        (200, 3, 2, 5),
-        (220, 2, 5, 9),
-        (240, 0, 2, 5),
-        (260, 3, 5, 5),
-        (280, 2, 1, 11),
-        (300, 2, 5, 7),
-        (320, 0, 2, 6),
-        (340, 3, 2, 7),
-        (360, 1, 0, 5),
-        (380, 0, 2, 6),
-        (400, 0, 2, 7),
-        (420, 3, 2, 7),
-        (460, 1, 2, 7),
-        (500, 5, 2, 9),
-        (540, 2, 4, 21),
+        (120, 0, 2, 6),
+        (160, 0, 4, 3),
+        (220, 0, 2, 2),
+        (440, 0, 1, 3),
+        (600, 2, 1, 3),
+        (680, 0, 2, 3),
+        (780, 0, 1, 3),
+        (860, 0, 1, 2),
+        (960, 2, 1, 3),
+        (1080, 0, 2, 3),
+        (1260, 1, 4, 3),
+        (1380, 0, 4, 4),
+        (1480, 1, 4, 3),
+        (1600, 0, 4, 3),
+        (1720, 1, 4, 3),
+        (1800, 0, 4, 4),
+        (1920, 1, 4, 4),
+        (2280, 0, 3, 6),
+        (2360, 1, 3, 5),
+        (2440, 4, 5, 6),
+        (2500, 0, 3, 4),
+        (2500, 1, 2, 4),
+        (2560, 4, 2, 4),
+        (2580, 0, 5, 3),
     };
 
     /// <summary>Submits every command in <see cref="_winningSequence"/>, at its exact tick, through <paramref name="runner"/>.</summary>
@@ -95,7 +96,7 @@ public class MatchOutcomeTests
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         SubmitWinningSequence(match, runner);
-        runner.Advance(4500 - match.ElapsedTicks);
+        runner.Advance(3000 - match.ElapsedTicks);
 
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
         Assert.All(match.Bases, b => Assert.Equal(match.HumanPlayer, b.Owner));
@@ -111,16 +112,16 @@ public class MatchOutcomeTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var n4 = match.Bases[4];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, humanBase.Id, 10)); // arrives tick 38
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, humanBase.Id, 10)); // arrives tick 76
 
-        match.Advance(15);
-        match.Execute(new SendArmyCommand(human, humanBase.Id, n4.Id, 7)); // arrives tick 45
+        match.Advance(20);
+        match.Execute(new SendArmyCommand(human, humanBase.Id, n4.Id, 7)); // arrives tick 20 + 59 = 79
 
-        match.Advance(23); // elapsed 38: the AI captures the human's now-undefended capital
+        match.Advance(56); // elapsed 76: the AI captures the human's now-undefended capital
         Assert.Equal(ai, humanBase.Owner);
         Assert.Equal(MatchOutcome.InProgress, match.Outcome); // not eliminated - one army still in flight
 
-        match.Advance(7); // elapsed 45: the human's own army lands and captures
+        match.Advance(3); // elapsed 79: the human's own army lands and captures
         Assert.Equal(human, n4.Owner);
         Assert.Equal(MatchOutcome.InProgress, match.Outcome); // alive again - owns a base once more
     }
@@ -156,7 +157,7 @@ public class MatchOutcomeTests
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         SubmitWinningSequence(match, runner);
-        runner.Advance(4500 - match.ElapsedTicks);
+        runner.Advance(3000 - match.ElapsedTicks);
 
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
         Assert.All(match.Bases, b => Assert.Equal(match.HumanPlayer, b.Owner));
@@ -184,7 +185,7 @@ public class MatchOutcomeTests
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         SubmitWinningSequence(match, runner);
-        runner.Advance(4500 - match.ElapsedTicks);
+        runner.Advance(3000 - match.ElapsedTicks);
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
 
         var decidedTick = match.ElapsedTicks;
@@ -203,7 +204,7 @@ public class MatchOutcomeTests
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         SubmitWinningSequence(match, runner);
-        runner.Advance(4500 - match.ElapsedTicks);
+        runner.Advance(3000 - match.ElapsedTicks);
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
 
         var anyBase = match.Bases[0];
@@ -221,7 +222,7 @@ public class MatchOutcomeTests
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         SubmitWinningSequence(match, runner);
-        runner.Advance(4500 - match.ElapsedTicks);
+        runner.Advance(3000 - match.ElapsedTicks);
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
 
         var decidedTick = match.ElapsedTicks;
@@ -241,7 +242,7 @@ public class MatchOutcomeTests
         var oneCall = new Match();
         var oneCallRunner = new MatchRunner(oneCall, new AiBrain(oneCall.AiPlayer));
         SubmitWinningSequence(oneCall, oneCallRunner);
-        oneCallRunner.Advance(4500 - oneCall.ElapsedTicks); // one call covers the whole remaining stretch, including the decision
+        oneCallRunner.Advance(3000 - oneCall.ElapsedTicks); // one call covers the whole remaining stretch, including the decision
 
         var chunked = new Match();
         var chunkedRunner = new MatchRunner(chunked, new AiBrain(chunked.AiPlayer));

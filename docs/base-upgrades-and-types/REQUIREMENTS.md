@@ -85,6 +85,9 @@ finite and investment becomes possible. Core only; draws nothing.
   - Acceptance: the level ladder is named Core constants — three levels, caps 20/35/50, production
     periods 10/7/5 ticks, upgrade costs 6 to reach level 2 and 16 to reach level 3 — read by both
     the simulation and the tests, with no tuning number repeated at a call site (D-22).
+    **Superseded by FR-3a** (29-07-2026): this was the staging ladder invented before
+    `docs/reference/` existed; it is replaced wholesale by MW2's literal numbers — see "Tuning
+    values" below for the ladder actually in force.
   - Acceptance: every base starts at level 1, so a fresh match is unchanged from phase 2 (10/10/5,
     one unit per 10 ticks); level and current cap are readable with no public setter (D-13).
   - Acceptance: an owned level-1 base reaches exactly 20 and stops — still exactly 20 after 1000
@@ -153,11 +156,14 @@ the convert options join it in FR-5.
     garrison below cost, already at max level), never a bool and never an exception.
   - Acceptance: the Upgrade button is always present on an owned base's menu — enabled with its cost
     when affordable, greyed with its cost when the garrison is below it, greyed reading `Max` with
-    no cost at level 3; pressing a greyed button submits nothing and leaves the menu open.
+    no cost at level 3 (staging ladder; **superseded by FR-3a**, which moves the village menu's `Max`
+    to level 4 — see "Tuning values"); pressing a greyed button submits nothing and leaves the menu
+    open.
   - Acceptance: the menu shows the base's garrison against its cap (`12 / 35`) — the only place the
     cap is legible — and tracks live state while open, flipping between greyed and enabled as the
     garrison crosses the cost, re-queried only when that base's garrison or level actually changes
-    and allocating nothing per frame.
+    and allocating nothing per frame. (The example figures are the retired staging ladder's; see
+    "Tuning values" for the caps actually shown today.)
   - Acceptance: releasing on an enabled Upgrade submits `UpgradeCommand` through the runner and
     dismisses the menu; Core's outcome is authoritative, so an upgrade that stopped being affordable
     between opening and release leaves all match state untouched (phase 2 #24's finding); an
@@ -196,9 +202,12 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     `Match.Execute(ConvertCommand)`, never through `Advance`. Every base starts a producer and
     neutral bases are producers, so a fresh match is exactly the match FR-1 left behind.
   - Acceptance: an owned tower never produces — garrison unchanged after 1000 ticks at any level,
-    and production progress zero at every tick rather than frozen at a value. It still reports a
-    garrison cap from its level; the cap simply never binds, and arrivals stack above it exactly as
-    D-21 already allows.
+    and production progress zero at every tick rather than frozen at a value. **Corrected by FR-3a**
+    (28-07-2026): a tower does not report a garrison cap at all — MW2 publishes no capacity column
+    for one, so `GarrisonCap` is absent (`null`) rather than present and inert. This shipped feature
+    originally claimed a tower "still reports a garrison cap from its level"; that was FR-1's staging
+    ladder, which gave every base type the same cap column. Arrivals still stack above any garrison
+    total exactly as D-21 already allows, cap or no cap.
   - Acceptance: a tower is a base in every other respect this phase touches — reinforced, attacked,
     captured, upgraded, and sent from — with combat staying phase 2's plain 1:1 arithmetic and no
     defence bonus of any kind (D-15, D-22), and no tower branch added to the send path.
@@ -501,16 +510,18 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-**There are now two tables: the one in force, and the one FR-3a replaces it with.** The staging
-ladder below shipped with FR-1, FR-2, and FR-3 and is what the merged code and every committed test
-and QA script are pinned to today. FR-3a replaces it wholesale with MW2's literal numbers — that is
-the whole of that feature. Neither table may be deviated from in build mode; which one is in force
-is decided by whether FR-3a has merged.
+**FR-3a has merged (29-07-2026): the table below is now the one in force.** The staging ladder
+that shipped with FR-1, FR-2, and FR-3 is retired — kept below only as a historical record of what
+FR-3a replaced and why it was tuned that way, not as anything a caller may still read from. Every
+tuning number in `MW3.Core`, in a test, and in a `qa/scripts/` budget now comes from the table this
+section documents as current.
 
-#### In force until FR-3a merges (the staging ladder)
+#### Superseded by FR-3a on 29-07-2026 (the former staging ladder)
 
 Settled by FR-1's kickoff (economy), FR-3's (conversion), and FR-4's (tower columns), all
-28-07-2026. `Match.TickDurationMilliseconds` is 100 ms and `ArmySpeedUnitsPerTick` is 0.02.
+28-07-2026. No longer in force — retained only for the "why it was tuned as it was" narration below
+and for anyone diffing against the merged history. `Match.TickDurationMilliseconds` was 100 ms and
+`ArmySpeedUnitsPerTick` was 0.02.
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
@@ -518,12 +529,13 @@ Settled by FR-1's kickoff (economy), FR-3's (conversion), and FR-4's (tower colu
 | 2 | 35 | 7 | 6 units | 3 ticks | 0.25 |
 | 3 | 50 | 5 | 16 units | 2 ticks | 0.30 |
 
-#### FR-3a's target (MW2's literal numbers)
+#### What FR-3a shipped (MW2's literal numbers) — in force
 
-Settled in discovery 28-07-2026, sourced from `docs/reference/MW2-RULES.md` §2.2 and §2.3. The tick
-duration becomes **50 ms** and `ArmySpeedUnitsPerTick` **0.01**, preserving the 5-second map
-crossing; every tick budget in the tests and in `qa/scripts/` therefore doubles. The single
-`LevelTable` splits, because MW2's two building types have different ladders of different lengths.
+Settled in discovery 28-07-2026, merged 29-07-2026, sourced from `docs/reference/MW2-RULES.md` §2.2
+and §2.3. The tick duration is **50 ms** and `ArmySpeedUnitsPerTick` is **0.01**, preserving the
+5-second map crossing; every tick budget in the tests and in `qa/scripts/` doubled accordingly. The
+single `LevelTable` split, because MW2's two building types have different ladders of different
+lengths.
 
 Villages — capacity is `20 × level`, production `0.33 × level` units/sec, which at 50 ms is exactly
 `60 / level` ticks:
@@ -556,9 +568,9 @@ source supplies one, so there is nothing to copy. Rather than carry a cap that i
 a tower's cap is **absent in the type system**: the tower ladder has no cap column and "the cap of
 this base" is an optional value that is empty for a tower, handled explicitly by every reader with
 no sentinel like `0` or `int.MaxValue` standing in. Nothing about a tower's behaviour changes, since
-D-21 makes the cap a production ceiling and a tower never produces. This does falsify FR-3's shipped
-criterion that a tower "still reports a garrison cap from its level"; that line is corrected in
-place by FR-3a's PR.
+D-21 makes the cap a production ceiling and a tower never produces. This falsified FR-3's shipped
+criterion that a tower "still reports a garrison cap from its level"; that line was corrected in
+place by FR-3a's PR (see FR-3's own acceptance list above).
 
 **Conversion costs 30 units** in either direction, still resetting the base to level 1.
 
@@ -694,8 +706,9 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
   and still travel base-to-base in a straight line — no pathfinding, no fog of war.
 - **Repair, decay, and over-cap bleed.** Settled in discovery: the cap is a production ceiling, so
   arrivals stack above it freely and nothing decays back down. Nor is there a refund for converting
-  a base back — conversion costs the same each way with nothing returned (10 today, 30 from FR-3a),
-  which matches MW2 and is already recorded as at parity.
+  a base back — conversion costs the same each way with nothing returned (10 under the retired
+  staging ladder, 30 now that FR-3a has shipped), which matches MW2 and is already recorded as at
+  parity.
 - ~~**Build time.**~~ **No longer excluded — this is FR-3c** (added 28-07-2026). Settled at FR-3's
   kickoff as instant, on the grounds that a build delay buys a feel benefit the phase could not
   measure; the MW2 goal makes it owed rather than optional, so it arrives here with MW2's own

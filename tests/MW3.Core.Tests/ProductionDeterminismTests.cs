@@ -25,7 +25,7 @@ public class ProductionDeterminismTests
         // would still pass while no longer covering an upgrade at all.
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
 
-        advance(300); // long enough to sit at the cap
+        advance(1050); // long enough to sit at the level-2 cap of 40: (40-5) units at 30 ticks/unit
         Assert.Equal(humanBase.GarrisonCap, humanBase.GarrisonCount);
 
         Assert.Equal(

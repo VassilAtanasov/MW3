@@ -349,7 +349,7 @@ internal sealed class MatchScreen : IScreen
             // the owner's tint, so the fill drawn on top of it leaves exactly a ring of that shade
             // visible around the rim - three thicknesses distinguishable at both target resolutions,
             // with no per-level literal here (the fraction lives in LevelTable, D-22).
-            var ringThickness = radius * (float)LevelTable.RingThicknessFractionOfRadius(b.Level);
+            var ringThickness = radius * (float)b.RingThicknessFractionOfRadius;
             var ringRadius = radius + ringThickness;
             var ringDiameter = (int)(ringRadius * 2);
             var ringDestination = new Rectangle(
@@ -474,8 +474,9 @@ internal sealed class MatchScreen : IScreen
         foreach (var b in _match.Bases)
         {
             var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
+            var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
             writer.WriteLine(FormattableString.Invariant(
-                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={b.GarrisonCap}"));
+                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap}"));
         }
 
         foreach (var army in _match.ArmiesInFlight)
@@ -501,8 +502,9 @@ internal sealed class MatchScreen : IScreen
             return "Menu: none";
         }
 
+        var cap = anchorBase.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
         return FormattableString.Invariant(
-            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{anchorBase.GarrisonCap} Upgrade={action.Availability} Cost={action.Cost}");
+            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{cap} Upgrade={action.Availability} Cost={action.Cost}");
     }
 
     public void Dispose()

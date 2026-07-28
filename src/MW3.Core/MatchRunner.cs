@@ -11,8 +11,9 @@ public sealed class MatchRunner
 {
     /// <summary>
     /// How often the AI decides: the first decision is at this tick, then every multiple of it.
+    /// Doubled alongside the tick rate (D-27) to preserve the same two-second wall-clock cadence.
     /// </summary>
-    public const long DecisionIntervalTicks = 20;
+    public const long DecisionIntervalTicks = 40;
 
     private readonly Match _match;
     private readonly IPlayerBrain _aiBrain;

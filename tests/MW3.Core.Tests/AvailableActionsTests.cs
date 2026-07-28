@@ -16,7 +16,7 @@ public class AvailableActionsTests
 
         var action = Assert.Single(actions);
         Assert.Equal(BaseActionKind.Upgrade, action.Kind);
-        Assert.Equal(LevelTable.UpgradeCost(LevelTable.MinLevel), action.Cost);
+        Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), action.Cost);
         Assert.Equal(BaseActionAvailability.Affordable, action.Availability);
     }
 
@@ -27,11 +27,11 @@ public class AvailableActionsTests
         var humanBase = HumanBase(match);
         var neutral = match.Bases.First(b => b.Owner is null);
 
-        // Spend down to 4, below the level-1 upgrade cost of 6.
+        // Spend down to 4, below the level-1 upgrade cost of 5.
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 6)));
 
         var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
-        Assert.Equal(LevelTable.UpgradeCost(LevelTable.MinLevel), action.Cost);
+        Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), action.Cost);
         Assert.Equal(BaseActionAvailability.GarrisonBelowCost, action.Availability);
     }
 
@@ -41,11 +41,15 @@ public class AvailableActionsTests
         var match = new Match();
         var humanBase = HumanBase(match);
 
+        // Reaching the upgradable ceiling (level 4) takes three upgrades - costs 5, 10, 20 - not two:
+        // the village ladder's level 5 exists but has no published upgrade price (MaxUpgradableLevel).
         match.Advance(60);
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
         match.Advance(200);
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
-        Assert.Equal(LevelTable.MaxLevel, humanBase.Level);
+        match.Advance(400);
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+        Assert.Equal(LevelTable.MaxUpgradableLevel(BaseType.Producer), humanBase.Level);
 
         var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
         Assert.Equal(0, action.Cost);
@@ -98,7 +102,7 @@ public class AvailableActionsTests
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 6)));
         Assert.Equal(BaseActionAvailability.GarrisonBelowCost, Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id)).Availability);
 
-        match.Advance(LevelTable.ProductionPeriodTicks(LevelTable.MinLevel) * 3);
+        match.Advance(LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel) * 3);
         Assert.Equal(BaseActionAvailability.Affordable, Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id)).Availability);
     }
 }

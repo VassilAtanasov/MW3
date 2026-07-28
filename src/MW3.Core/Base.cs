@@ -28,11 +28,11 @@ public sealed class Base
     public Player? Owner { get; internal set; }
 
     /// <summary>
-    /// This base's level, between <see cref="LevelTable.MinLevel"/> and
-    /// <see cref="LevelTable.MaxLevel"/>. Raised one step at a time by an
-    /// <see cref="UpgradeCommand"/>, and dropped one step (never below the minimum) when the base
-    /// is captured - the structure survives the fighting, but one level of the previous owner's
-    /// investment is burned with it (D-23).
+    /// This base's level, between <see cref="LevelTable.MinLevel"/> and this base's own
+    /// <see cref="MaxLevel"/>. Raised one step at a time by an <see cref="UpgradeCommand"/>, and
+    /// dropped one step (never below the minimum) when the base is captured - the structure
+    /// survives the fighting, but one level of the previous owner's investment is burned with it
+    /// (D-23).
     /// </summary>
     public int Level { get; internal set; }
 
@@ -52,9 +52,32 @@ public sealed class Base
     public long ProductionProgressTicks { get; internal set; }
 
     /// <summary>
-    /// The garrison this base produces up to at its current level. A production ceiling, not a
-    /// storage limit: armies arriving from elsewhere stack above it and nothing is destroyed
-    /// (D-21).
+    /// The garrison this base produces up to at its current level, or null if its type has no cap
+    /// (a tower). A production ceiling, not a storage limit: armies arriving from elsewhere stack
+    /// above it and nothing is destroyed (D-21).
     /// </summary>
-    public int GarrisonCap => LevelTable.GarrisonCap(Level);
+    public int? GarrisonCap => LevelTable.GarrisonCap(Type, Level);
+
+    /// <summary>
+    /// The highest level this base's type's ladder defines. Not necessarily reachable by upgrading -
+    /// see <see cref="MaxUpgradableLevel"/> for the level <see cref="Match.Execute(UpgradeCommand)"/>
+    /// actually stops at.
+    /// </summary>
+    public int MaxLevel => LevelTable.MaxLevel(Type);
+
+    /// <summary>
+    /// The highest level this base can reach by upgrading. <see cref="Match.Execute(UpgradeCommand)"/>
+    /// and <see cref="Match.AvailableActions"/> gate on this, not on <see cref="MaxLevel"/>: a village
+    /// stops upgrading at level 4 even though its ladder also defines level 5.
+    /// </summary>
+    public int MaxUpgradableLevel => LevelTable.MaxUpgradableLevel(Type);
+
+    /// <summary>
+    /// Units it costs to raise this base to the next level. Only valid below
+    /// <see cref="MaxUpgradableLevel"/>.
+    /// </summary>
+    public int UpgradeCost => LevelTable.UpgradeCost(Type, Level);
+
+    /// <summary>How thick this base's level ring is drawn, as a fraction of its radius.</summary>
+    public double RingThicknessFractionOfRadius => LevelTable.RingThicknessFractionOfRadius(Type, Level);
 }

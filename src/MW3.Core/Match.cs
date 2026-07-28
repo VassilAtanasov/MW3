@@ -6,13 +6,19 @@ namespace MW3.Core;
 /// </summary>
 public sealed class Match
 {
-    public const long TickDurationMilliseconds = 100;
+    /// <summary>
+    /// 50ms, the only tick duration MW2's five published village production rates land on exactly:
+    /// each rate is <c>60 / level</c> ticks, all whole numbers (D-27, <c>docs/reference/MW2-PARITY.md</c>
+    /// §3).
+    /// </summary>
+    public const long TickDurationMilliseconds = 50;
 
     /// <summary>
-    /// Distance in normalized map units (<see cref="MapPoint"/>) an army covers per tick. Tuned so
-    /// the full map width (1.0) takes 5 seconds - 50 ticks at <see cref="TickDurationMilliseconds"/>.
+    /// Distance in normalized map units (<see cref="MapPoint"/>) an army covers per tick. Halved
+    /// alongside the tick duration so the full map width (1.0) still takes 5 seconds - 100 ticks at
+    /// <see cref="TickDurationMilliseconds"/> (D-27).
     /// </summary>
-    public const double ArmySpeedUnitsPerTick = 0.02;
+    public const double ArmySpeedUnitsPerTick = 0.01;
 
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
@@ -171,12 +177,12 @@ public sealed class Match
             return UpgradeOutcome.BaseNotOwnedByIssuer;
         }
 
-        if (target.Level >= LevelTable.MaxLevel)
+        if (target.Level >= target.MaxUpgradableLevel)
         {
             return UpgradeOutcome.AlreadyAtMaxLevel;
         }
 
-        var cost = LevelTable.UpgradeCost(target.Level);
+        var cost = target.UpgradeCost;
         if (target.GarrisonCount < cost)
         {
             return UpgradeOutcome.GarrisonBelowCost;
@@ -267,12 +273,12 @@ public sealed class Match
             return Array.Empty<BaseAction>();
         }
 
-        if (target.Level >= LevelTable.MaxLevel)
+        if (target.Level >= target.MaxUpgradableLevel)
         {
             return new[] { new BaseAction(BaseActionKind.Upgrade, Cost: 0, BaseActionAvailability.AlreadyAtMaxLevel) };
         }
 
-        var cost = LevelTable.UpgradeCost(target.Level);
+        var cost = target.UpgradeCost;
         var availability = target.GarrisonCount >= cost
             ? BaseActionAvailability.Affordable
             : BaseActionAvailability.GarrisonBelowCost;
@@ -448,8 +454,10 @@ public sealed class Match
             // Reaching the cap discards progress toward the next unit, whether the cap was reached
             // by producing or - as here - by reinforcement. Enforced at the write site rather than
             // left to the next Advance, so a base reinforced to its cap and drained again within
-            // the same tick cannot smuggle banked progress through (D-21).
-            if (target.GarrisonCount >= target.GarrisonCap)
+            // the same tick cannot smuggle banked progress through (D-21). A tower has no cap
+            // (GarrisonCap is null) and never accumulates progress in the first place (D-24), so
+            // there is nothing to discard for one.
+            if (target.GarrisonCap is int cap && target.GarrisonCount >= cap)
             {
                 target.ProductionProgressTicks = 0;
             }
