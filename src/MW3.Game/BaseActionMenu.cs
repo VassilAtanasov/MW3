@@ -16,9 +16,11 @@ internal sealed class BaseActionMenu
     private const float _buttonHeightFraction = 0.075f;
     private const float _arcRadiusFraction = 0.24f;
     private const float _viewportMarginFraction = 0.015f;
+    private const float _headerHeightFraction = 0.06f;
 
     private static readonly Color _affordableColor = Color.DarkGoldenrod;
     private static readonly Color _greyedColor = Color.DimGray;
+    private static readonly Color _headerColor = Color.SlateGray;
 
     private readonly Match _match;
     private readonly Player _owner;
@@ -27,6 +29,10 @@ internal sealed class BaseActionMenu
     private int _lastLevel = -1;
     private IReadOnlyList<BaseAction> _actions = Array.Empty<BaseAction>();
     private string[] _labels = Array.Empty<string>();
+
+    // "<garrison> / <cap>" - the only place the cap is legible to the player (the map draws the
+    // bare garrison count alone). Formatted only on refresh, not per frame.
+    private string _garrisonLabel = string.Empty;
 
     public BaseActionMenu(Match match, Player owner, int baseId)
     {
@@ -63,6 +69,7 @@ internal sealed class BaseActionMenu
 
         _lastGarrisonCount = b.GarrisonCount;
         _lastLevel = b.Level;
+        _garrisonLabel = FormattableString.Invariant($"{b.GarrisonCount} / {b.GarrisonCap}");
         _actions = _match.AvailableActions(_owner, BaseId);
 
         if (_labels.Length != _actions.Count)
@@ -126,6 +133,11 @@ internal sealed class BaseActionMenu
         ArgumentNullException.ThrowIfNull(buttonTexture);
         ArgumentNullException.ThrowIfNull(font);
 
+        if (_actions.Count > 0)
+        {
+            DrawHeader(spriteBatch, buttonTexture, font, viewport);
+        }
+
         for (var i = 0; i < _actions.Count; i++)
         {
             var rect = GetButtonRect(i, viewport);
@@ -142,6 +154,54 @@ internal sealed class BaseActionMenu
                 rect.Y + ((rect.Height - textSize.Y) / 2f));
             spriteBatch.DrawString(font, label, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
         }
+    }
+
+    /// <summary>
+    /// The anchored base's garrison against its cap (`12 / 35`) - the only place that number is
+    /// legible to the player (D-22 acceptance: the map itself draws the bare count alone). Sits just
+    /// above the button arc, clamped into the viewport exactly as each button is.
+    /// </summary>
+    private void DrawHeader(SpriteBatch spriteBatch, Texture2D buttonTexture, SpriteFont font, Viewport viewport)
+    {
+        var rect = GetHeaderRect(viewport);
+        spriteBatch.Draw(buttonTexture, rect, _headerColor);
+
+        var unscaledSize = font.MeasureString(_garrisonLabel);
+        var textScale = Math.Min((rect.Width * 0.85f) / unscaledSize.X, (rect.Height * 0.7f) / unscaledSize.Y);
+        var textSize = unscaledSize * textScale;
+        var textPosition = new Vector2(
+            rect.X + ((rect.Width - textSize.X) / 2f),
+            rect.Y + ((rect.Height - textSize.Y) / 2f));
+        spriteBatch.DrawString(font, _garrisonLabel, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
+    }
+
+    /// <summary>
+    /// The header's destination rectangle - as wide as the union of every button, sitting just above
+    /// the topmost one, clamped into the viewport independently (a base near the top edge can still
+    /// clamp its buttons downward far enough that the header would otherwise land above y=0).
+    /// </summary>
+    private Rectangle GetHeaderRect(Viewport viewport)
+    {
+        var minDimension = Math.Min(viewport.Width, viewport.Height);
+        var margin = (int)(minDimension * _viewportMarginFraction);
+        var headerHeight = (int)(minDimension * _headerHeightFraction);
+
+        var unionLeft = int.MaxValue;
+        var unionRight = int.MinValue;
+        var unionTop = int.MaxValue;
+        for (var i = 0; i < _actions.Count; i++)
+        {
+            var buttonRect = GetButtonRect(i, viewport);
+            unionLeft = Math.Min(unionLeft, buttonRect.Left);
+            unionRight = Math.Max(unionRight, buttonRect.Right);
+            unionTop = Math.Min(unionTop, buttonRect.Top);
+        }
+
+        var width = unionRight - unionLeft;
+        var top = Math.Clamp(unionTop - headerHeight - margin, margin, viewport.Height - headerHeight - margin);
+        var left = Math.Clamp(unionLeft, margin, viewport.Width - width - margin);
+
+        return new Rectangle(left, top, width, headerHeight);
     }
 
     /// <summary>
@@ -171,8 +231,14 @@ internal sealed class BaseActionMenu
         var left = (int)(centerX - (buttonWidth / 2f));
         var top = (int)(centerY - (buttonHeight / 2f));
 
+        // The header (the garrison/cap line) is drawn just above the topmost button, so the button's
+        // own clamp must leave room for it - otherwise a base near the top edge clamps its button
+        // right up against the header's own position and the button, drawn after, hides it entirely.
+        var headerHeight = minDimension * _headerHeightFraction;
+        var topInset = margin + headerHeight + margin;
+
         left = Math.Clamp(left, (int)margin, viewport.Width - buttonWidth - (int)margin);
-        top = Math.Clamp(top, (int)margin, viewport.Height - buttonHeight - (int)margin);
+        top = Math.Clamp(top, (int)topInset, viewport.Height - buttonHeight - (int)margin);
 
         return new Rectangle(left, top, buttonWidth, buttonHeight);
     }

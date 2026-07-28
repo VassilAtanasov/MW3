@@ -232,7 +232,7 @@ internal sealed class MatchScreen : IScreen
     private void HandlePressWhileMenuOpen(IInputSource input, Viewport viewport)
     {
         var point = ToNormalized(input.PointerPosition, viewport);
-        var buttonIndex = _openMenu!.HitTestButton(point, viewport);
+        var buttonIndex = _openMenu!.HitTestButton(point, viewport); // guarded by the caller's `_openMenu is not null` check
 
         if (buttonIndex is int index)
         {
