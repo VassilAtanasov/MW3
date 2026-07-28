@@ -23,6 +23,16 @@ phase 2 FR-4). An army can lose units in transit and be destroyed before it ever
 the single largest change to the simulation this phase makes, and it is made on purpose rather than
 discovered mid-build.
 
+**A correction arrives mid-phase** (added 28-07-2026, after FR-1, FR-2, and FR-3 merged). Phase 3
+was designed before `docs/reference/` existed, so its ladder — three levels, caps 20/35/50, upgrades
+at 6 and 16, conversion at 10 — was invented to be testable rather than sourced. The reference now
+documents what Mushroom Wars 2 actually does, and the project's goal is to be as close to it as
+possible, which makes those numbers not conservative but wrong. FR-3a, FR-3b, and FR-3c realign the
+shipped code: MW2's literal economy on a tick rate that can express it, levels that buy defence with
+combat resolved by MW2's ratio formula, and build time with a recapture grace window. They sit
+between FR-3 and FR-4 in dependency order, and FR-4, FR-5, and FR-6 are re-discovered on top of
+them rather than built against numbers that are about to change.
+
 The AI learns to make the same trade-offs, so a match is won or lost for a reason rather than by
 arithmetic. Rules stay in the engine-free `MW3.Core` and stay headlessly testable; presentation
 stays deliberately plain — shapes and numbers, plus the minimum that makes a level, a cap, a type,
@@ -57,6 +67,12 @@ Observable outcomes, not features:
 6. `qa-verifier` confirms each feature unattended through the existing `--script` / `--dump-state` /
    `--screenshot` mechanisms (D-17), without a new verification mechanism being invented.
 7. `./gate.ps1` passes locally and in CI throughout, and `MW3.Core` still contains no engine type.
+8. **The correction leaves nothing half-migrated.** After FR-3a, FR-3b, and FR-3c, no tuning number
+   in `MW3.Core`, in a test, or in a `qa/scripts/` budget still comes from the staging ladder, and
+   every value that a table row claims is MW2's is traceable to a cited row in
+   `docs/reference/MW2-RULES.md`. Re-authoring tests against the new numbers is expected work for
+   these three features, not evidence of a defect — but a test *weakened* rather than re-authored
+   is a defect, and the distinction is that a re-authored test still asserts the same behaviour.
 
 ## 4. Functional requirements
 
@@ -228,6 +244,36 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     within its budget — every base starts a producer, so nothing about an existing match differs —
     and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
+FR-3a (wf: f5f3320ec408): The developer can play the match on MW2's literal economy — five village
+levels and four tower levels, MW2's caps and production rates, upgrade costs of 5/10/20 and a flat
+20 for towers, and a conversion price of 30 — on a 50 ms tick that can express them, so that phase
+3's staging numbers are replaced by the reference's. Closes parity **G-8**, **G-14**, and §3's
+tick-rate decision. Core, plus the FR-2 presentation the new ladder invalidates.
+
+FR-3b (wf: f585a0868ecc): The developer can have a base's level buy defence as well as economy,
+with combat resolved by MW2's `Bu = (a/d) × Wu` rather than 1:1, so that a level-1 tower is as
+defensible as a level-5 village and the formula morale and forges later feed already exists. Closes
+parity **G-9**, **G-10**, and most of **G-7**. Deliberately reverses D-15 and D-22's "levels buy
+economy only, never combat strength"; depends on FR-3a for the tables the defence column hangs on.
+
+FR-3c (wf: a4c8cacb426a): The developer can have an upgrade or a conversion take MW2's build time
+instead of completing instantly, and a building retaken within one second not demote a further
+level, so that infrastructure costs time as well as units and thrash is not rewarded. Closes parity
+**G-11** and **G-12**, and introduces this phase's first genuinely new state — a base under
+construction — which the AI must predict and the screen must draw. Depends on FR-3a for the tick
+rate.
+  - Three questions for its `/kickoff`, listed here so they are not mistaken for settled: MW2 never
+    publishes **what an under-construction building does** — whether it keeps producing, whether it
+    can be captured mid-build, and whether the spend is refunded if it falls. All three need
+    deciding rather than sourcing, and the decision belongs in `MW2-PARITY.md` §4 as a divergence
+    if it departs from anything the reference does state.
+
+> **FR-4, FR-5, and FR-6 below are pending re-discovery** (28-07-2026). They were settled against
+> phase 3's staging economy, and FR-3a/b/c change the ladder, the tick rate, and combat underneath
+> them. FR-4 is kicked off as issue #36 but **not built** — no branch, no code — so its kickoff is
+> re-run rather than corrected. The text below is the pre-correction record and is superseded by
+> that re-discovery; nothing in it may be built as-is.
+
 FR-4 (wf: b7427e502078, issue #36): The developer can have a tower fire on enemy armies passing
 within its range, removing units from them in transit and destroying them outright when their count
 reaches zero, so that towers do something and armies stop being inert. Core only; this is the
@@ -304,22 +350,73 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-Every column is **settled for this phase** and is contract, not proposal — the economy columns by
-FR-1's kickoff, the conversion cost by FR-3's, and the tower columns by FR-4's (all 28-07-2026).
-Nothing in phase 3 may deviate from them.
+**There are now two tables: the one in force, and the one FR-3a replaces it with.** The staging
+ladder below shipped with FR-1, FR-2, and FR-3 and is what the merged code and every committed test
+and QA script are pinned to today. FR-3a replaces it wholesale with MW2's literal numbers — that is
+the whole of that feature. Neither table may be deviated from in build mode; which one is in force
+is decided by whether FR-3a has merged.
 
-> **Provisional beyond this phase** (noted 28-07-2026). The project targets MW2's *literal* numbers
-> — five village levels, caps 20/40/60/80/100, upgrade costs 5/10/20, conversion 30 — with the tick
-> rate chosen to fit them; see `docs/reference/MW2-PARITY.md` §3. The three-level ladder below is a
-> staging value, and the phase that closes parity gaps **G-8** and **G-14** will re-tune it and
-> re-author the tests and QA scripts pinned to it. That is a discovery decision, never a build-mode
-> one.
+#### In force until FR-3a merges (the staging ladder)
+
+Settled by FR-1's kickoff (economy), FR-3's (conversion), and FR-4's (tower columns), all
+28-07-2026. `Match.TickDurationMilliseconds` is 100 ms and `ArmySpeedUnitsPerTick` is 0.02.
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
 | 1 | 20 | 10 | — (starting level) | 4 ticks | 0.20 |
 | 2 | 35 | 7 | 6 units | 3 ticks | 0.25 |
 | 3 | 50 | 5 | 16 units | 2 ticks | 0.30 |
+
+#### FR-3a's target (MW2's literal numbers)
+
+Settled in discovery 28-07-2026, sourced from `docs/reference/MW2-RULES.md` §2.2 and §2.3. The tick
+duration becomes **50 ms** and `ArmySpeedUnitsPerTick` **0.01**, preserving the 5-second map
+crossing; every tick budget in the tests and in `qa/scripts/` therefore doubles. The single
+`LevelTable` splits, because MW2's two building types have different ladders of different lengths.
+
+Villages — capacity is `20 × level`, production `0.33 × level` units/sec, which at 50 ms is exactly
+`60 / level` ticks:
+
+| Village level | Garrison cap | Ticks per unit produced | Cost to reach this level |
+|---|---|---|---|
+| 1 | 20 | 60 | — (starting level) |
+| 2 | 40 | 30 | 5 units |
+| 3 | 60 | 20 | 10 units |
+| 4 | 80 | 15 | 20 units |
+| 5 | 100 | 12 | **not reachable by upgrading** |
+
+Towers — four levels, a flat 20 units per upgrade:
+
+| Tower level | Cost to reach this level |
+|---|---|
+| 1 | — (arrived at by conversion) |
+| 2 | 20 units |
+| 3 | 20 units |
+| 4 | 20 units |
+
+**Conversion costs 30 units** in either direction, still resetting the base to level 1.
+
+Three consequences that are behaviour, not arithmetic, and that FR-4/5/6's re-discovery inherits:
+
+- **A level-1 base cannot be converted at all.** Its cap is 20 and conversion costs 30, so a player
+  must upgrade to level 2 (cap 40) before a tower is even possible. FR-3's kickoff chose 10
+  precisely to make towers cheap early; MW2's number makes them a mid-game investment. This is the
+  reference's actual behaviour, so it is a gap closed rather than a regression — but it changes the
+  opening of every match and the AI's first decision.
+- **Level 5 is defined and unreachable.** MW2 publishes the tier (cap 100, 1.66 units/sec) with no
+  upgrade price, and prose says a village upgrades three times — `[?]` on how level 5 is reached at
+  all. Settled in discovery: the table carries all five rows exactly as published, `UpgradeCommand`
+  rejects at level 4 with `AlreadyAtMaxLevel`, and the menu reads `Max` there. Whatever later grants
+  level 5 — map setup, a passive, a hero — finds the tier already modelled.
+- **Tower range and damage per shot stay MW3's own numbers.** MW2 publishes shooting radius only as
+  a percentage of an unstated base and never publishes damage at all (parity **G-13**, **G-22**), so
+  there is nothing to copy. FR-4's re-discovery recalibrates them against the 50 ms tick, where an
+  army covers half the distance per tick that it does today.
+
+#### Why the staging ladder was tuned as it was
+
+Retained because it is the reasoning FR-3a is overwriting, and because the tower recalibration below
+is the standing warning about copying MW2 numbers across without checking them against MW3's speeds.
 
 The first upgrade is deliberately cheap enough (6) to be affordable from the starting garrison of
 10 without waiting, so "grow first" is a live option on the opening move rather than something a
@@ -420,20 +517,25 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
 - **Randomized combat and difficulty levels** (D-15). Tower fire is deterministic integer damage,
   not a hit chance. AI tuning surfaces stay out, as does a switch to disable the AI — refused in
   phase 2 for the same reason it would be refused now.
-- **A defence bonus from levels.** A level buys production rate and cap only this phase, and combat
-  stays phase 2's plain 1:1 arithmetic — which keeps every existing combat test meaning exactly what
-  it meant. MW2 does give levels a defence bonus (villages 100→140%, towers 140→200%), so this is
-  owed (parity **G-9**, **G-10**) and arrives with the combat formula it feeds (**G-7**).
+- ~~**A defence bonus from levels.**~~ **No longer excluded — this is FR-3b** (added 28-07-2026).
+  It was scoped out to keep every phase-2 combat test meaning what it meant; under the MW2 goal that
+  reads as sequencing rather than design, and the sequence has arrived. Levels buy defence (villages
+  100→140%, towers 140→200%) and combat becomes `Bu = (a/d) × Wu`, closing parity **G-9**, **G-10**,
+  and most of **G-7**. The combat tests are re-authored deliberately, which is the cost this
+  exclusion was originally deferring.
 - **Army recall, rally points, and interception by armies.** FR-4 makes armies vulnerable to
   *towers* specifically. Armies still do not fight each other in transit, still cannot be recalled,
   and still travel base-to-base in a straight line — no pathfinding, no fog of war.
 - **Repair, decay, and over-cap bleed.** Settled in discovery: the cap is a production ceiling, so
   arrivals stack above it freely and nothing decays back down. Nor is there a refund for converting
-  a base back — conversion costs 10 each way with nothing returned.
-- **Build time.** Settled at FR-3's kickoff (28-07-2026): upgrading and converting are instant this
-  phase, and no base is ever "under construction". A build delay is a new mechanic, a new state to
-  draw, and a new thing for the AI to predict, for a feel benefit this phase cannot yet measure.
-  MW2 does have one (5/5/10/15 s), so it is owed (parity **G-11**).
+  a base back — conversion costs the same each way with nothing returned (10 today, 30 from FR-3a),
+  which matches MW2 and is already recorded as at parity.
+- ~~**Build time.**~~ **No longer excluded — this is FR-3c** (added 28-07-2026). Settled at FR-3's
+  kickoff as instant, on the grounds that a build delay buys a feel benefit the phase could not
+  measure; the MW2 goal makes it owed rather than optional, so it arrives here with MW2's own
+  5/5/10/15 seconds and the 1-second recapture grace (parity **G-11**, **G-12**). It really does
+  bring everything that kickoff warned of — a new state to draw and a new thing for the AI to
+  predict — which is why it is its own feature rather than a rider on FR-3a.
 - **The cap and the level as numbers on the map.** Settled at FR-2's kickoff (28-07-2026): the map
   circle keeps the bare garrison count, the level is carried non-textually as ring thickness, and
   the cap is legible only inside the action menu — three numbers in one small circle is unreadable
@@ -445,4 +547,17 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
 
 ## 7. Open questions
 
-None. Discovery closed with every question resolved.
+None blocking. Discovery closed with every question it owns resolved — the correction's scope, the
+level-5 tier, and the tick rate were all settled with the user on 28-07-2026.
+
+Three questions are **deliberately deferred to FR-3c's `/kickoff`**, recorded here so they are not
+mistaken for settled and do not live only in a chat transcript. MW2 never publishes what a building
+under construction does, so none of them can be sourced:
+
+1. Does a base under construction keep producing while it builds?
+2. Can it be captured mid-build, and if so what happens to the construction in progress?
+3. Is the spend refunded if it falls before completing?
+
+They block FR-3c only, not FR-3a or FR-3b, so the backlog is not waiting on them. Whatever is
+chosen is a divergence from an unpublished behaviour rather than a match to a known one, and belongs
+in `docs/reference/MW2-PARITY.md` §4 as such.

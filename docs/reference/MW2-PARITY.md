@@ -59,6 +59,21 @@ Nothing to do. Recorded so it is not re-litigated.
 Ordered by how much each one changes how the game plays. Each row is a candidate feature for a
 future phase.
 
+> **Eight of these are now assigned** (28-07-2026). Discovery added three correction features to
+> phase 3, sitting between FR-3 and FR-4 in dependency order, which together close **G-7** (in
+> part), **G-8**, **G-9**, **G-10**, **G-11**, **G-12**, and **G-14**, and settle §3's tick-rate
+> question:
+>
+> | Feature | wf | Closes |
+> |---|---|---|
+> | FR-3a — the MW2 ladder, caps, costs, and the 50 ms tick | `f5f3320ec408` | G-8, G-14, §3 |
+> | FR-3b — levels buy defence; combat becomes `(a/d) × Wu` | `f585a0868ecc` | G-9, G-10, most of G-7 |
+> | FR-3c — build time and the one-second recapture grace | `a4c8cacb426a` | G-11, G-12 |
+>
+> A row stays in this table until the feature closing it has **merged**, not when it is assigned.
+> G-7 stays open after FR-3b because its `a` and `d` terms are only fully populated once morale
+> (G-1) and forges (G-6) exist; FR-3b builds the formula that accepts them.
+
 ### 2.1 Large — these change the shape of a match
 
 | # | MW2 | MW3 today | Notes |
@@ -144,9 +159,15 @@ That is exactly `60 / level` ticks. For comparison, 100 ms fails at level 4 and 
 level 4; 25 ms works but doubles the tick count for nothing. Halving the tick duration also means
 halving `ArmySpeedUnitsPerTick` from 0.02 to 0.01 to preserve the current 5-second map crossing.
 
-This is a **derived proposal, not a decision** — it belongs to the kickoff that closes G-8, which
-owns the tick-rate change, the re-tuning, and the test re-authoring together. Nothing changes in
-build mode on the strength of this table.
+**Settled 28-07-2026 in discovery: 50 ms it is.** The proposal above was put to the user against
+25 ms and against keeping 100 ms with rounded periods, and 50 ms was chosen for the reason derived
+here — it is the longest integer-millisecond tick making all five periods whole, and 25 ms doubles
+the tick count for headroom nothing in this phase uses. Rounding at 100 ms was rejected because it
+would make numeric parity permanently unreachable while leaving no failing test to say so. The
+change is owned by phase 3 **FR-3a** (`f5f3320ec408`) together with the ladder it exists to express
+and the test and QA-script re-authoring both force; the reasoning now lives in
+`docs/base-upgrades-and-types/ARCHITECTURE.md` **D-27**. Still true, and still the point of this
+section: none of it happens in build mode.
 
 ## 4. Shipped decisions that the new goal reopens ⚠️
 
@@ -157,17 +178,24 @@ each needs the user's agreement in a discovery session.
 
 | Decision | Where | Why it was made | Status now |
 |---|---|---|---|
-| No defence bonus from levels | phase 3 §6 | Keeps every phase-2 combat test meaning what it meant | Reopened as **G-9** |
-| Three base types forbidden | phase 3 §6 | "MW2 has several; this phase earns two" | Reopened as **G-6** (forge) |
-| No build time | FR-3 kickoff, 28-07-2026 | A feel benefit the phase could not yet measure | Reopened as **G-11** |
-| Send-strength picker deferred | phase 3 §6 | "A separate decision about how the game plays" | Reopened as **G-3**, now required rather than optional |
-| Three levels, caps 20/35/50 | FR-1 | Tuned for MW3's tick economy | Reopened as **G-8** / §3 |
-| Conversion costs 10, not 30 | FR-3 kickoff | Makes towers cheap early, expensive late | Reopened as **G-14** / §3 |
+| No defence bonus from levels | phase 3 §6 | Keeps every phase-2 combat test meaning what it meant | **Resolved** in discovery 28-07-2026 — reversed by phase 3 FR-3b (G-9, G-10) |
+| Three base types forbidden | phase 3 §6 | "MW2 has several; this phase earns two" | Reopened as **G-6** (forge); still unassigned |
+| No build time | FR-3 kickoff, 28-07-2026 | A feel benefit the phase could not yet measure | **Resolved** in discovery 28-07-2026 — reversed by phase 3 FR-3c (G-11) |
+| Send-strength picker deferred | phase 3 §6 | "A separate decision about how the game plays" | Reopened as **G-3**, now required rather than optional; still unassigned |
+| Three levels, caps 20/35/50 | FR-1 | Tuned for MW3's tick economy | **Resolved** in discovery 28-07-2026 — replaced by phase 3 FR-3a (G-8, §3) |
+| Conversion costs 10, not 30 | FR-3 kickoff | Makes towers cheap early, expensive late | **Resolved** in discovery 28-07-2026 — raised to 30 by phase 3 FR-3a (G-14) |
 
-Phase 3's `REQUIREMENTS.md` §6 is worded as permanent exclusion ("this phase earns two", "deserves
-its own phase"). That wording is now **misleading rather than wrong** — the exclusions still bind
-phase 3, but they read as design positions when they are really sequencing. Worth correcting the
-next time that file is touched, in the same change, the way phase 3 corrects phase 2 in place.
+Five of the six are now assigned to a feature; only the forge (**G-6**) and the send-strength picker
+(**G-3**) remain reopened-but-unowned. Each resolution above was the user's decision in discovery,
+not a build-mode one, and each is recorded in `docs/base-upgrades-and-types/REQUIREMENTS.md` §4 and
+§6 rather than only here.
+
+Phase 3's `REQUIREMENTS.md` §6 was worded as permanent exclusion ("this phase earns two", "deserves
+its own phase"), which read as a design position when it was really sequencing. **Corrected
+28-07-2026**: §6 now opens with a note reading every bullet as sequencing, the defence-bonus and
+build-time bullets are struck through and redirected to FR-3b and FR-3c, and the bullets that remain
+genuine exclusions cross-reference the gap that owes them. The exclusions that stayed still bind
+phase 3 in full and none may be closed in build mode.
 
 ## 5. The IP layer — the divergence that stays 🎨
 

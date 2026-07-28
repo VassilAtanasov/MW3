@@ -94,4 +94,4 @@ authentication and not before; a future server maps its accounts onto in-match p
 |---|---|---|
 | 1 — Welcome screen | `docs/welcome-screen/` | Solution skeleton, both heads, placeholder welcome screen, Android CI artifact |
 | 2 — Core gameplay loop | `docs/core-gameplay-loop/` | Match simulation in `MW3.Core`, match screen, send-army mechanic, AI opponent, victory/defeat |
-| 3 — Base upgrades and types | `docs/base-upgrades-and-types/` | Garrison caps and base levels, a tower base type that shoots armies in transit, the base action menu, an AI that invests |
+| 3 — Base upgrades and types | `docs/base-upgrades-and-types/` | Garrison caps and base levels, a tower base type that shoots armies in transit, the base action menu, an AI that invests — plus the mid-phase MW2 correction (FR-3a/3b/3c): MW2's literal economy on a 50 ms tick, levels buying defence with combat on `Bu = (a/d) × Wu`, and build time with a recapture grace |

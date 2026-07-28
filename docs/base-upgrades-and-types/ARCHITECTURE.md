@@ -119,7 +119,12 @@ src/MW3.Core/
   Base.cs                  gains Level, BaseType, and a cap derived from both
   BaseType.cs              producer | tower
   LevelTable.cs            the constant tables: cap, production period, upgrade cost,
-                           tower fire period, tower range - per level (D-22)
+                           tower fire period, tower range - per level (D-22).
+                           FR-3a splits this per building type (D-28): a village ladder of
+                           five levels and a tower ladder of four, each with its own costs,
+                           plus the defence percentages FR-3b adds (D-29)
+  CombatResolver.cs        FR-3b: MW2's Bu = (a/d) x Wu, with morale and forge terms present
+                           and fixed at 1.0 until G-1 and G-6 supply them (D-29)
   UpgradeCommand.cs        spend units from a base's own garrison to raise its level
   ConvertCommand.cs        producer <-> tower, both directions, reversible (D-23)
   BaseAction.cs            one offerable action + its cost + whether it is affordable
@@ -179,6 +184,13 @@ was considered and rejected in discovery: it would reopen D-15's 1:1 combat arit
 the meaning of every existing combat test, and complicate every capture prediction the AI makes,
 in exchange for authenticity this phase does not need. Combat stays exactly as phase 2 left it.
 
+> **Superseded in part, 28-07-2026.** The table-of-constants decision stands and is untouched. The
+> two claims that do not survive the MW2 goal are "one table" — split per building type by **D-28**,
+> because MW2's ladders differ in length — and "levels buy economy only, never combat strength",
+> reversed by **D-29**, which gives levels a defence percentage and moves combat to MW2's ratio
+> formula. The reasoning above is retained as the record of why the staging ladder was built that
+> way, not as a rule still in force.
+
 **D-23: base type is reversible, and a capture keeps the type while dropping one level.**
 Considered for conversion: one-way (cheapest, and it makes the choice weightier). Rejected: it
 turns a mistap into a permanent loss in a game with no undo. Considered on capture: keeping the
@@ -230,6 +242,69 @@ outside the menu dismisses it and does nothing else. This is presentation state,
 not produce the same simulation. Phase 2's press-began-before rule for dismissing the outcome
 screen (FR-7) is the precedent — a release from a press that began before the menu opened must not
 activate a button under it.
+
+**D-27: the tick duration is chosen to make MW2's production ladder expressible, not the other way
+round.** Added 28-07-2026 for FR-3a. MW2 states village production in units per second — `0.33 ×
+level`, so 0.33 / 0.66 / 1.00 / 1.33 / 1.66 — and D-24 keeps all simulation arithmetic on integer
+ticks, so a tick duration is only usable if every one of those five periods is a whole number of
+ticks. 100 ms fails (level 4's 0.75 s is 7.5 ticks) and so does 20 ms. Considered: keeping 100 ms
+and rounding each period to the nearest tick, which changes nothing structurally and costs nothing
+today. Rejected because it makes numeric parity permanently unreachable while looking like it
+succeeded — the ladder would be *approximately* MW2's forever, with no failing test to say so.
+Chosen: **50 ms (20 Hz)**, the longest integer-millisecond tick that makes all five whole, and the
+one that renders the ladder as exactly `60 / level` ticks. `ArmySpeedUnitsPerTick` halves from 0.02
+to 0.01 so the map still takes five seconds to cross. Consequences to know before touching this
+again: **every tick count in the codebase doubles** — tests, `qa/scripts/` budgets, the AI's
+decision interval, and FR-4's tower fire periods — and a tick is now half as much wall-clock, so a
+full match is twice as many `Advance` calls and the no-allocation rules on per-tick paths get
+correspondingly more load-bearing.
+
+**D-28: villages and towers get separate level tables, because MW2's ladders differ in length and in
+what a level buys.** Added 28-07-2026 for FR-3a, superseding D-22's single table. Villages have five
+levels and towers four; a village upgrade costs 5, 10, then 20 while a tower's is a flat 20; and a
+village level buys capacity and production where a tower's buys defence, radius, and rate of fire.
+Considered: one table with nullable columns, which is a smaller diff and keeps `LevelTable` as the
+one name to know. Rejected — a nullable production column on a tower row is exactly the "model
+absence in comments rather than in the type system" that `docs/CONVENTIONS.md` forbids, and the
+level *count* differing means a single `MaxLevel` constant would already be wrong. Chosen: two
+tables behind whatever the type dispatches on, with `Base` asking for its own type's ladder.
+**Level 5 is present and unreachable**: MW2 publishes the tier with no upgrade price and its prose
+says a village upgrades three times, so the row exists, `UpgradeCommand` rejects at level 4 with the
+existing `AlreadyAtMaxLevel`, and no new rejection reason is invented for it. That asymmetry —
+a defined tier no command can reach — is deliberate and must not be "fixed" in build mode.
+
+**D-29: levels buy defence, and combat becomes MW2's ratio formula with its later terms present as
+identity.** Added 28-07-2026 for FR-3b, and it is a deliberate reversal of **D-22**'s "levels buy
+economy only, never combat strength" and of **D-15**'s 1:1 arithmetic — both of which are corrected
+in place in the PR that lands it, following the same rule FR-4 follows for phase 2's inertness
+claim. MW2 resolves an arriving wave as `Bu = (a/d) × Wu`, where `a` and `d` accumulate the
+attacker's and defender's multipliers. Considered: applying the defence percentage directly at the
+arrival site as a single multiply, which is the whole of the behaviour this feature needs. Rejected
+because morale (**G-1**) and forges (**G-6**) are both known to stack into the same `a` and `d`, and
+a direct multiply is precisely the shape that has to be torn out to admit them. Chosen: a combat
+resolver taking the full `a` and `d`, with the morale and forge contributions **present in the
+signature and fixed at 1.0**, so those systems later supply a term instead of forcing a rewrite. The
+resolver is integer arithmetic on whole units with a stated, tested rounding rule — a percentage is
+a ratio of integers, never a `float` field on match state, because the first float in the simulation
+is how D-12 dies quietly. What this makes true and is worth stating: a level-1 tower and a level-5
+village both defend at 140%, so the tower stops being a building that trades production for range
+and becomes the defensive structure MW2 has.
+
+**D-30: an under-construction base is a state on the base, not a separate entity, and the recapture
+grace is a remembered tick rather than a timer.** Added 28-07-2026 for FR-3c. Considered for build
+time: a queue of pending construction jobs on the match, which is how a bigger RTS would do it and
+which keeps `Base` unchanged. Rejected — it puts a base's own state somewhere other than the base,
+so every read of "what is this building doing" needs two lookups, and a captured or converted base
+needs a job cancelled by side effect. Chosen: the base carries the tick its construction completes
+and what it is becoming; `Advance` completes it, exactly as it already resolves production and
+arrivals, so it inherits D-12's chunk-independence for free. Likewise the grace window is the tick a
+base last changed hands, compared against the current tick when demotion is computed — **not** a
+countdown that has to be advanced, because a countdown is state that must be stepped and stepping is
+what breaks under irregular chunks. Three things MW2 does not publish and this decision therefore
+does not settle — whether a building under construction produces, whether it can be captured
+mid-build, and whether the spend is refunded if it falls — are `/kickoff` questions for FR-3c, and
+whatever is chosen goes into `MW2-PARITY.md` §4 as a divergence rather than being presented as the
+reference's behaviour.
 
 ## 5. Cross-cutting conventions
 
