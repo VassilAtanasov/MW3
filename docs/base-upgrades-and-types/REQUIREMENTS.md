@@ -109,10 +109,68 @@ finite and investment becomes possible. Core only; draws nothing.
     its tick budget re-stated in phase 2's docs if capped garrisons genuinely change it.
   - Acceptance: `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-2 (wf: bea15b8431a8): The player can tap a base they own to open an action menu laid out around
-it, see each action's unit cost, see an unaffordable action greyed out, dismiss the menu by tapping
-elsewhere, and upgrade the base from it — with the base's level and cap visible on the map. This is
-the game's first real UI widget; the convert options join it in FR-5.
+FR-2 (wf: bea15b8431a8, issue #32): The player can tap a base they own to open an action menu laid
+out on an arc above it, see each action's unit cost, see an unaffordable action greyed out, dismiss
+the menu with a press elsewhere, and upgrade the base from it — with the base's level visible on the
+map as its ring thickness and its cap legible in the menu. This is the game's first real UI widget;
+the convert options join it in FR-5.
+  - Acceptance: a press and release on the same base the human owns opens the menu anchored there
+    (phase 2's silent cancel on that gesture is gone); the same gesture on a neutral or AI base does
+    nothing; a press released over a *different* base still sends an army exactly as phase 2 FR-5
+    defined, and opens no menu.
+  - Acceptance: while the menu is open, a press — the down, not the release — anywhere outside it
+    dismisses it and does nothing else: no army sent, no highlight, no second menu opened, including
+    on another owned base; the matching release does nothing either.
+  - Acceptance: a button activates on release only when the press that began the interaction landed
+    on that same button (D-26, following FR-7's press-began-before precedent).
+  - Acceptance: the menu dismisses itself with no player input if its base stops being owned by the
+    human, or if the match outcome is decided.
+  - Acceptance: while open, drag-to-send and the gold selection highlight are suppressed entirely,
+    but the match keeps advancing — opening a menu is not a pause — and a `--script` run that opens
+    and dismisses a menu reaches the same simulation state at the same tick as one that does not.
+  - Acceptance: `MW3.Core` answers "what actions does this base offer its owner now, at what cost,
+    and is it available" for a player and base id, unit-tested with no graphics device; `MW3.Game`
+    computes no cost, compares nothing against a garrison, and constructs no command it was not told
+    is available (D-25). The query returns nothing for a base the issuer does not own.
+  - Acceptance: exactly one action this phase — Upgrade — its cost read from `LevelTable` and never
+    named by the caller; availability is three distinct states in the type system (affordable,
+    garrison below cost, already at max level), never a bool and never an exception.
+  - Acceptance: the Upgrade button is always present on an owned base's menu — enabled with its cost
+    when affordable, greyed with its cost when the garrison is below it, greyed reading `Max` with
+    no cost at level 3; pressing a greyed button submits nothing and leaves the menu open.
+  - Acceptance: the menu shows the base's garrison against its cap (`12 / 35`) — the only place the
+    cap is legible — and tracks live state while open, flipping between greyed and enabled as the
+    garrison crosses the cost, re-queried only when that base's garrison or level actually changes
+    and allocating nothing per frame.
+  - Acceptance: releasing on an enabled Upgrade submits `UpgradeCommand` through the runner and
+    dismisses the menu; Core's outcome is authoritative, so an upgrade that stopped being affordable
+    between opening and release leaves all match state untouched (phase 2 #24's finding); an
+    accepted one drops the garrison by exactly the cost and thickens the ring in the next frame.
+  - Acceptance: every base draws its level as outline ring thickness — three thicknesses
+    distinguishable in a screenshot at both 1280x720 and 1808x1018, tinted by owner as the fill is,
+    sized from the viewport and the level table with no magic number in `MatchScreen` (D-14, D-22).
+    The map still draws the bare garrison count: no cap, no level numeral.
+  - Acceptance: no new script directive and no new command-line flag. `--dump-state`'s per-base line
+    gains `Level=` and `Cap=` with existing fields unchanged in name, order, and meaning
+    (`Base 1: Owner=Human Garrison=12 Level=2 Cap=35`), and one presentation line is added, written
+    by the screen and never by Core: `Menu: none`, or
+    `Menu: Base=1 Garrison=12/35 Upgrade=Affordable Cost=16` with `Upgrade=` one of `Affordable`,
+    `GarrisonBelowCost`, `AlreadyAtMaxLevel` and `Cost=0` at max level.
+  - Acceptance: new `qa/scripts/` covering open, dismiss by tapping empty space, upgrade, a greyed
+    Upgrade doing nothing, and a drag suppressed while a menu is open — each asserted through dumps;
+    plus screenshots at both sizes showing the arc fully inside the viewport for the map's top base
+    row at y=0.25, so the clamp is exercised rather than merely written.
+  - Acceptance (device, blocking): on the MI Pad 4 (`43e75e5`, viewport ~1808x1018),
+    `adb shell input tap` on the human base opens the menu, a second tap on Upgrade upgrades it, and
+    a tap on empty space dismisses it — verified against a freshly built and installed APK whose
+    `lastUpdateTime` is newer than the branch build.
+  - Acceptance: every pre-existing test and committed script still passes in its budget. No
+    committed script releases on its source base, so none is expected to change; the phase-2 *test*
+    asserting release-on-source cancels is corrected in place in the same PR to assert the menu
+    opens instead, as is `docs/core-gameplay-loop/REQUIREMENTS.md`'s FR-5 line stating that rule.
+    Release over *no* base still cancels; only release over the source changes meaning.
+  - Acceptance: `MW3.Core` still targets `netstandard2.1` with no `Microsoft.Xna` or `MonoGame`
+    text, and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-3 (wf: ace16ed72ce6): The developer can convert an owned base between producer and tower in
 either direction at a cost in units, where a tower holds and defends a garrison but produces
@@ -217,6 +275,12 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   and still travel base-to-base in a straight line — no pathfinding, no fog of war.
 - **Repair, decay, and over-cap bleed.** Settled in discovery: the cap is a production ceiling, so
   arrivals stack above it freely and nothing decays back down.
+- **The cap and the level as numbers on the map.** Settled at FR-2's kickoff (28-07-2026): the map
+  circle keeps the bare garrison count, the level is carried non-textually as ring thickness, and
+  the cap is legible only inside the action menu — three numbers in one small circle is unreadable
+  at 1808x1018. The cap remains a `--dump-state` field regardless, so nothing about it becomes
+  unverifiable. If the map needs the cap later that is a deliberate change, not a build-mode
+  addition.
 - **Nice-to-have, explicitly deferred rather than forgotten**: a HUD totalling a player's units,
   pause, camera pan/zoom, and the app icon still owed from phase 1.
 
