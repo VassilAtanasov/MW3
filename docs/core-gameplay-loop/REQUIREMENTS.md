@@ -223,6 +223,9 @@ a **drag**, not two taps: press on the source, release on the target.
   - Acceptance: releasing over the source base itself, or over no base, cancels — no command, no
     garrison change, selection cleared. After any release the selection clears, so a second drag
     immediately after a first behaves identically.
+    **Corrected by phase 3 FR-2 (#32)**: releasing over the source base itself now opens that base's
+    action menu instead of cancelling — the phase 2 silent cancel on that specific gesture is gone.
+    Releasing over no base still cancels exactly as stated above; only the source-base case changed.
   - Acceptance: the screen submits commands only through `Match.Execute`, never mutates match state
     directly, and submits no command it can determine will be rejected. Production continues during
     a drag, and a back request still pops the screen as in FR-2.

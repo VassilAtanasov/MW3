@@ -1,0 +1,7 @@
+# Tap Play, open the human base's action menu, then press over empty space - dismisses it.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.500000 0.900000
+25 up 0.500000 0.900000
