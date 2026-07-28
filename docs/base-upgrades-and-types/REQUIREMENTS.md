@@ -337,17 +337,67 @@ column hangs on, and must not be started before it merges.
     `MW3.Core` stays `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and
     `./gate.ps1` both pass.
 
-FR-3c (wf: a4c8cacb426a): The developer can have an upgrade or a conversion take MW2's build time
-instead of completing instantly, and a building retaken within one second not demote a further
-level, so that infrastructure costs time as well as units and thrash is not rewarded. Closes parity
-**G-11** and **G-12**, and introduces this phase's first genuinely new state — a base under
-construction — which the AI must predict and the screen must draw. Depends on FR-3a for the tick
-rate.
-  - Three questions for its `/kickoff`, listed here so they are not mistaken for settled: MW2 never
-    publishes **what an under-construction building does** — whether it keeps producing, whether it
-    can be captured mid-build, and whether the spend is refunded if it falls. All three need
-    deciding rather than sourcing, and the decision belongs in `MW2-PARITY.md` §4 as a divergence
-    if it departs from anything the reference does state.
+FR-3c (wf: a4c8cacb426a, issue #40): The developer can have an upgrade or a conversion take MW2's
+build time instead of completing instantly, and a building retaken within one second not demote a
+further level, so that infrastructure costs time as well as units and thrash is not rewarded. Closes
+parity **G-11** and **G-12**, and introduces this phase's first genuinely new state — a base under
+construction. **Depends on FR-3a (#38)** for the tick rate every duration is expressed in; FR-3b
+(#39) is a soft dependency only.
+  - Acceptance: durations are named table constants, never literals (D-22), from `MW2-RULES.md`
+    §2.2 and §2.3 — whose Time columns are identical for both building types. At 50 ms: conversion
+    100 ticks, upgrade to level 2/3/4 costing 100/200/300 ticks. The recapture grace is 20 ticks
+    (§2.5), likewise named and derived from the tick duration.
+  - Acceptance: cost is still deducted immediately on acceptance; only the benefit is delayed. An
+    accepted command records a completion tick and a target, readable with no public setter. A base
+    already under construction rejects both `UpgradeCommand` and `ConvertCommand` with a new distinct
+    reason — no queue, no second concurrent build, and no cancel. Every existing rejection reason
+    still applies and still takes precedence where it does.
+  - Acceptance: **a base under construction keeps working** — it produces at its *current* level's
+    period with the cap and D-21a progress invariant unchanged, defends at its current level, and is
+    reinforced, attacked, captured, and sent from as normal. Type changes on completion, never on
+    command. Settled at kickoff 28-07-2026: MW2 does not publish this, and the alternatives (halting
+    production, or halting production and dropping defence) were rejected as inventions that would
+    thread a second reason-for-zero through the production path, the AI's lookahead, and every
+    production test.
+  - Acceptance: completion happens inside `Advance` at the exact recorded tick, and **a completion
+    tick is a segment boundary** exactly as an arrival tick is, so production is never credited
+    across a period change at the wrong rate. Within a tick, construction completes **before**
+    arrivals, so a base finishing an upgrade on the tick it is attacked defends at its new level. An
+    upgrade carries production progress; a conversion zeroes it. Nothing completes once the outcome
+    is decided.
+  - Acceptance: a base captured mid-build has its construction **discarded** and the spend is **not
+    refunded** — both by existing precedent rather than new rules (D-21a already discards a previous
+    owner's partial progress; `MW2-PARITY.md` §1 already records no refund on conversion as at
+    parity). Capture demotion (D-23) still applies on top.
+  - Acceptance: each base remembers its last owner-change tick and the owner it had immediately
+    before it. Demotion is skipped when the base changed owner within 20 ticks **and** the capturing
+    player is that previous owner — a true *retake* per §2.5's wording, inclusive at exactly 20. The
+    distinction is asserted in the one observable case: neutral → human → AI within 20 ticks does
+    **not** grant the AI the grace. The grace suppresses only the demotion; it restores nothing and
+    does not touch conversion's independent level reset.
+  - Acceptance (the one deliberate presentation change): a base under construction is drawn
+    distinguishably from both its current and its completed target level, visible at 1280x720 and
+    1808x1018 and provable by screenshot comparison. This breaks the phase's Core-only-then-FR-5
+    rhythm on purpose — FR-2's Upgrade button already ships, so deferring all feedback would mean a
+    shipped control that appears to do nothing for 5-15 seconds. The Core action query gains a
+    fourth availability state so the button greys while a build runs; FR-2's three existing states
+    keep their names and meanings.
+  - Acceptance: `--dump-state` gains exactly one per-base field with every other field unchanged in
+    name, order, and meaning — `Building=none`, or `Building=UpgradeToLevel3@1240` /
+    `Building=ConvertToTower@1300` where the number is the completion tick. The `Menu:` line's
+    `Upgrade=` token gains the new availability value. No new script directive and no new flag. New
+    `qa/scripts/` dumping both before and after completion.
+  - Acceptance: determinism (D-12) across single-call and irregular-chunk advances for construction
+    state and owner-change ticks, proved on a run containing a completed build, a build lost to a
+    capture, and a recapture inside the grace window. Nothing allocated per tick.
+  - Acceptance (corrections in the same PR): §6's build-time bullet, FR-3's kickoff statement that
+    upgrading and converting are instant, and the XML docs on `UpgradeCommand`, `ConvertCommand`,
+    and `Match.Execute`. `MW2-PARITY.md` moves **G-11** and **G-12** out of §2.
+  - Acceptance: every pre-existing test and committed script passes; one that assumed an instant
+    upgrade is re-authored in place to advance past the completion tick — never dodged by shortening
+    a build time to suit it. Device criterion blocking on the MI Pad 4. `MW3.Core` stays
+    `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1`
+    both pass.
 
 > **FR-4, FR-5, and FR-6 below are pending re-discovery** (28-07-2026). They were settled against
 > phase 3's staging economy, and FR-3a/b/c change the ladder, the tick rate, and combat underneath
@@ -638,17 +688,21 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
 
 ## 7. Open questions
 
-None blocking. Discovery closed with every question it owns resolved — the correction's scope, the
-level-5 tier, and the tick rate were all settled with the user on 28-07-2026.
+None. Every question this phase raised is resolved.
 
-Three questions are **deliberately deferred to FR-3c's `/kickoff`**, recorded here so they are not
-mistaken for settled and do not live only in a chat transcript. MW2 never publishes what a building
-under construction does, so none of them can be sourced:
+The three under-construction questions parked here on 28-07-2026 were **closed at FR-3c's kickoff
+the same day**, and are recorded rather than deleted because two of them turned out not to need a
+decision at all:
 
-1. Does a base under construction keep producing while it builds?
-2. Can it be captured mid-build, and if so what happens to the construction in progress?
-3. Is the spend refunded if it falls before completing?
+1. *Does a base under construction keep producing?* **Yes**, at its current level's period — the one
+   genuine choice of the three, settled with the user. Build time is a delay on the benefit, not a
+   penalty on the building.
+2. *What happens to construction in progress on capture?* **Discarded**, by precedent rather than by
+   decision — D-21a already discards a previous owner's partial production progress for exactly the
+   reason that applies here.
+3. *Is the spend refunded if it falls?* **No**, likewise by precedent — `MW2-PARITY.md` §1 already
+   records "refund on conversion: none" as at parity in both games, so a refund would have been a
+   new divergence rather than a gap closed.
 
-They block FR-3c only, not FR-3a or FR-3b, so the backlog is not waiting on them. Whatever is
-chosen is a divergence from an unpublished behaviour rather than a match to a known one, and belongs
-in `docs/reference/MW2-PARITY.md` §4 as such.
+Only (1) is an MW3 invention filling an MW2 silence; it is recorded in D-30 with the alternatives
+that were rejected.

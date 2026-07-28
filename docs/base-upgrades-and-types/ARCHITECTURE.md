@@ -327,11 +327,32 @@ and what it is becoming; `Advance` completes it, exactly as it already resolves 
 arrivals, so it inherits D-12's chunk-independence for free. Likewise the grace window is the tick a
 base last changed hands, compared against the current tick when demotion is computed — **not** a
 countdown that has to be advanced, because a countdown is state that must be stepped and stepping is
-what breaks under irregular chunks. Three things MW2 does not publish and this decision therefore
-does not settle — whether a building under construction produces, whether it can be captured
-mid-build, and whether the spend is refunded if it falls — are `/kickoff` questions for FR-3c, and
-whatever is chosen goes into `MW2-PARITY.md` §4 as a divergence rather than being presented as the
-reference's behaviour.
+what breaks under irregular chunks.
+
+**Settled at FR-3c's kickoff 28-07-2026: a building under construction keeps working.** It produces
+at its *current* level's period, defends at its current level, and is reinforced, attacked,
+captured, and sent from as normal — build time is a delay on the benefit, not a penalty on the
+building. Considered: halting production while building, which makes build time a genuine tempo cost
+rather than only a delay; and halting production *and* dropping defence to 100%, which makes
+upgrading under pressure a gamble. Both were rejected as inventions filling an MW2 silence at a real
+price — each adds a second reason a base can produce zero, threading through the D-21a cap
+invariant, `AiBrain`'s `ProductionCalculator` lookahead, and every production test, in exchange for
+a feel benefit nothing yet measures. The chosen model is the only one of the three under which this
+feature touches no AI code. This is MW3's own answer to an unpublished question, so it belongs in
+`MW2-PARITY.md` §4 as a divergence rather than being presented as the reference's behaviour.
+
+Two adjacent questions parked alongside it turned out **not** to need deciding. Construction in
+progress is **discarded** on capture, because D-21a already discards a previous owner's partial
+production progress for exactly the reason that applies here. And the spend is **not refunded**,
+because `MW2-PARITY.md` §1 already records no refund on conversion as at parity in both games — a
+refund would have been a new divergence, not a gap closed. Reaching for the existing precedent
+before inventing a rule is the general move, not a one-off.
+
+**The completion tick is a segment boundary in `Advance`**, exactly as an arrival tick is. This is
+the part most likely to be got wrong: production is computed in closed form across a segment
+(D-21a), so a period that changes mid-segment would be credited at one rate for the whole span.
+Within a tick, construction completes **before** arrivals resolve, so a base finishing an upgrade on
+the tick it is attacked defends at its new level.
 
 ## 5. Cross-cutting conventions
 
