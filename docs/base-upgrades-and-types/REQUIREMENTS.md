@@ -228,10 +228,70 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     within its budget — every base starts a producer, so nothing about an existing match differs —
     and `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-4 (wf: b7427e502078): The developer can have a tower fire on enemy armies passing within its
-range, removing units from them in transit and destroying them outright when their count reaches
-zero, so that towers do something and armies stop being inert. Core only; this is the phase's
-deliberate reversal of phase 2 FR-4, and it touches the elimination rule (D-20).
+FR-4 (wf: b7427e502078, issue #36): The developer can have a tower fire on enemy armies passing
+within its range, removing units from them in transit and destroying them outright when their count
+reaches zero, so that towers do something and armies stop being inert. Core only; this is the
+phase's deliberate reversal of phase 2 FR-4, and it touches the elimination rule (D-20).
+  - Acceptance: `LevelTable` gains a tower range and a tower fire period per level — 0.20 / 0.25 /
+    0.30 normalized map units, firing every 4 / 3 / 2 ticks, one unit removed per shot — read by
+    both the simulation and the tests with no tuning number at a call site (D-22). The producer
+    columns are untouched and a tower still produces nothing (FR-3).
+  - Acceptance: only an **owned** tower fires, and only at armies whose owner is not the tower's
+    owner; a player's own armies fly through their own towers untouched. A tower fires regardless of
+    its own garrison — drained to zero by a send it still shoots, and can still be taken by a single
+    unit, since a garrison is not ammunition (FR-3).
+  - Acceptance: each tower tracks its own last-fire tick and fires on the first tick at which an
+    enemy army is in range **and** at least its period has elapsed since its previous shot. An idle
+    tower is therefore always ready and its first shot lands on the tick the enemy enters range, so
+    damage taken is a function of time spent in range rather than of which tick the army entered on.
+  - Acceptance: on a firing tick a tower hits exactly one army — the closest enemy army, ties broken
+    by lowest army id. One tower is one gun, so a coordinated multi-army push genuinely overwhelms
+    it; that is the intended counterplay, not a gap.
+  - Acceptance: an army is in range when the distance from the tower to the army's current position
+    is less than or equal to the level's range, inclusive at exactly the range. The army's position
+    is computed each tick by interpolating source to target on
+    `(tick - LaunchTick) / (ArrivalTick - LaunchTick)`, clamped to 0..1 — recomputed from those
+    values every time and never accumulated across ticks, which is what keeps D-12 free.
+  - Acceptance: tower fire is evaluated once per tick inside `Advance`, on **every** tick — `Advance`
+    may not skip ticks for fire the way it computes production in closed form over a span; production
+    stays closed-form and fire does not. Within a tick fire resolves **before** arrivals, so a tower
+    gets a final shot at an army landing on it that tick and an army reduced to zero on its arrival
+    tick is destroyed and never lands. No tower fires once the outcome is decided (phase 2 FR-7).
+  - Acceptance: a shot removes exactly one unit; strength never goes negative and never rises. An
+    army at zero strength is destroyed that tick — removed from `ArmiesInFlight`, never arriving,
+    delivering neither reinforcement nor attack. A survivor arrives with its **current** strength,
+    resolving under phase 2's unchanged 1:1 arithmetic. Army strength is mutable state inside the
+    aggregate with no public setter, changed only by `Advance` (D-13), consistent with `Base`.
+  - Acceptance (tuning sanity): roughly 3 / 5 / 8 units are removed from a full-strength army flying
+    straight at a level 1 / 2 / 3 tower and arriving at it. Tests assert exact integers for
+    constructed scenarios rather than these approximations, which vary by a shot with tick alignment.
+  - Acceptance: elimination (D-20) — a player owning zero bases whose last in-flight army is shot
+    down is eliminated on that tick and the outcome decided accordingly. This is the case phase 2's
+    rule always described but nothing could reach, and it is asserted directly.
+  - Acceptance: determinism (D-12) — identical army strengths, tower last-fire ticks, garrisons,
+    owners, and outcome whether `Advance` runs in one call or irregular chunks, including which
+    armies were shot down and on which tick.
+  - Acceptance: tower fire allocates nothing per tick — it runs every tick for every tower against
+    every in-flight army on a phone, so the obvious LINQ implementation is not acceptable here even
+    though it would be elsewhere in Core (§5). `MW3.Core` stays `netstandard2.1` and engine-free,
+    with tower geometry computed on normalized `MapPoint` values.
+  - Acceptance (corrections in the same PR): `Army`'s XML doc no longer claims armies are inert or
+    undamageable, and `docs/core-gameplay-loop/REQUIREMENTS.md` is corrected at both sites — FR-4's
+    "Armies are inert in flight: no interception, recall, or change of owner" and §6's "Rally points,
+    army recall, and interception in flight". Recall and change-of-owner remain true and stay scoped
+    out; only interception and damage change.
+  - Acceptance (the one deliberate `MW3.Game` change): `MatchScreen` caches each army's count text by
+    army id, justified by a comment stating that an army's unit count never changes in flight. That
+    premise is now false and the cache would silently draw the launch count forever, so it and its
+    comment are corrected here so the drawn number tracks current strength while still allocating
+    nothing per frame. No other presentation change.
+  - Acceptance (scope guard): `--dump-state` gains no army-strength field — it arrives with FR-5,
+    exactly as FR-1 deferred `Level=` and `Cap=` to FR-2 and FR-3 deferred `Type=` to FR-5. No new
+    script directive, no new flag, and the Core action query is untouched.
+  - Acceptance: every pre-existing test and committed `qa/scripts/` script still passes within its
+    budget — no script builds a tower, so no existing match is affected — and where a phase-2 test
+    asserts inertness it is corrected in place to assert the new rule, never weakened or deleted.
+    `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-5 (wf: b6e8bc28daa9): The player can convert a base from the action menu in both directions, see
 a tower drawn distinguishably from a producer, see a tower's range on screen, and watch an army's
@@ -244,20 +304,31 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-The economy columns are **settled** by FR-1's kickoff (28-07-2026), and the conversion cost by
-FR-3's (28-07-2026); both are contract, not proposal. The tower fire columns remain a **starting
-proposal for FR-4's kickoff to confirm or change**, recorded so build mode never has to invent one
-and so the shape of the constant table (D-22) is concrete:
+Every column is now **settled** and is contract, not proposal — the economy columns by FR-1's
+kickoff, the conversion cost by FR-3's, and the tower columns by FR-4's (all 28-07-2026):
 
 | Level | Garrison cap | Ticks per unit produced | Cost to reach this level | Tower fire period | Tower range (normalized) |
 |---|---|---|---|---|---|
-| 1 | 20 | 10 | — (starting level) | 12 ticks *(proposed)* | 0.12 *(proposed)* |
-| 2 | 35 | 7 | 6 units | 8 ticks *(proposed)* | 0.15 *(proposed)* |
-| 3 | 50 | 5 | 16 units | 5 ticks *(proposed)* | 0.18 *(proposed)* |
+| 1 | 20 | 10 | — (starting level) | 4 ticks | 0.20 |
+| 2 | 35 | 7 | 6 units | 3 ticks | 0.25 |
+| 3 | 50 | 5 | 16 units | 2 ticks | 0.30 |
 
 The first upgrade is deliberately cheap enough (6) to be affordable from the starting garrison of
 10 without waiting, so "grow first" is a live option on the opening move rather than something a
-player only saves toward. Still proposed: a tower shot removing 1 unit from the army it hits.
+player only saves toward. A tower shot removes 1 unit.
+
+**The tower columns were recalibrated at FR-4's kickoff, and the reason matters.** Discovery had
+proposed ranges of 0.12 / 0.15 / 0.18 with fire periods of 12 / 8 / 5. Armies travel at
+`ArmySpeedUnitsPerTick` = 0.02, so an army flying at a tower is inside range for only `range × 50`
+ticks — 6, 7, and 9 respectively. Against those periods a level-1 and level-2 tower would **never**
+fire on an army attacking it and a level-3 tower would remove a single unit: the proposal was
+non-functional, not merely weak. The settled figures give roughly **3 / 5 / 8** units removed from a
+full-strength army flying straight at a level 1 / 2 / 3 tower, on top of the garrison standing in it.
+Two constraints anchored the choice. Ranges stay at or below 0.30 because the closest pair of bases
+on the map is exactly 0.30 apart, so a tower guards its own approach rather than reaching a
+neighbour; and the home bases are 0.76 apart, so even a level-3 tower covers well under half the
+board. An army merely *passing* a tower crosses a chord rather than a radius and can take up to
+double that damage, which is the intended reason to route around a defended position.
 
 **Conversion costs 10 units in either direction and resets the base to level 1** — settled at FR-3's
 kickoff. The reset is the load-bearing half. It makes a tower cheap to build early, since a level-1
@@ -290,7 +361,10 @@ Only the ones that genuinely constrain design:
   the AI's new clauses all live in `MW3.Core` with no `Microsoft.Xna` type, `Vector2` included.
 - **Per-frame allocation still matters** (D-13). Tower fire evaluates every tower against every
   in-flight army each tick; the naive implementation allocates a collection per tick per tower on a
-  phone. It must not.
+  phone. It must not. Settled at FR-4's kickoff: because an army's position changes every tick,
+  `Advance` can no longer satisfy fire by working in closed form over a span the way it does for
+  production — it must visit **every** tick. Production stays closed-form; fire does not. That makes
+  the no-allocation rule on this path load-bearing rather than aspirational.
 - **Cost and speed of the build/run loop** remain the primary constraint (S-5): `dotnet` commands
   only, free CI, no engine binary, no paid runner.
 - **Device QA is available and device criteria are blocking.** Follow-up #28 (the MI Pad 4 showing
