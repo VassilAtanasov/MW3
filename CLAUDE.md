@@ -139,6 +139,12 @@ PowerShell gotchas:
   the corruption happens afterwards, at the native-call boundary. Hit on 27-07-2026 by a kickoff
   message quoting `"it builds on my machine"`. Kickoff and retrospective messages quote something
   most of the time, so treat `-F` as the default rather than the fallback.
+- **Write that commit-message file without a BOM.** `Set-Content -Encoding utf8` and `Out-File` both
+  emit UTF-8 **with** a BOM on Windows PowerShell 5.1, and git does not strip it — the three BOM
+  bytes land at the front of the **subject line**, so `git log --oneline` renders `﻿Add ...` and
+  the marker follows the commit forever. Use
+  `[System.IO.File]::WriteAllText($f, $msg, (New-Object System.Text.UTF8Encoding($false)))`
+  instead. Hit on 28-07-2026 committing the MW2 reference docs; caught before push and amended.
 
 ## Definition of Done (per feature issue)
 
