@@ -30,7 +30,16 @@ internal static class ProductionCalculator
     internal static ProductionState Advance(ProductionState state, int level, long spanTicks)
     {
         var cap = LevelTable.GarrisonCap(level);
-        if (spanTicks <= 0 || state.GarrisonCount >= cap)
+        if (state.GarrisonCount >= cap)
+        {
+            // At or above the cap, progress is zero - not merely frozen at whatever it held. A base
+            // that reaches its cap by *producing* lands on zero for free, but one pushed there by an
+            // arrival would otherwise keep partial progress banked and then produce early once
+            // drained, which is exactly the massing-on-a-staging-base path D-21 exists to allow.
+            return state.ProgressTicks == 0 ? state : new ProductionState(state.GarrisonCount, progressTicks: 0);
+        }
+
+        if (spanTicks <= 0)
         {
             return state;
         }

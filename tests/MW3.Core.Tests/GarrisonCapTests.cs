@@ -71,6 +71,47 @@ public class GarrisonCapTests
     }
 
     [Fact]
+    public void PushedToCapByAnArrival_ThenDrained_AlsoTakesAFullPeriod_NotJustTheProducedCase()
+    {
+        // The other half of the "held at cap" rule. Reaching the cap by *producing* leaves progress
+        // at zero for free; reaching it by *arrival* is the path that can silently bank progress,
+        // and it is a designed path - D-21 exists so a player can mass units on a staging base.
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        // Take a neutral, then let the capital refill while the captured base idles at 5.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
+        match.Advance(200);
+        Assert.Equal(match.HumanPlayer, neutral.Owner);
+
+        // Drain the captured base to a garrison well below its cap, and leave it partway through a
+        // production period.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
+        match.Advance(9);
+        Assert.Equal(9, neutral.ProductionProgressTicks);
+        Assert.True(neutral.GarrisonCount < neutral.GarrisonCap);
+
+        // Now push it to its cap with an arrival rather than with production.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 20)));
+        match.Advance(500);
+        Assert.True(neutral.GarrisonCount >= neutral.GarrisonCap);
+        Assert.Equal(0, neutral.ProductionProgressTicks); // nothing banked while capped
+
+        // Drain it below the cap again: the next unit is a full period away, exactly as it is for a
+        // base that reached its cap by producing.
+        var period = LevelTable.ProductionPeriodTicks(LevelTable.MinLevel);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 20)));
+        var afterDrain = neutral.GarrisonCount;
+        Assert.True(afterDrain < neutral.GarrisonCap);
+
+        match.Advance(period - 1);
+        Assert.Equal(afterDrain, neutral.GarrisonCount);
+        match.Advance(1);
+        Assert.Equal(afterDrain + 1, neutral.GarrisonCount);
+    }
+
+    [Fact]
     public void GarrisonAboveCap_IsNeverDestroyed_AndSimplyDoesNotProduce()
     {
         var match = new Match();

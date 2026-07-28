@@ -78,6 +78,13 @@ public sealed class Match
             throw new ArgumentNullException(nameof(command));
         }
 
+        // A null issuer is a caller bug, not an ordinary rejection: without this it would compare
+        // equal to a neutral base's absent owner and pass the ownership gate.
+        if (command.IssuingPlayer is null)
+        {
+            throw new ArgumentException("The command's issuing player cannot be null.", nameof(command));
+        }
+
         if (Outcome != MatchOutcome.InProgress)
         {
             return SendArmyOutcome.MatchAlreadyDecided;
@@ -137,6 +144,14 @@ public sealed class Match
         if (command is null)
         {
             throw new ArgumentNullException(nameof(command));
+        }
+
+        // As on the send path: a null issuer would compare equal to a neutral base's absent owner
+        // and slip past the ownership gate, leaving only the cost check between it and upgrading a
+        // base nobody owns.
+        if (command.IssuingPlayer is null)
+        {
+            throw new ArgumentException("The command's issuing player cannot be null.", nameof(command));
         }
 
         if (Outcome != MatchOutcome.InProgress)
@@ -336,6 +351,16 @@ public sealed class Match
         if (target.Owner == army.Owner)
         {
             target.GarrisonCount += army.UnitCount;
+
+            // Reaching the cap discards progress toward the next unit, whether the cap was reached
+            // by producing or - as here - by reinforcement. Enforced at the write site rather than
+            // left to the next Advance, so a base reinforced to its cap and drained again within
+            // the same tick cannot smuggle banked progress through (D-21).
+            if (target.GarrisonCount >= target.GarrisonCap)
+            {
+                target.ProductionProgressTicks = 0;
+            }
+
             return;
         }
 

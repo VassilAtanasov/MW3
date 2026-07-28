@@ -20,11 +20,21 @@ public class ProductionDeterminismTests
         var neutral = match.Bases.First(b => b.Owner is null);
 
         advance(6);
-        match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)); // upgrade mid-period
-        advance(300);                                                      // long enough to sit at the cap
-        match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 20)); // capture
+        // Every outcome is asserted, so the scenario cannot quietly stop exercising what it claims:
+        // a rejected upgrade would otherwise be rejected identically in both matches and the test
+        // would still pass while no longer covering an upgrade at all.
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+
+        advance(300); // long enough to sit at the cap
+        Assert.Equal(humanBase.GarrisonCap, humanBase.GarrisonCount);
+
+        Assert.Equal(
+            SendArmyOutcome.Accepted,
+            match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 20)));
+
         advance(400);
-        match.Execute(new UpgradeCommand(match.HumanPlayer, neutral.Id));
+        Assert.Equal(match.HumanPlayer, neutral.Owner); // the capture really happened
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, neutral.Id)));
         advance(250);
     }
 

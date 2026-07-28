@@ -242,6 +242,22 @@ public class UpgradeTests
     }
 
     [Fact]
+    public void Upgrade_NullIssuingPlayer_Throws_RatherThanMatchingANeutralBasesAbsentOwner()
+    {
+        var match = new Match();
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        // Without an explicit check, `target.Owner != command.IssuingPlayer` is null != null, which
+        // is false - so a null issuer would pass the ownership gate on a base nobody owns.
+        Assert.Throws<ArgumentException>(() => match.Execute(new UpgradeCommand(null!, neutral.Id)));
+        Assert.Throws<ArgumentException>(() => match.Execute(new SendArmyCommand(null!, neutral.Id, match.Bases[0].Id, 1)));
+
+        Assert.Null(neutral.Owner);
+        Assert.Equal(LevelTable.MinLevel, neutral.Level);
+        Assert.Equal(5, neutral.GarrisonCount);
+    }
+
+    [Fact]
     public void MatchRunner_SubmitsUpgrades_ThroughTheSameSinglePath()
     {
         var match = new Match();

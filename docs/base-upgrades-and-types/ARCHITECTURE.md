@@ -109,10 +109,16 @@ global figure, correct only while every base shares one period and no base can s
 bases stop independently, and levels give them different periods, so neither premise survives.
 Chosen: each `Base` carries its own `ProductionProgressTicks`, advanced per segment by
 `ProductionCalculator` in closed form (no tick-by-tick loop over spans that reach thousands of
-ticks, no allocation). Two consequences worth knowing before touching this again. First, reaching
-the cap leaves progress at exactly zero — the tick that produced the capping unit consumed the
-progress that bought it, and every later tick at the cap is discarded — which is *why* "held at cap,
-then drained, produces a full period later" needs no special case. Second, a base captured
+ticks, no allocation). Two consequences worth knowing before touching this again. First, the
+invariant is **at or above the cap, progress is zero** — not merely frozen at whatever it held.
+Reaching the cap by *producing* lands on zero for free, because the tick that produced the capping
+unit consumed the progress that bought it; reaching it by *arrival* does not, and that path has to
+zero it explicitly. Both are enforced at the write site (`ProductionCalculator.Advance` and the
+reinforcement branch of `Match.ResolveArrival`) rather than left to whichever runs next, so a base
+reinforced to its cap and drained again within one tick cannot smuggle banked progress through.
+This was found in review on #30: the first implementation only handled the producing path, so a
+base massed to its cap — the very thing D-21 exists to allow — produced early once drained.
+Second, a base captured
 mid-match now produces one period after **it** changed hands rather than on the match's global
 multiples of 10, and its previous owner's partial progress is discarded rather than inherited; the
 phase-2 documents that stated the old rule are corrected in the same PR.
