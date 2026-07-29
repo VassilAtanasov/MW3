@@ -19,6 +19,15 @@ internal sealed class BaseActionMenu
     private const float _viewportMarginFraction = 0.015f;
     private const float _headerHeightFraction = 0.06f;
 
+    // The total angle the arc spreads two buttons across, and the half-spread used to centre it on
+    // the anchor (90 degrees, straight up). At the previous 50-degree spread, two buttons of
+    // _buttonWidthFraction width sat only ~146px apart at _arcRadiusFraction's radius - narrower
+    // than the ~173px button itself, so they always overlapped regardless of viewport clamping.
+    // Widened when Convert joined Upgrade on the arc (FR-5) so two buttons' chord distance clears
+    // the button width with room to spare, at every anchor position, not only near an edge.
+    private const float _arcSpreadDegrees = 70f;
+    private const float _arcHalfSpreadDegrees = _arcSpreadDegrees / 2f;
+
     private static readonly Color _affordableColor = Color.DarkGoldenrod;
     private static readonly Color _greyedColor = Color.DimGray;
     private static readonly Color _headerColor = Color.SlateGray;
@@ -225,40 +234,99 @@ internal sealed class BaseActionMenu
     }
 
     /// <summary>
-    /// One button's destination rectangle, laid out on an arc above the anchor base and clamped so
-    /// the whole menu stays fully inside the viewport - exercised in practice by the map's top base
-    /// row at y=0.25, which would otherwise draw its menu partly off-screen.
+    /// One button's raw (unclamped) centre on the arc above the anchor base, at
+    /// <paramref name="index"/> of <see cref="_actions"/>'s current count.
     /// </summary>
-    private Rectangle GetButtonRect(int index, Viewport viewport)
+    private Vector2 GetRawButtonCenter(int index, Viewport viewport)
     {
         var anchor = FindAnchorBase();
         var anchorPosition = anchor?.Position ?? new MapPoint(0.5, 0.5);
 
         var minDimension = Math.Min(viewport.Width, viewport.Height);
-        var buttonWidth = (int)(minDimension * _buttonWidthFraction);
-        var buttonHeight = (int)(minDimension * _buttonHeightFraction);
         var arcRadius = minDimension * _arcRadiusFraction;
-        var margin = minDimension * _viewportMarginFraction;
 
         var count = Math.Max(1, _actions.Count);
-        var angleDegrees = count == 1 ? 90.0 : 90.0 - 25.0 + (50.0 * index / (count - 1));
+        var angleDegrees = count == 1 ? 90.0 : 90.0 - _arcHalfSpreadDegrees + (_arcSpreadDegrees * index / (count - 1));
         var angleRadians = angleDegrees * Math.PI / 180.0;
 
         var anchorPixel = new Vector2((float)(anchorPosition.X * viewport.Width), (float)(anchorPosition.Y * viewport.Height));
         var centerX = anchorPixel.X + (float)(arcRadius * Math.Cos(angleRadians));
         var centerY = anchorPixel.Y - (float)(arcRadius * Math.Sin(angleRadians));
 
-        var left = (int)(centerX - (buttonWidth / 2f));
-        var top = (int)(centerY - (buttonHeight / 2f));
+        return new Vector2(centerX, centerY);
+    }
 
-        // The header (the garrison/cap line) is drawn just above the topmost button, so the button's
-        // own clamp must leave room for it - otherwise a base near the top edge clamps its button
-        // right up against the header's own position and the button, drawn after, hides it entirely.
+    /// <summary>
+    /// The single shift applied to every button so the whole arc moves together - never clamped one
+    /// button at a time. Independent per-button clamping let two buttons near the viewport's left or
+    /// top edge (a base drawn there, e.g. the map's top base row at y=0.25) overlap each other once
+    /// Convert joined Upgrade on the arc (FR-5): each button clamped fully inside the viewport on its
+    /// own, but nothing kept their rectangles from clamping onto the same spot. Shifting the group as
+    /// one preserves the buttons' relative spacing while still guaranteeing every one lands fully
+    /// inside the viewport.
+    /// </summary>
+    private (float Dx, float Dy) GetGroupShift(Viewport viewport)
+    {
+        var minDimension = Math.Min(viewport.Width, viewport.Height);
+        var buttonWidth = minDimension * _buttonWidthFraction;
+        var buttonHeight = minDimension * _buttonHeightFraction;
+        var margin = minDimension * _viewportMarginFraction;
         var headerHeight = minDimension * _headerHeightFraction;
         var topInset = margin + headerHeight + margin;
 
-        left = Math.Clamp(left, (int)margin, viewport.Width - buttonWidth - (int)margin);
-        top = Math.Clamp(top, (int)topInset, viewport.Height - buttonHeight - (int)margin);
+        var unionLeft = float.MaxValue;
+        var unionRight = float.MinValue;
+        var unionTop = float.MaxValue;
+        var unionBottom = float.MinValue;
+        for (var i = 0; i < _actions.Count; i++)
+        {
+            var center = GetRawButtonCenter(i, viewport);
+            unionLeft = Math.Min(unionLeft, center.X - (buttonWidth / 2f));
+            unionRight = Math.Max(unionRight, center.X + (buttonWidth / 2f));
+            unionTop = Math.Min(unionTop, center.Y - (buttonHeight / 2f));
+            unionBottom = Math.Max(unionBottom, center.Y + (buttonHeight / 2f));
+        }
+
+        var dx = 0f;
+        if (unionLeft < margin)
+        {
+            dx = margin - unionLeft;
+        }
+        else if (unionRight > viewport.Width - margin)
+        {
+            dx = (viewport.Width - margin) - unionRight;
+        }
+
+        var dy = 0f;
+        if (unionTop < topInset)
+        {
+            dy = topInset - unionTop;
+        }
+        else if (unionBottom > viewport.Height - margin)
+        {
+            dy = (viewport.Height - margin) - unionBottom;
+        }
+
+        return (dx, dy);
+    }
+
+    /// <summary>
+    /// One button's destination rectangle, laid out on an arc above the anchor base and shifted, as
+    /// a group with every other button (<see cref="GetGroupShift"/>), so the whole menu stays fully
+    /// inside the viewport without any two buttons overlapping - exercised in practice by the map's
+    /// top base row at y=0.25, which would otherwise draw its menu partly off-screen.
+    /// </summary>
+    private Rectangle GetButtonRect(int index, Viewport viewport)
+    {
+        var minDimension = Math.Min(viewport.Width, viewport.Height);
+        var buttonWidth = (int)(minDimension * _buttonWidthFraction);
+        var buttonHeight = (int)(minDimension * _buttonHeightFraction);
+
+        var center = GetRawButtonCenter(index, viewport);
+        var (dx, dy) = GetGroupShift(viewport);
+
+        var left = (int)(center.X + dx - (buttonWidth / 2f));
+        var top = (int)(center.Y + dy - (buttonHeight / 2f));
 
         return new Rectangle(left, top, buttonWidth, buttonHeight);
     }

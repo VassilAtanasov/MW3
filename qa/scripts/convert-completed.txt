@@ -1,0 +1,16 @@
+# Same run as convert-pending.txt, advanced past the conversion's 100-tick completion (tick 1156):
+# the human base is now a tower, no cap, no build in progress, and the menu offers to convert it
+# back to a producer. Run with --time-scale 10 (see convert-pending.txt for why).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.176563 0.281944
+25 up 0.176563 0.281944
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075000 0.281944
+335 up 0.075000 0.281944
+360 wait
+370 down 0.120000 0.500000
+375 up 0.120000 0.500000

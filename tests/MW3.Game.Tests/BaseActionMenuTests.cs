@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using MW3.Core;
 
 namespace MW3.Game.Tests;
@@ -8,6 +10,11 @@ public class BaseActionMenuTests
 
     private static void SetGarrison(Base b, int garrison) =>
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
+
+    private static Rectangle GetButtonRect(BaseActionMenu menu, int index, Viewport viewport) =>
+        (Rectangle)typeof(BaseActionMenu)
+            .GetMethod("GetButtonRect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(menu, new object[] { index, viewport })!;
 
     [Fact]
     public void Refresh_ReQueriesWhenConstructionStarts_EvenIfGarrisonAndLevelHappenToMatchTheCache()
@@ -59,5 +66,30 @@ public class BaseActionMenuTests
         var expected = match.AvailableActions(match.HumanPlayer, humanBase.Id);
         Assert.Equal(expected, menu.Actions);
         Assert.Equal(LevelTable.UpgradeCost(BaseType.Tower, LevelTable.MinLevel), menu.Actions[0].Cost);
+    }
+
+    // Independent per-button clamping (the layout before FR-5) let two buttons overlap whenever
+    // their raw arc positions were closer together than a button's own width - true at every anchor,
+    // not only one near an edge, since the chord distance between two arc points at a fixed radius
+    // and angular step never depends on the anchor's position at all. Exercised at both target
+    // viewports, anchored at the human base's real starting position (0.12, 0.50, near the left
+    // edge - MapLayout) where the overlap this regression test guards against was first found.
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(1808, 1018)]
+    public void TwoButtons_NeverOverlap(int width, int height)
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, LevelTable.ConversionCost + 10); // Convert affordable too, so both buttons render live
+        var menu = new BaseActionMenu(match, match.HumanPlayer, humanBase.Id);
+        Assert.Equal(2, menu.Actions.Count);
+
+        var viewport = new Viewport(0, 0, width, height);
+
+        var rect0 = GetButtonRect(menu, 0, viewport);
+        var rect1 = GetButtonRect(menu, 1, viewport);
+
+        Assert.False(rect0.Intersects(rect1), $"button rects overlap at {width}x{height}: {rect0} vs {rect1}");
     }
 }

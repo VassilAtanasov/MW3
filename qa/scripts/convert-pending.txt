@@ -1,0 +1,17 @@
+# Tap Play, upgrade the human base to level 2 (cap rises to 40, production speeds up), wait for
+# production to clear the 30-unit conversion cost, press Convert (deducts 30 immediately and starts
+# the 100-tick / 5 s build), then reopen the menu straight away so the reply shows it building. Run
+# with --time-scale 10 - low enough that the fixed 10-frame playback tail after the last directive
+# does not itself hand the AI a capture window against the base's post-conversion garrison.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.176563 0.281944
+25 up 0.176563 0.281944
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075000 0.281944
+335 up 0.075000 0.281944
+340 down 0.120000 0.500000
+345 up 0.120000 0.500000

@@ -1,0 +1,16 @@
+# Same setup as convert-completed.txt (human converts base 0 to a tower), then waits for the AI's
+# own attacks to keep coming until one flies within the tower's range: Army 30 (Source=2, Target=0)
+# is caught here mid-flight, before the tower's fire has finished it off - compare against
+# army-shrinking-late.txt's later dump of the same army id for the drop. Run with --time-scale 10
+# (see convert-pending.txt for why).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.176563 0.281944
+25 up 0.176563 0.281944
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075000 0.281944
+335 up 0.075000 0.281944
+470 wait
