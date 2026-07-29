@@ -71,6 +71,31 @@ explicit `UnitCount` — "choosing a count is the caller's policy, not a rule" p
 no command shape changes. The AI's own
 strength choice does not change this phase — it keeps using Half through the new shared
 calculation — varying AI strength is left to a later AI feature (parity **G-21** territory).
+Kicked off 30-07-2026.
+  - Settled at kickoff: scope is `MW3.Core` only, this feature — `MatchScreen`'s human send path
+    keeps its own inline half-arithmetic until FR-2 wires in the picker, rather than swapping that
+    call site now.
+  - Acceptance: `SendStrength` enum exists in `MW3.Core` with exactly four members: `Quarter = 25`,
+    `Half = 50`, `ThreeQuarters = 75`, `Full = 100`.
+  - Acceptance: `SendStrengthCalculator.Compute(int garrison, SendStrength strength)` exists in
+    `MW3.Core`, is a pure function (no engine type, no I/O, no randomness), and returns
+    `Math.Max(1, garrison * (int)strength / 100)` — floor division, clamped to a minimum of 1.
+  - Acceptance: a headless parameterized unit test covers all four strengths against a
+    representative range of garrison sizes, including small garrisons where flooring would
+    otherwise yield 0 (e.g. garrison 1-3 at `Quarter`), asserting the floor-and-clamp-to-1 result.
+  - Acceptance: `AiBrain`'s send-size call sites (`ClampedSendSize` and the `unclampedHalf`
+    computation) no longer contain their own `garrison / 2` / `Math.Max(1, ...)` arithmetic; they
+    call `SendStrengthCalculator.Compute(garrison, SendStrength.Half)` instead.
+  - Acceptance: every existing test asserting the AI sends half its garrison still passes with no
+    expected-value changes — this feature is a zero-observable-behavior-change refactor for the AI.
+  - Acceptance: `MatchScreen.cs`'s human send path (`Math.Max(1, source.GarrisonCount / 2)`) is
+    left untouched this feature; FR-2 owns wiring it to the picker and the shared calculator.
+  - Acceptance: `SendArmyCommand`'s shape (`IssuingPlayer, SourceBaseId, TargetBaseId, UnitCount`)
+    does not change.
+  - Acceptance: `./gate.ps1` passes locally, and `MW3.Core` still contains no engine type.
+  - Out of scope: the strength picker UI/gesture and snaking (FR-2); wiring `MatchScreen`'s human
+    send path to the shared calculator (FR-2); the AI varying its own strength choice (later AI
+    feature, parity G-21); wave splitting and per-wave combat (FR-3); any new drawing (FR-4).
 
 FR-2 (wf: 4d4a9bac3f90): The player can choose a send strength from a persistent 25/50/75/100%
 control on both input heads before dragging to send, and can snake a garrison by repeatedly tapping
