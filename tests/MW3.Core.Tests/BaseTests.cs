@@ -13,14 +13,17 @@ public class BaseTests
         Assert.Equal(
             new[]
             {
+                nameof(Base.Construction),
                 nameof(Base.DefencePercentage),
                 nameof(Base.GarrisonCap),
                 nameof(Base.GarrisonCount),
                 nameof(Base.Id),
+                nameof(Base.LastOwnerChangeTick),
                 nameof(Base.Level),
                 nameof(Base.MaxLevel),
                 nameof(Base.MaxUpgradableLevel),
                 nameof(Base.Owner),
+                nameof(Base.OwnerBeforeLastChange),
                 nameof(Base.Position),
                 nameof(Base.ProductionProgressTicks),
                 nameof(Base.RingThicknessFractionOfRadius),

@@ -103,8 +103,9 @@ finite and investment becomes possible. Core only; draws nothing.
   - Acceptance: rejected leaving all state untouched — unknown base id, base not owned by the
     issuer (neutral included), already at max level, garrison below the cost, or the match outcome
     already decided (phase 2 FR-7's freeze covers this command too).
-  - Acceptance: an accepted upgrade subtracts the cost immediately and raises the level by exactly
-    one, with the new cap and period effective from that tick.
+  - Acceptance: an accepted upgrade subtracts the cost immediately. **Superseded by FR-3c**: the
+    level itself, and the new cap and period, no longer take effect from that tick — they wait for
+    the build's completion tick (D-30).
   - Acceptance: upgrading down to zero garrison is legal — the base stays owned, resumes producing,
     and can be taken by one unit, exactly as a base emptied by a send does.
   - Acceptance: production progress carries across an upgrade — 6 ticks into a 10-tick period
@@ -227,10 +228,11 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     from the tuning table by both the simulation and the tests, with no tuning number at a call site
     (D-22). The level table gains only this constant; the tower fire period and range columns arrive
     with FR-4, the feature that reads them.
-  - Acceptance: an accepted convert subtracts 10 immediately, sets the type, and resets the level to
-    `LevelTable.MinLevel`, all effective from that tick, and zeroes production progress in both
-    directions — a new tower banks nothing, and a base converted back to a producer starts a fresh
-    period rather than inheriting progress from before it was a tower.
+  - Acceptance: an accepted convert subtracts the cost immediately. **Superseded by FR-3c**: setting
+    the type, resetting the level to `LevelTable.MinLevel`, and zeroing production progress in both
+    directions no longer happen from that tick — they wait for the build's completion tick (D-30). A
+    new tower still banks nothing, and a base converted back to a producer still starts a fresh
+    period rather than inheriting progress from before it was a tower, once the build completes.
   - Acceptance: converting down to exactly zero garrison is legal, as upgrading or sending to zero
     already is; converting a producer at or above its cap is legal and the resulting tower keeps
     that garrison.
@@ -720,12 +722,16 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
   a base back — conversion costs the same each way with nothing returned (10 under the retired
   staging ladder, 30 now that FR-3a has shipped), which matches MW2 and is already recorded as at
   parity.
-- ~~**Build time.**~~ **No longer excluded — this is FR-3c** (added 28-07-2026). Settled at FR-3's
-  kickoff as instant, on the grounds that a build delay buys a feel benefit the phase could not
-  measure; the MW2 goal makes it owed rather than optional, so it arrives here with MW2's own
-  5/5/10/15 seconds and the 1-second recapture grace (parity **G-11**, **G-12**). It really does
-  bring everything that kickoff warned of — a new state to draw and a new thing for the AI to
-  predict — which is why it is its own feature rather than a rider on FR-3a.
+- ~~**Build time.**~~ **No longer excluded — this is FR-3c**, shipped (added 28-07-2026, closed
+  29-07-2026). Settled at FR-3's kickoff as instant, on the grounds that a build delay buys a feel
+  benefit the phase could not measure; the MW2 goal makes it owed rather than optional, so it
+  arrived with MW2's own 5/5/10/15 seconds and the 1-second recapture grace (parity **G-11**,
+  **G-12**, both now closed). It really does bring everything that kickoff warned of — a new state
+  to draw (`Base.Construction`, D-30) and a new thing the AI will need to predict once FR-6 lets it
+  build — which is why it landed as its own feature rather than a rider on FR-3a. Upgrading and
+  converting are therefore **no longer instant**: `UpgradeCommand` and `ConvertCommand` still deduct
+  their cost immediately, but the level, type, and progress changes wait for the build's completion
+  tick.
 - **The cap and the level as numbers on the map.** Settled at FR-2's kickoff (28-07-2026): the map
   circle keeps the bare garrison count, the level is carried non-textually as ring thickness, and
   the cap is legible only inside the action menu — three numbers in one small circle is unreadable

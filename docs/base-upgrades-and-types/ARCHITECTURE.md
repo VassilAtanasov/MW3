@@ -55,8 +55,8 @@ What it does extend is `--dump-state`, which is the mechanism every rules featur
 verified through. Each feature adds fields to the existing per-base and per-army lines rather than
 inventing a second inspection path:
 
-- per-base: **level**, **type** (producer/tower), and **cap**, alongside the existing id, owner, and
-  garrison.
+- per-base: **level**, **type** (producer/tower), **cap**, and **building** (FR-3c: what, if
+  anything, the base is under construction into), alongside the existing id, owner, and garrison.
 - per-army: **current strength**, which can now be lower than the count it launched with, alongside
   the existing id, owner, source, target, launch tick, and arrival tick.
 
@@ -71,6 +71,12 @@ while the match screen is showing - `Menu: none`, or
 `Menu: Base=1 Garrison=12/35 Upgrade=Affordable Cost=16` with `Upgrade=` one of `Affordable`,
 `GarrisonBelowCost`, `AlreadyAtMaxLevel` (`Cost=0` at max level) - and it is written by
 `MatchScreen`, never by `MW3.Core`, since menu state is presentation state (D-26).
+
+**FR-3c's `--dump-state` line format**, settled at kickoff: the per-base line gains one further
+field, `Building=`, written after `Cap=` with every other field unchanged in name, order, and
+meaning - `Building=none`, or `Building=UpgradeToLevel3@1240` / `Building=ConvertToTower@1300` where
+the number is the completion tick. `Upgrade=` on the `Menu:` line gains the fourth value
+`UnderConstruction` (D-30).
 
 FR-2 adds six scripts under `qa/scripts/`, each opening or driving the action menu through the
 existing `down`/`up` vocabulary - no new directive, no new flag:
@@ -88,7 +94,9 @@ dotnet run --project src/MW3.Desktop -- --script qa/scripts/menu-clamped-on-top-
 `Menu: Base=0 Garrison=10/20 Upgrade=Affordable Cost=6`. `dismiss-menu-on-empty-space.txt` opens
 that menu, then presses empty space: `Menu: none`, no other state changed.
 `upgrade-from-menu.txt` opens the menu and presses its Upgrade button: the dump shows the base's
-garrison down by exactly its cost, `Level=2`, and `Menu: none`. `greyed-upgrade-does-nothing.txt`
+garrison down by exactly its cost and `Menu: none`. **Superseded by FR-3c**: the level itself no
+longer rises on this press - see `upgrade-pending.txt` and `upgrade-completed.txt` below for the
+build-time behaviour. `greyed-upgrade-does-nothing.txt`
 drains the human base below the level-1 cost first (a send halves it to 5), opens the menu (reading
 `Upgrade=GarrisonBelowCost`), then presses the greyed button: the dump shows the level and garrison
 unchanged and the menu **still open** (`Menu: Base=0 Garrison=5/20 Upgrade=GarrisonBelowCost
@@ -108,6 +116,24 @@ A `--screenshot` at 1808x1018 - the attached MI Pad 4's viewport, per `docs/core
 ARCHITECTURE.md`'s note on Android's chrome - is checked directly on device (D-3, D-8) rather than
 by resizing the desktop window, exactly as FR-3 established for the base-layout criterion this
 phase reuses for the menu.
+
+**FR-3c adds two further scripts** (D-30), both upgrading the human base from the menu exactly as
+`upgrade-from-menu.txt` does, but reading the result at two different moments instead of one:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/upgrade-pending.txt --screenshot pending.png --dump-state pending.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/upgrade-completed.txt --screenshot completed.png --dump-state completed.txt --time-scale 50
+```
+
+`upgrade-pending.txt` presses Upgrade and immediately reopens the menu, all within the 100-tick
+build: the dump shows the garrison already reduced by the cost, `Level=1` unchanged,
+`Building=UpgradeToLevel2@<tick>` populated, and the menu reading `Upgrade=UnderConstruction` -
+`MatchScreen` draws the base with its one deliberate pending treatment, a further ring outside the
+level ring in a fixed colour, distinguishable from both the current level and the (undrawn) target
+one. `upgrade-completed.txt` repeats the same press, then waits past the build using `--time-scale`
+(FR-7) rather than hundreds of real-time frames, and reopens the menu once more: the dump shows
+`Level=2`, `Building=none`, and `Upgrade=Affordable` again, and the screenshot shows the pending
+ring gone.
 
 ## 3. Project layout
 

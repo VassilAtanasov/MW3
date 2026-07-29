@@ -12,7 +12,7 @@
 > merged (issues #30, #32, #34) and FR-4 (#36) kicked off. Updated 29-07-2026: FR-3a (`f5f3320ec408`,
 > issue #38) merged, closing G-8 and G-14 and shipping §3's tick-rate decision. Updated again
 > 29-07-2026: FR-3b (`f585a0868ecc`, issue #39) merged, closing G-9 and G-10 and partially closing
-> G-7.
+> G-7. Updated again 29-07-2026: FR-3c (`a4c8cacb426a`, issue #40) merged, closing G-11 and G-12.
 
 ## 0. How Ivan uses this file
 
@@ -59,6 +59,8 @@ Nothing to do. Recorded so it is not re-litigated.
 | Village and tower ladder length | Villages have 5 levels (4 reachable by upgrading, per MW2-RULES.md §2.2's `[?]`), towers have 4 — both games. Closed **G-8**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
 | Conversion and upgrade costs | Conversion costs 30; upgrades cost 5/10/20 (villages) and a flat 20 (towers) — both games. Closed **G-14**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
 | Levels buy defence | Villages 100→140% (+10pp/level), towers 140→200% — both games. A level-1 tower already matches a level-5 village. Closed **G-9** and **G-10**, merged by phase 3 FR-3b (`f585a0868ecc`) 29-07-2026 |
+| Build time | Upgrade 5/5/10/15 s, conversion 5 s — both games. Closed **G-11**, merged by phase 3 FR-3c (`a4c8cacb426a`) 29-07-2026 |
+| Recapture grace | Retaking a building within 1 second of losing it does not demote it further — both games. Closed **G-12**, merged by phase 3 FR-3c (`a4c8cacb426a`) 29-07-2026 |
 
 ## 2. Gaps to close 🔴
 
@@ -69,13 +71,13 @@ future phase.
 > and FR-4 in dependency order. **FR-3a merged 29-07-2026**, closing **G-8** and **G-14** and
 > settling §3's tick-rate question — both have moved to §1. **FR-3b merged 29-07-2026**, closing
 > **G-9** and **G-10** (moved to §1) and partially closing **G-7** (stays below - see its row).
-> FR-3c remains assigned but not yet merged, so **G-11** and **G-12** stay in this table:
+> **FR-3c merged 29-07-2026**, closing **G-11** and **G-12** — both have moved to §1.
 >
 > | Feature | wf | Closes |
 > |---|---|---|
 > | FR-3a — the MW2 ladder, caps, costs, and the 50 ms tick | `f5f3320ec408` | G-8, G-14, §3 — **merged** |
 > | FR-3b — levels buy defence; combat becomes `(a/d) × Wu` | `f585a0868ecc` | G-9, G-10, most of G-7 — **merged** |
-> | FR-3c — build time and the one-second recapture grace | `a4c8cacb426a` | G-11, G-12 |
+> | FR-3c — build time and the one-second recapture grace | `a4c8cacb426a` | G-11, G-12 — **merged** |
 >
 > A row stays in this table until the feature closing it has **merged**, not when it is assigned.
 > G-7 stays open after FR-3b because its `a` and `d` terms are only fully populated once morale
@@ -97,8 +99,6 @@ future phase.
 
 | # | MW2 | MW3 today | Notes |
 |---|---|---|---|
-| G-11 | **Build/upgrade time**: 5 / 5 / 10 / 15 s, and conversion takes time too | Instant | Settled as "no build time" at FR-3's kickoff. Now a gap — §4 |
-| G-12 | **Recapture grace**: retake a building within 1 second and it does not demote further | No such rule | Small, cheap, and a genuinely good anti-thrash rule. The same 1-second window governs the Domination loss condition |
 | G-13 | Tower shots have a **damage radius** (implied by Kenor's Explosive Shells) | 1 unit per shot, single target, closest army | MW2's own tower damage is **never published** — closing this needs observation, not research |
 
 ### 2.3 Modes, maps, meta

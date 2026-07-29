@@ -1,0 +1,12 @@
+# Tap Play, open the human base's action menu, press its Upgrade button, wait past the 100-tick /
+# 5 s build, then reopen the menu and dump: the level has risen and the build has cleared. Run with
+# --time-scale 50 so the 5 s build completes within a few scripted frames.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.120000 0.260000
+25 up 0.120000 0.260000
+45 wait
+50 down 0.120000 0.500000
+55 up 0.120000 0.500000

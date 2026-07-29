@@ -41,19 +41,40 @@ public class AvailableActionsTests
         var match = new Match();
         var humanBase = HumanBase(match);
 
-        // Reaching the upgradable ceiling (level 4) takes three upgrades - costs 5, 10, 20 - not two:
-        // the village ladder's level 5 exists but has no published upgrade price (MaxUpgradableLevel).
-        match.Advance(60);
+        // Reaching the upgradable ceiling (level 4) takes three completed upgrades - costs 5, 10, 20,
+        // each with its own build - not two: the village ladder's level 5 exists but has no published
+        // upgrade price (MaxUpgradableLevel).
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
-        match.Advance(200);
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(1) + 500);
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
-        match.Advance(400);
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(2) + 500);
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(3) + 500);
         Assert.Equal(LevelTable.MaxUpgradableLevel(BaseType.Producer), humanBase.Level);
 
         var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
         Assert.Equal(0, action.Cost);
         Assert.Equal(BaseActionAvailability.AlreadyAtMaxLevel, action.Availability);
+    }
+
+    [Fact]
+    public void OwnedBase_UnderConstruction_ReturnsGreyedUpgrade_StillShowingItsCost()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+
+        var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
+        Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), action.Cost); // still reads the current (unchanged) level
+        Assert.Equal(BaseActionAvailability.UnderConstruction, action.Availability);
+
+        // Completing leaves the base at level 2 with 6 units (10 - 5 cost + 1 produced during the
+        // build at the still-current level-1 rate) - below level 2's 10-unit cost, so the menu
+        // greys it for a different reason now, not affordable outright.
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel));
+        var afterCompletion = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
+        Assert.Equal(BaseActionAvailability.GarrisonBelowCost, afterCompletion.Availability);
     }
 
     [Fact]

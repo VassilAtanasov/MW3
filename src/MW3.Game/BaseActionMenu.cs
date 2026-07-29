@@ -259,8 +259,10 @@ internal sealed class BaseActionMenu
         return null;
     }
 
-    private static string FormatLabel(BaseAction action) =>
-        action.Availability == BaseActionAvailability.AlreadyAtMaxLevel
-            ? "Upgrade: Max"
-            : FormattableString.Invariant($"Upgrade: {action.Cost}");
+    private static string FormatLabel(BaseAction action) => action.Availability switch
+    {
+        BaseActionAvailability.AlreadyAtMaxLevel => "Upgrade: Max",
+        BaseActionAvailability.UnderConstruction => "Upgrade: Building",
+        _ => FormattableString.Invariant($"Upgrade: {action.Cost}"),
+    };
 }

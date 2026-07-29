@@ -23,7 +23,9 @@ public class CombatTests
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var ai = match.Bases.Single(b => b.Owner == match.AiPlayer);
 
-        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, ai.Id))); // level 2, defence 110%
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, ai.Id)));
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel)); // completes: level 2, defence 110%
+        Assert.Equal(2, ai.Level);
         SetGarrison(ai, 20);
         SetGarrison(human, 30);
 

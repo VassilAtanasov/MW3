@@ -140,11 +140,13 @@ public sealed class Match
     }
 
     /// <summary>
-    /// Validates and applies an <see cref="UpgradeCommand"/>, paying for the level out of the
-    /// base's own garrison. A rejection leaves every base exactly as it was. Spending down to a
+    /// Validates and starts an <see cref="UpgradeCommand"/>, paying for the level out of the base's
+    /// own garrison immediately. A rejection leaves every base exactly as it was. Spending down to a
     /// garrison of zero is deliberately legal: a base emptied by a send is already legal, stays
     /// owned, keeps producing, and can be taken by a single unit, and an upgrade is no different -
     /// the strongest economy, briefly undefended, is a gamble the rules allow rather than forbid.
+    /// <see cref="Base.Level"/> does not rise until <see cref="Advance"/> reaches the completion tick
+    /// (D-30, FR-3c) - the benefit is delayed, the cost is not.
     /// </summary>
     public UpgradeOutcome Execute(UpgradeCommand command)
     {
@@ -182,6 +184,11 @@ public sealed class Match
             return UpgradeOutcome.AlreadyAtMaxLevel;
         }
 
+        if (target.Construction is not null)
+        {
+            return UpgradeOutcome.UnderConstruction;
+        }
+
         var cost = target.UpgradeCost;
         if (target.GarrisonCount < cost)
         {
@@ -189,21 +196,22 @@ public sealed class Match
         }
 
         target.GarrisonCount -= cost;
-        target.Level++;
 
-        // Production progress is deliberately left alone, so the new cap and the new (shorter)
-        // period take effect from this tick against the progress already banked: upgrading at an
-        // awkward moment never silently burns ticks a player cannot see.
+        // Production progress is deliberately left alone - it carries into the new (shorter) period
+        // once the upgrade completes, so upgrading at an awkward moment never silently burns ticks a
+        // player cannot see.
+        var duration = LevelTable.UpgradeBuildDurationTicks(target.Level);
+        target.Construction = new PendingUpgrade(ElapsedTicks + duration, target.Level + 1);
+
         return UpgradeOutcome.Accepted;
     }
 
     /// <summary>
-    /// Validates and applies a <see cref="ConvertCommand"/>, paying for it out of the base's own
-    /// garrison. A rejection leaves every base exactly as it was. Accepting resets the base to
-    /// <see cref="LevelTable.MinLevel"/> and zeroes its production progress in both directions
-    /// (D-23's demotion-on-capture is a separate, independent rule) - a new tower banks nothing, and
-    /// a base converted back to a producer starts a fresh period rather than inheriting progress from
-    /// before it was a tower.
+    /// Validates and starts a <see cref="ConvertCommand"/>, paying for it out of the base's own
+    /// garrison immediately. A rejection leaves every base exactly as it was. The type does not
+    /// change, and the level and production progress do not reset, until <see cref="Advance"/>
+    /// reaches the completion tick (D-30, FR-3c) - until then the base keeps its previous type
+    /// entirely, including for combat and production.
     /// </summary>
     public ConvertOutcome Execute(ConvertCommand command)
     {
@@ -240,15 +248,18 @@ public sealed class Match
             return ConvertOutcome.AlreadyOfTargetType;
         }
 
+        if (target.Construction is not null)
+        {
+            return ConvertOutcome.UnderConstruction;
+        }
+
         if (target.GarrisonCount < LevelTable.ConversionCost)
         {
             return ConvertOutcome.GarrisonBelowCost;
         }
 
         target.GarrisonCount -= LevelTable.ConversionCost;
-        target.Type = command.TargetType;
-        target.Level = LevelTable.MinLevel;
-        target.ProductionProgressTicks = 0;
+        target.Construction = new PendingConversion(ElapsedTicks + LevelTable.ConversionBuildDurationTicks, command.TargetType);
 
         return ConvertOutcome.Accepted;
     }
@@ -276,6 +287,11 @@ public sealed class Match
         if (target.Level >= target.MaxUpgradableLevel)
         {
             return new[] { new BaseAction(BaseActionKind.Upgrade, Cost: 0, BaseActionAvailability.AlreadyAtMaxLevel) };
+        }
+
+        if (target.Construction is not null)
+        {
+            return new[] { new BaseAction(BaseActionKind.Upgrade, target.UpgradeCost, BaseActionAvailability.UnderConstruction) };
         }
 
         var cost = target.UpgradeCost;
@@ -313,17 +329,20 @@ public sealed class Match
 
         while (true)
         {
-            var nextArrivalTick = EarliestArrivalTickUpTo(targetElapsedTicks);
-            var segmentEnd = nextArrivalTick ?? targetElapsedTicks;
+            var nextBoundaryTick = EarliestBoundaryTickUpTo(targetElapsedTicks);
+            var segmentEnd = nextBoundaryTick ?? targetElapsedTicks;
 
             ApplyProduction(ElapsedTicks, segmentEnd);
             ElapsedTicks = segmentEnd;
 
-            if (nextArrivalTick is null)
+            if (nextBoundaryTick is null)
             {
                 return;
             }
 
+            // Construction completion before arrivals (D-30, FR-3c): a base finishing an upgrade or
+            // conversion on the tick it is attacked defends at its new level or type.
+            CompleteConstructionsAtTick(ElapsedTicks);
             ResolveArrivalsAtTick(ElapsedTicks);
             EvaluateOutcome();
 
@@ -348,6 +367,26 @@ public sealed class Match
     }
 
     /// <summary>
+    /// The earliest tick at or before <paramref name="upperBound"/> that either an army arrives or a
+    /// construction completes, or null if neither is due yet. A completion tick is a segment boundary
+    /// exactly like an arrival tick (D-30, FR-3c): production is computed in closed form across a
+    /// segment (D-21a), so a period change mid-segment would otherwise be credited at the wrong rate
+    /// for part of the span.
+    /// </summary>
+    private long? EarliestBoundaryTickUpTo(long upperBound)
+    {
+        var earliest = EarliestArrivalTickUpTo(upperBound);
+        var completionTick = EarliestConstructionCompletionTickUpTo(upperBound);
+
+        if (completionTick is long c && (earliest is null || c < earliest))
+        {
+            earliest = c;
+        }
+
+        return earliest;
+    }
+
+    /// <summary>
     /// The earliest in-flight army's arrival tick that is at or before <paramref name="upperBound"/>,
     /// or null if none is due yet. Every remaining army's arrival tick is already known to be after
     /// the current elapsed ticks, since one is resolved (and removed) the moment its tick is reached.
@@ -364,6 +403,55 @@ public sealed class Match
         }
 
         return earliest;
+    }
+
+    /// <summary>
+    /// The earliest pending construction's completion tick that is at or before
+    /// <paramref name="upperBound"/>, or null if none is due yet.
+    /// </summary>
+    private long? EarliestConstructionCompletionTickUpTo(long upperBound)
+    {
+        long? earliest = null;
+        foreach (var b in _bases)
+        {
+            if (b.Construction is PendingConstruction pc && pc.CompletionTick <= upperBound && (earliest is null || pc.CompletionTick < earliest))
+            {
+                earliest = pc.CompletionTick;
+            }
+        }
+
+        return earliest;
+    }
+
+    /// <summary>
+    /// Completes every base whose construction's completion tick is exactly <paramref name="tick"/>
+    /// (D-30, FR-3c): an upgrade raises the level by one, carrying production progress unchanged; a
+    /// conversion sets the type, resets the level to the minimum, and zeroes progress in both
+    /// directions - the same reset an instant conversion always applied.
+    /// </summary>
+    private void CompleteConstructionsAtTick(long tick)
+    {
+        foreach (var b in _bases)
+        {
+            if (b.Construction is not PendingConstruction pc || pc.CompletionTick != tick)
+            {
+                continue;
+            }
+
+            switch (pc)
+            {
+                case PendingUpgrade upgrade:
+                    b.Level = upgrade.TargetLevel;
+                    break;
+                case PendingConversion conversion:
+                    b.Type = conversion.TargetType;
+                    b.Level = LevelTable.MinLevel;
+                    b.ProductionProgressTicks = 0;
+                    break;
+            }
+
+            b.Construction = null;
+        }
     }
 
     /// <summary>
@@ -475,15 +563,36 @@ public sealed class Match
 
         if (result.Captured)
         {
+            // The retake grace (D-30, FR-3c, MW2-RULES.md §2.5) is decided from the state this base
+            // carried *before* this capture - read it before overwriting either field below. A true
+            // retake is the capturing player equalling the owner this base had immediately before its
+            // last change, within the grace window of that change; neutral -> human -> AI within the
+            // window is not a retake, because the AI is not the owner the base had before the human
+            // took it.
+            var isRetakeWithinGrace =
+                target.LastOwnerChangeTick is long lastChangeTick
+                && ElapsedTicks - lastChangeTick <= LevelTable.RecaptureGraceTicks
+                && army.Owner == target.OwnerBeforeLastChange;
+
+            target.OwnerBeforeLastChange = target.Owner;
+            target.LastOwnerChangeTick = ElapsedTicks;
+
             target.GarrisonCount = result.RemainingGarrison;
             target.Owner = army.Owner;
 
+            // A build in progress belongs to the previous owner and does not transfer - discarded
+            // outright, with no refund for the units already spent (D-30, FR-3c), the same as D-21a
+            // already discards a previous owner's partial production progress.
+            target.Construction = null;
+
             // The structure survives the fighting, but one level of the previous owner's
             // investment burns with it (D-23), floored at the minimum so an undeveloped base is
-            // simply taken as-is. Progress toward the next unit belonged to the previous owner and
-            // does not transfer: inheriting it would let the timing of a capture shift when the new
-            // owner's first unit appears.
-            if (target.Level > LevelTable.MinLevel)
+            // simply taken as-is - unless this capture is a retake within the grace window, which
+            // skips the demotion (but restores nothing already lost, and does not interact with
+            // conversion's own level reset). Progress toward the next unit belonged to the previous
+            // owner and does not transfer: inheriting it would let the timing of a capture shift when
+            // the new owner's first unit appears.
+            if (!isRetakeWithinGrace && target.Level > LevelTable.MinLevel)
             {
                 target.Level--;
             }

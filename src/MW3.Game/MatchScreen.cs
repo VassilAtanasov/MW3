@@ -61,6 +61,12 @@ internal sealed class MatchScreen : IScreen
     private static readonly Color _ringDarkenTarget = Color.Black;
     private const float _ringDarkenAmount = 0.4f;
 
+    // A base under construction (D-30, FR-3c) draws one further ring, outside the level ring, in a
+    // fixed colour distinguishable from both the owner tint and the darkened level ring at both
+    // 1280x720 and 1808x1018 - the one deliberate presentation change this feature makes.
+    private static readonly Color _constructionRingColor = Color.Yellow;
+    private const float _constructionRingThicknessFraction = 0.08f;
+
     public MatchScreen()
     {
         _runner = new MatchRunner(_match, new AiBrain(_match.AiPlayer));
@@ -356,6 +362,22 @@ internal sealed class MatchScreen : IScreen
                 (int)(center.X - ringRadius), (int)(center.Y - ringRadius), ringDiameter, ringDiameter);
             spriteBatch.Draw(_circleTexture, ringDestination, DarkenOwnerColor(GetOwnerColor(b.Owner)));
 
+            // A base under construction (D-30, FR-3c) draws one further ring, outside the level ring,
+            // in a fixed colour - distinguishable from both its current level (the darker ring just
+            // drawn) and its completed target level (which is not drawn until completion at all).
+            if (b.Construction is not null)
+            {
+                var constructionRingThickness = radius * _constructionRingThicknessFraction;
+                var constructionRingRadius = ringRadius + constructionRingThickness;
+                var constructionRingDiameter = (int)(constructionRingRadius * 2);
+                var constructionRingDestination = new Rectangle(
+                    (int)(center.X - constructionRingRadius),
+                    (int)(center.Y - constructionRingRadius),
+                    constructionRingDiameter,
+                    constructionRingDiameter);
+                spriteBatch.Draw(_circleTexture, constructionRingDestination, _constructionRingColor);
+            }
+
             var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
             spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(b.Owner));
 
@@ -460,10 +482,10 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
-    /// Writes the match's elapsed ticks, one line per base (id, owner, garrison, level, cap), one
-    /// line per in-flight army, and one menu line to <paramref name="path"/>, for `--dump-state` to
-    /// give QA exact numbers instead of pixels. The menu line is written by the screen, never by
-    /// <see cref="MW3.Core.Match"/> - menu state is presentation state (D-26).
+    /// Writes the match's elapsed ticks, one line per base (id, owner, garrison, level, cap,
+    /// building), one line per in-flight army, and one menu line to <paramref name="path"/>, for
+    /// `--dump-state` to give QA exact numbers instead of pixels. The menu line is written by the
+    /// screen, never by <see cref="MW3.Core.Match"/> - menu state is presentation state (D-26).
     /// </summary>
     internal void WriteStateDump(string path)
     {
@@ -476,7 +498,7 @@ internal sealed class MatchScreen : IScreen
             var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
             var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
             writer.WriteLine(FormattableString.Invariant(
-                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap}"));
+                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap} {FormatBuildingField(b)}"));
         }
 
         foreach (var army in _match.ArmiesInFlight)
@@ -487,6 +509,19 @@ internal sealed class MatchScreen : IScreen
 
         writer.WriteLine(FormatMenuDumpLine());
     }
+
+    /// <summary>
+    /// The `Building=` token: `none`, or the kind and target and completion tick of a base's pending
+    /// construction (D-30, FR-3c) - `UpgradeToLevel3@1240` or `ConvertToTower@1300`.
+    /// </summary>
+    private static string FormatBuildingField(Base b) => b.Construction switch
+    {
+        null => "Building=none",
+        PendingUpgrade upgrade => FormattableString.Invariant($"Building=UpgradeToLevel{upgrade.TargetLevel}@{upgrade.CompletionTick}"),
+        PendingConversion conversion => FormattableString.Invariant(
+            $"Building=Convert{(conversion.TargetType == BaseType.Tower ? "ToTower" : "ToProducer")}@{conversion.CompletionTick}"),
+        _ => "Building=none",
+    };
 
     private string FormatMenuDumpLine()
     {
