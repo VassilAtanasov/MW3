@@ -660,7 +660,7 @@ Kicked off 29-07-2026.
     `netstandard2.1` and engine-free with no `Random` and no lookahead beyond one decision (D-15,
     D-16); `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-7 (wf: 8804e5cd75c4): The developer can face an AI opponent that values a tower highly enough to
+FR-7 (wf: 8804e5cd75c4, issue #53): The developer can face an AI opponent that values a tower highly enough to
 build one of its own, and that prefers a source/target pair avoiding a costly pass through an enemy
 tower's range when a cheaper one exists, so that towers are a real threat against the AI and not just
 the human. **Depends on FR-6 (#49, merged).** Core-only; no new drawing, no new script directive, no
