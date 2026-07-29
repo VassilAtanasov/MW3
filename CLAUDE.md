@@ -176,6 +176,16 @@ A feature is done only when ALL of these hold:
 
 Never merge on red CI. Never close an issue by hand — the PR merge closes it.
 
+**"No new QA mechanism" means no new script directive and no new command-line flag — never no new
+`qa/scripts/` file.** Added 30-07-2026 after FR-6 (#49) shipped a delegation brief that told the
+implementer this feature added no QA mechanism at all, when the issue's own Verification checklist
+required one new `qa/scripts/` script proving the AI upgrades unassisted. Caught only because
+`code-reviewer` and `qa-verifier` both independently flagged the gap — it should have been caught
+before implementation started. Before writing any `/implement` delegation brief, re-read the
+issue's Verification section specifically for new-script requirements; they are almost always
+present even on Core-only features, since a new rule usually still needs one scripted scenario
+proving it end-to-end.
+
 ## Coding standards
 
 `docs/CONVENTIONS.md` holds this project's per-stack coding conventions — read it before writing

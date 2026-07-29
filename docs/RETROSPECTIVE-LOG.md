@@ -131,3 +131,43 @@ standalone). Records outcome and lessons; never gates or reopens a shipped featu
   batching finding is closer to a one-off algorithmic subtlety of this specific feature (mixing a
   closed-form span computation with a per-tick requirement) than a recurring pattern with an obvious
   standing rule to add; noting it in this log is judged sufficient unless it recurs.
+
+## 2026-07-29 — autopilot run (FR-5, FR-6)
+- Outcome: 2 shipped (#48 FR-5 as PR #50, #49 FR-6 as PR #51), 0 skipped, `main` green.
+- Went well: both features delegated to a single background implementation agent each, then taken
+  through review + QA in parallel exactly as designed - zero circuit-breaker trips, zero
+  clarification skips (both issues' acceptance criteria were fully sourced from the reference and
+  the pre-written `docs/base-upgrades-and-types/ARCHITECTURE.md` D-25..D-31 sections, so nothing
+  was ambiguous enough to need a question). #48's review caught a genuine pre-existing layout bug
+  (two action-menu buttons could overlap once a second one joined the arc) that the feature itself
+  exposed rather than introduced - fixed, tested, and re-verified in one delta cycle without a
+  fresh full review.
+- Caused rework: two distinct, unrelated frictions, both self-inflicted by Ivan's own delegation
+  briefs rather than by the implementers:
+  1. #48's QA pass found `qa/scripts/army-shrinking-early.txt`'s screenshot wasn't byte-for-byte
+     reproducible across individual re-runs (~1-in-5) - a real MonoGame fixed-timestep
+     non-determinism, not a flaky test, root-caused and fixed at the source (anchoring scripted
+     ticks to a nominal step and disabling the fixed-timestep catch-up during scripted playback).
+     One delta review + re-verify cycle, no fresh full passes needed.
+  2. #49's delegation brief told the implementer this feature added "no new QA mechanism," which
+     was true for script directives/CLI flags but wrong for the issue's own requirement of one new
+     `qa/scripts/` script - both code-reviewer and qa-verifier independently caught the same gap.
+     Fixed post-hoc (added `qa/scripts/ai-upgrades.txt`, re-gated) without needing to touch the
+     implementer's own work at all. This is the higher-value signal of the two: it's a coordination
+     mistake in how Ivan scopes a delegation brief, not implementation rework, and it's exactly the
+     kind of thing a standing rule prevents from recurring - addressed directly in `CLAUDE.md`
+     (see below) rather than only logged here.
+  3. Both features needed one blocking device-QA pass on the MI Pad 4 that Ivan performed itself
+     after the implementer/QA agent finished (per the issue's own device criteria) - not rework in
+     the review/fix sense, but real wall-clock cost each time (repeated unlock/wake/launch cycles,
+     and for #48 specifically, three attempts to catch a live post-conversion tower frame before the
+     AI's attack timing captured the passive human's only base first). #48 shipped with that one
+     frame left unresolved rather than blocking further, filed as follow-up #52 instead.
+- Follow-ups filed: #52 "Capture the completed tower's square+range shape live on the MI Pad 4" -
+  the one device-QA criterion from #48 that stayed unresolved through three attempts, closed out as
+  an explicit gap rather than left as a caveat buried in a merged issue's history.
+- Process adjustments applied: added a standing note to `CLAUDE.md`'s Definition of Done clarifying
+  that "no new QA mechanism" means no new script directive/CLI flag, never "no new `qa/scripts/`
+  file" - the exact conflation that caused friction 2 above. Framed as a rule for any future
+  `/implement` delegation brief to check the issue's own Verification checklist for new-script
+  requirements before writing "no new QA mechanism" into a brief.
