@@ -114,7 +114,7 @@ Three classes of skill:
 | Class | Published examples |
 |---|---|
 | **Ordinary** | building upgrade speed, building conversion speed, conversion cost, morale effects, energy rate, chest mechanics |
-| **Strong** | skill cooldowns, village capacity, tower firing speed, movement speed |
+| **Strong** | skill cooldowns, village capacity, tower firing speed, movement speed, row density (shortens the interval between a send's successive waves — user recall, 30-07-2026, unsourced) |
 | **Epic** | forge attack, protection, village protection, tower defence |
 
 Runes come from profile level-ups (**4 per level**), hero unlocks, skill upgrades, and chests

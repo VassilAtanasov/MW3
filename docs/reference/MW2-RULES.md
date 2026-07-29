@@ -134,6 +134,10 @@ MW3 phase 3 FR-4 adopts exactly this rule.
   "don't strike simultaneously" — giving the defender time to regenerate, letting towers fire
   between waves, and letting reinforcements land **[S]**. **This is load-bearing**: it is why a
   400-unit attack is not simply a 400-unit arithmetic check, and why defending is viable at all.
+- **The interval between waves is itself upgradeable [?]**: a passive skill (§"Strong" class,
+  [MW2-ITEMS-AND-PROGRESSION.md](MW2-ITEMS-AND-PROGRESSION.md) §2) shortens the gap between
+  successive waves — user testimony, 30-07-2026, not corroborated by any written source. Neither
+  the base (unskilled) interval nor the upgraded values are published anywhere found; see §10.
 - **Snaking** — set sending to 25% and tap the target repeatedly. Each successive send is 25% of a
   shrinking garrison, producing a long tapered column instead of discrete waves **[S]**. Thresholds
   for a clean snake: ≤35 units at 25%, ≤17 at 50%, ≤11 at 75% **[S]**. Its competitive value is
@@ -353,5 +357,8 @@ Things Ivan should **not** claim to know:
   area of effect.
 - **Map dimensions**, so no absolute distance in the game can be converted to MW3's normalized
   0..1 `MapPoint` space.
+- **The wave interval** — the time gap between successive 8-unit waves (§3.3), base value or
+  upgraded via the row-density passive skill. Not published; only the skill's existence is known,
+  from user recall rather than a written source.
 - **AI behaviour** (§8).
 - **Per-skill passive-skill percentages** — see [MW2-ITEMS-AND-PROGRESSION.md](MW2-ITEMS-AND-PROGRESSION.md).

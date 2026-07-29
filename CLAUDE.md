@@ -240,6 +240,19 @@ These run without a human gate and never block or reopen a feature:
   routing around enemy ranges, since that is a materially different kind of reasoning and the
   bundle risked an oversized PR. Next work is `/kickoff` on FR-5, in dependency order, then FR-6,
   then FR-7.
+- **Phase 4, "Sending armies the MW2 way" (`docs/army-sending/`), discovered 30-07-2026.** Closes
+  parity **G-2** (waves) and **G-3** (send-strength picker), the two highest-leverage gaps left
+  after morale and the one phase 3 explicitly deferred as "its own phase". Four features in
+  dependency order: send strength as an explicit percentage in the core rules, the picker plus
+  snaking on both input heads, a send splitting into successive 8-unit waves in the core rules, and
+  the wave column drawn on screen. The key design finding is that a wave is an ordinary `Army` with
+  a staggered launch tick rather than a redesigned aggregate, so tower fire, combat, capture, and
+  the recapture grace need no change to handle it — see `docs/army-sending/ARCHITECTURE.md` D-33.
+  The wave interval itself is left as a tuning value for FR-3's `/kickoff`, since MW2 never
+  publishes it (only that an out-of-scope passive skill, "row density", shortens it — folded into
+  `docs/reference/MW2-RULES.md` §3.3/§10 and `MW2-ITEMS-AND-PROGRESSION.md` §2 the same day). No
+  board yet — `/kickoff` creates it on the first feature. Phase 3's FR-5/FR-6/FR-7 above are
+  unaffected and still the nearer-term backlog; this phase is discovered and ready, not yet started.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -274,6 +287,7 @@ These run without a human gate and never block or reopen a feature:
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | — | — | filled by `/kickoff` on the first feature |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -310,6 +324,15 @@ Phase 3 features, in dependency order (`/kickoff` one at a time):
 | 5 | The action menu gains convert, and towers, ranges, and transit losses drawn | `b6e8bc28daa9` |
 | 6 | The AI opponent upgrades its own bases and respects garrison caps | `7eea0544b808` |
 | 7 | The AI opponent builds towers and routes armies around enemy ranges | `8804e5cd75c4` |
+
+Phase 4 features, in dependency order (`/kickoff` one at a time), discovered 30-07-2026:
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Send strength as an explicit percentage command in the core rules | `fa6d69f05f9d` |
+| 2 | Send-strength picker on both input heads, plus snaking | `4d4a9bac3f90` |
+| 3 | A send arrives as successive waves in the core rules | `ed9c0ead836c` |
+| 4 | Waves and the send column drawn distinctly from a single-arrival army | `a3e0351a6c4b` |
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it

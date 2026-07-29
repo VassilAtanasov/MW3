@@ -13,6 +13,9 @@
 > issue #38) merged, closing G-8 and G-14 and shipping §3's tick-rate decision. Updated again
 > 29-07-2026: FR-3b (`f585a0868ecc`, issue #39) merged, closing G-9 and G-10 and partially closing
 > G-7. Updated again 29-07-2026: FR-3c (`a4c8cacb426a`, issue #40) merged, closing G-11 and G-12.
+> Updated 30-07-2026: phase 4, "Sending armies the MW2 way" (`docs/army-sending/`), discovered —
+> **G-2** and **G-3** are now assigned to it (FR-3 `ed9c0ead836c` and FR-1/FR-2 `fa6d69f05f9d` /
+> `4d4a9bac3f90` respectively), not yet merged.
 
 ## 0. How Ivan uses this file
 
@@ -88,8 +91,8 @@ future phase.
 | # | MW2 | MW3 today | Notes |
 |---|---|---|---|
 | G-1 | **Morale**: a per-player multiplier, 0–5 suns, worth +125% defence / +25% attack / +50% speed, earned by capturing and defending, drained by losses and by **inactivity on a timer that accelerates as you climb** | Nothing | The largest single system in MW2 and the one every source calls the skill differentiator. Anti-turtle, anti-snowball, and it touches combat, speed and production at once. [MW2-RULES.md](MW2-RULES.md) §5 |
-| G-2 | **Waves**: a send arrives as successive 8-unit waves that do not strike simultaneously, so defenders regenerate, towers fire, and reinforcements land mid-fight | An army is one object arriving whole | This is what makes defending a larger attack viable, and it is the precondition for G-3. Probably the highest-leverage gap after morale |
-| G-3 | **Send-strength picker**: 25 / 50 / 75 / 100% of the garrison, plus **snaking** (repeated 25% sends producing a tapered column, used for deception and defensive spread) | Fixed at half the garrison, rounded down, minimum 1 | Phase 3 §6 scopes this out as "its own phase". Under the new goal that phase is now required, not optional |
+| G-2 | **Waves**: a send arrives as successive 8-unit waves that do not strike simultaneously, so defenders regenerate, towers fire, and reinforcements land mid-fight | An army is one object arriving whole | This is what makes defending a larger attack viable, and it is the precondition for G-3. Probably the highest-leverage gap after morale. The wave interval itself is unpublished and upgradeable in MW2 via a "row density" passive skill ([MW2-RULES.md](MW2-RULES.md) §3.3, §10) — the passive-skill modifier is G-20's territory; this gap closes only the fixed baseline interval. **Assigned** to phase 4 FR-3 (`ed9c0ead836c`), not yet merged |
+| G-3 | **Send-strength picker**: 25 / 50 / 75 / 100% of the garrison, plus **snaking** (repeated 25% sends producing a tapered column, used for deception and defensive spread) | Fixed at half the garrison, rounded down, minimum 1 | Phase 3 §6 scopes this out as "its own phase". Under the new goal that phase is now required, not optional. **Assigned** to phase 4 FR-1/FR-2 (`fa6d69f05f9d`/`4d4a9bac3f90`), not yet merged |
 | G-4 | **Heroes**: 24 across 4 tribes, 4 abilities each on a shared 500-energy pool, with slot-fixed costs and cooldowns | Nothing | Becomes **insect heroes** (§5). [MW2-HEROES.md](MW2-HEROES.md) — note §"Design patterns worth stealing" |
 | G-5 | **Energy**: 2.5/sec passive plus `0.45 × k` per unit lost attacking, where `k` rises as morale falls — so a losing player earns 5× the energy per casualty | Nothing | The game's rubber band. Depends on G-1 for `k` |
 | G-6 | **Forges**: a third building type giving a global attack/defence buff to its owner, 125–150% defence and 150–200% attack, capping at 4 | Two building types only | Phase 3 §6 forbids a third type *this phase*. Feeds the combat formula (G-7) |
@@ -187,14 +190,14 @@ each needs the user's agreement in a discovery session.
 | No defence bonus from levels | phase 3 §6 | Keeps every phase-2 combat test meaning what it meant | **Resolved** in discovery 28-07-2026 — reversed by phase 3 FR-3b (G-9, G-10) |
 | Three base types forbidden | phase 3 §6 | "MW2 has several; this phase earns two" | Reopened as **G-6** (forge); still unassigned |
 | No build time | FR-3 kickoff, 28-07-2026 | A feel benefit the phase could not yet measure | **Resolved** in discovery 28-07-2026 — reversed by phase 3 FR-3c (G-11) |
-| Send-strength picker deferred | phase 3 §6 | "A separate decision about how the game plays" | Reopened as **G-3**, now required rather than optional; still unassigned |
+| Send-strength picker deferred | phase 3 §6 | "A separate decision about how the game plays" | Reopened as **G-3**, now required rather than optional; **assigned to phase 4** (`docs/army-sending/`) |
 | Three levels, caps 20/35/50 | FR-1 | Tuned for MW3's tick economy | **Resolved** in discovery 28-07-2026 — replaced by phase 3 FR-3a (G-8, §3) |
 | Conversion costs 10, not 30 | FR-3 kickoff | Makes towers cheap early, expensive late | **Resolved** in discovery 28-07-2026 — raised to 30 by phase 3 FR-3a (G-14) |
 
-Five of the six are now assigned to a feature; only the forge (**G-6**) and the send-strength picker
-(**G-3**) remain reopened-but-unowned. Each resolution above was the user's decision in discovery,
-not a build-mode one, and each is recorded in `docs/base-upgrades-and-types/REQUIREMENTS.md` §4 and
-§6 rather than only here.
+All six are now assigned to a feature — the send-strength picker (**G-3**) to phase 4
+(`docs/army-sending/`) as of 30-07-2026, the forge (**G-6**) still awaiting a phase. Each resolution
+above was the user's decision in discovery, not a build-mode one, and each is recorded in
+`docs/base-upgrades-and-types/REQUIREMENTS.md` §4 and §6 rather than only here.
 
 Phase 3's `REQUIREMENTS.md` §6 was worded as permanent exclusion ("this phase earns two", "deserves
 its own phase"), which read as a design position when it was really sequencing. **Corrected
