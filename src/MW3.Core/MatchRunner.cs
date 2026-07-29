@@ -84,7 +84,14 @@ public sealed class MatchRunner
             var decision = _aiBrain.Decide(_match);
             if (decision.HasCommand)
             {
-                _match.Execute(decision.Command);
+                if (decision.IsUpgrade)
+                {
+                    _match.Execute(decision.Upgrade);
+                }
+                else
+                {
+                    _match.Execute(decision.Command);
+                }
             }
         }
     }

@@ -75,18 +75,34 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void PassiveHuman_ReachesHumanDefeat_WithinFiveThousandTicks_AiOwningEverything()
+    public void PassiveHuman_UpgradesOwnCapitalOnceThenIssuesNothingElse_StillReachesHumanDefeat_AndTheAiUpgradesToo()
     {
+        // Re-authored for FR-6/issue #49 success criterion 5: growing its own economy once must not
+        // hand the human a win against an AI that now upgrades its own bases too. The single human
+        // upgrade is issued before anything else happens, then the human never acts again - the AI's
+        // upgrade clause (D-31) must still let it out-produce and out-fight a human who did the one
+        // "obviously good" thing and then stopped.
         var match = new Match();
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
+        var humanBase = match.Bases.Single(b => b.Owner == match.HumanPlayer);
+
+        Assert.Equal(UpgradeOutcome.Accepted, runner.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+
+        var aiEverUpgraded = false;
 
         for (var elapsed = 0L; elapsed < 5000 && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)
         {
             runner.Advance(MatchRunner.DecisionIntervalTicks);
+
+            if (match.Bases.Any(b => b.Owner == match.AiPlayer && b.Level > LevelTable.MinLevel))
+            {
+                aiEverUpgraded = true;
+            }
         }
 
         Assert.Equal(MatchOutcome.HumanDefeat, match.Outcome);
         Assert.All(match.Bases, b => Assert.Equal(match.AiPlayer, b.Owner));
+        Assert.True(aiEverUpgraded, "The AI never upgraded any base over the course of the match.");
     }
 
     [Fact]
