@@ -297,7 +297,7 @@ These run without a human gate and never block or reopen a feature:
 | Welcome screen | `83e050f507f8` | `docs/welcome-screen/` | 18 | `PVT_kwHOANIl2M4BedBf` | Status `PVTSSF_lAHOANIl2M4BedBfzhY3Hv8` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | — | — | filled by `/kickoff` on the first feature |
+| Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
