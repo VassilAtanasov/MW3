@@ -430,7 +430,7 @@ public class ConvertTests
     }
 
     [Fact]
-    public void Convert_OnATower_OffersOnlyUpgrade_NoConvertAction_ThisFeature()
+    public void Convert_OnATower_OffersUpgradeAndConvertBackToProducer_FR5()
     {
         var match = new Match();
         var humanBase = HumanBase(match);
@@ -439,9 +439,13 @@ public class ConvertTests
         match.Advance(LevelTable.ConversionBuildDurationTicks);
         Assert.Equal(BaseType.Tower, humanBase.Type);
 
-        var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
+        var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
+        Assert.Equal(2, actions.Count);
+        Assert.Equal(BaseActionKind.Upgrade, actions[0].Kind);
 
-        Assert.Equal(BaseActionKind.Upgrade, action.Kind);
+        var convert = actions[1];
+        Assert.Equal(BaseActionKind.Convert, convert.Kind);
+        Assert.Equal(BaseType.Producer, convert.ConvertTargetType);
     }
 
     private static void AdvanceToNextArrival(Match match)

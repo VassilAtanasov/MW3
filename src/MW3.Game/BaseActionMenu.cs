@@ -118,11 +118,14 @@ internal sealed class BaseActionMenu
     /// <summary>
     /// Submits the command for <paramref name="buttonIndex"/> unconditionally - the caller only
     /// calls this once, for a press that began on a button this menu showed as affordable, and
-    /// dismisses the menu regardless of what <see cref="Match.Execute(UpgradeCommand)"/> returns.
-    /// Core's outcome is authoritative: even a rejection (the garrison fell between opening and
-    /// release) leaves match state untouched on its own and simply closes the menu, the same as an
-    /// acceptance would (phase 2 #24's finding, standing in `docs/CONVENTIONS.md`). This method does
-    /// not itself compare a cost to a garrison - that would repeat D-25's mistake one call up.
+    /// dismisses the menu regardless of what <see cref="Match.Execute(UpgradeCommand)"/> or
+    /// <see cref="Match.Execute(ConvertCommand)"/> returns. For Convert, the target type is read
+    /// from the action itself (<see cref="BaseAction.ConvertTargetType"/>) - this widget never
+    /// decides which type to convert to (D-25, FR-5). Core's outcome is authoritative: even a
+    /// rejection (the garrison fell between opening and release) leaves match state untouched on its
+    /// own and simply closes the menu, the same as an acceptance would (phase 2 #24's finding,
+    /// standing in `docs/CONVENTIONS.md`). This method does not itself compare a cost to a garrison -
+    /// that would repeat D-25's mistake one call up.
     /// </summary>
     public void Activate(int buttonIndex, MatchRunner runner)
     {
@@ -133,9 +136,14 @@ internal sealed class BaseActionMenu
             return;
         }
 
-        if (_actions[buttonIndex].Kind == BaseActionKind.Upgrade)
+        var action = _actions[buttonIndex];
+        if (action.Kind == BaseActionKind.Upgrade)
         {
             runner.Execute(new UpgradeCommand(_owner, BaseId));
+        }
+        else if (action.Kind == BaseActionKind.Convert && action.ConvertTargetType is BaseType targetType)
+        {
+            runner.Execute(new ConvertCommand(_owner, BaseId, targetType));
         }
     }
 
@@ -269,10 +277,18 @@ internal sealed class BaseActionMenu
         return null;
     }
 
-    private static string FormatLabel(BaseAction action) => action.Availability switch
+    private static string FormatLabel(BaseAction action) => action.Kind switch
     {
-        BaseActionAvailability.AlreadyAtMaxLevel => "Upgrade: Max",
-        BaseActionAvailability.UnderConstruction => "Upgrade: Building",
-        _ => FormattableString.Invariant($"Upgrade: {action.Cost}"),
+        BaseActionKind.Convert => action.Availability switch
+        {
+            BaseActionAvailability.UnderConstruction => "Convert: Building",
+            _ => FormattableString.Invariant($"Convert: {action.Cost}"),
+        },
+        _ => action.Availability switch
+        {
+            BaseActionAvailability.AlreadyAtMaxLevel => "Upgrade: Max",
+            BaseActionAvailability.UnderConstruction => "Upgrade: Building",
+            _ => FormattableString.Invariant($"Upgrade: {action.Cost}"),
+        },
     };
 }

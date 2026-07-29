@@ -265,11 +265,14 @@ public sealed class Match
     }
 
     /// <summary>
-    /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: exactly one
-    /// <see cref="BaseAction"/> (Upgrade) this phase, its cost read from <see cref="LevelTable"/>
-    /// and never named by the caller (D-25). Returns an empty list for an unknown base or one
-    /// <paramref name="player"/> does not own - the widget that renders this answer never learns
-    /// why there is nothing to show, because there is nothing for it to compute either way.
+    /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: exactly two
+    /// <see cref="BaseAction"/>s, always in order [Upgrade, Convert], each computed independently
+    /// from the other - a level-4 base's Upgrade reads AlreadyAtMaxLevel while its Convert can still
+    /// be live, since the two share no state but the base itself (FR-5). Costs read from
+    /// <see cref="LevelTable"/> and never named by the caller (D-25). Returns an empty list for an
+    /// unknown base or one <paramref name="player"/> does not own - the widget that renders this
+    /// answer never learns why there is nothing to show, because there is nothing for it to compute
+    /// either way.
     /// </summary>
     public IReadOnlyList<BaseAction> AvailableActions(Player player, int baseId)
     {
@@ -284,14 +287,19 @@ public sealed class Match
             return Array.Empty<BaseAction>();
         }
 
+        return new[] { BuildUpgradeAction(target), BuildConvertAction(target) };
+    }
+
+    private static BaseAction BuildUpgradeAction(Base target)
+    {
         if (target.Level >= target.MaxUpgradableLevel)
         {
-            return new[] { new BaseAction(BaseActionKind.Upgrade, Cost: 0, BaseActionAvailability.AlreadyAtMaxLevel) };
+            return new BaseAction(BaseActionKind.Upgrade, Cost: 0, BaseActionAvailability.AlreadyAtMaxLevel);
         }
 
         if (target.Construction is not null)
         {
-            return new[] { new BaseAction(BaseActionKind.Upgrade, target.UpgradeCost, BaseActionAvailability.UnderConstruction) };
+            return new BaseAction(BaseActionKind.Upgrade, target.UpgradeCost, BaseActionAvailability.UnderConstruction);
         }
 
         var cost = target.UpgradeCost;
@@ -299,7 +307,24 @@ public sealed class Match
             ? BaseActionAvailability.Affordable
             : BaseActionAvailability.GarrisonBelowCost;
 
-        return new[] { new BaseAction(BaseActionKind.Upgrade, cost, availability) };
+        return new BaseAction(BaseActionKind.Upgrade, cost, availability);
+    }
+
+    private static BaseAction BuildConvertAction(Base target)
+    {
+        var targetType = target.Type == BaseType.Producer ? BaseType.Tower : BaseType.Producer;
+        var cost = LevelTable.ConversionCost;
+
+        if (target.Construction is not null)
+        {
+            return new BaseAction(BaseActionKind.Convert, cost, BaseActionAvailability.UnderConstruction, targetType);
+        }
+
+        var availability = target.GarrisonCount >= cost
+            ? BaseActionAvailability.Affordable
+            : BaseActionAvailability.GarrisonBelowCost;
+
+        return new BaseAction(BaseActionKind.Convert, cost, availability, targetType);
     }
 
     /// <summary>
