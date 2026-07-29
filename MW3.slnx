@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MW3.Core.Tests/MW3.Core.Tests.csproj" />
+    <Project Path="tests/MW3.Game.Tests/MW3.Game.Tests.csproj" />
   </Folder>
 </Solution>

@@ -24,4 +24,10 @@
     <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Lets MW3.Game.Tests exercise BaseActionMenu directly - it decides nothing itself (D-25)
+         but its own change-detection cache (issue #46) has no other route to a unit test. -->
+    <InternalsVisibleTo Include="MW3.Game.Tests" />
+  </ItemGroup>
+
 </Project>
