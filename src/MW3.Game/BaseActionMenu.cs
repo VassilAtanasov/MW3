@@ -8,8 +8,8 @@ namespace MW3.Game;
 /// <summary>
 /// Lays out, draws, and hit-tests the action menu anchored above one base - decides nothing itself
 /// (D-25). Buttons are placed on an arc above the anchor, clamped to stay fully inside the viewport,
-/// and re-queries <see cref="Match.AvailableActions"/> only when the anchored base's garrison or
-/// level actually changes, so it allocates nothing per frame while idle.
+/// and re-queries <see cref="Match.AvailableActions"/> only when the anchored base's garrison,
+/// level, construction, or type actually changes, so it allocates nothing per frame while idle.
 /// </summary>
 internal sealed class BaseActionMenu
 {
@@ -28,6 +28,8 @@ internal sealed class BaseActionMenu
 
     private int _lastGarrisonCount = -1;
     private int _lastLevel = -1;
+    private bool _lastUnderConstruction;
+    private BaseType _lastType;
     private IReadOnlyList<BaseAction> _actions = Array.Empty<BaseAction>();
     private string[] _labels = Array.Empty<string>();
 
@@ -54,7 +56,11 @@ internal sealed class BaseActionMenu
     /// <summary>Exposed only for <c>--dump-state</c>, which is presentation state (D-26).</summary>
     public IReadOnlyList<BaseAction> Actions => _actions;
 
-    /// <summary>Re-queries Core only if the anchored base's garrison or level has actually changed.</summary>
+    /// <summary>
+    /// Re-queries Core only if the anchored base's garrison, level, construction, or type has
+    /// actually changed - all four feed <see cref="Match.AvailableActions"/>'s answer, and a
+    /// conversion or construction can complete without moving garrison or level at all.
+    /// </summary>
     public void Refresh()
     {
         var b = FindAnchorBase();
@@ -63,13 +69,17 @@ internal sealed class BaseActionMenu
             return;
         }
 
-        if (b.GarrisonCount == _lastGarrisonCount && b.Level == _lastLevel)
+        var underConstruction = b.Construction is not null;
+        if (b.GarrisonCount == _lastGarrisonCount && b.Level == _lastLevel
+            && underConstruction == _lastUnderConstruction && b.Type == _lastType)
         {
             return;
         }
 
         _lastGarrisonCount = b.GarrisonCount;
         _lastLevel = b.Level;
+        _lastUnderConstruction = underConstruction;
+        _lastType = b.Type;
         var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
         _garrisonLabel = FormattableString.Invariant($"{b.GarrisonCount} / {cap}");
         _actions = _match.AvailableActions(_owner, BaseId);

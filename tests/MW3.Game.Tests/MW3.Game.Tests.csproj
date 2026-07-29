@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!-- MW3.Game marks its own MonoGame.Framework.DesktopGL reference PrivateAssets="All", so it
+         doesn't flow transitively (the same reason MW3.Desktop carries its own copy) - without
+         this, loading BaseActionMenu throws FileNotFoundException for MonoGame.Framework. -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MW3.Core\MW3.Core.csproj" />
+    <ProjectReference Include="..\..\src\MW3.Game\MW3.Game.csproj" />
+  </ItemGroup>
+
+</Project>
