@@ -661,10 +661,65 @@ Kicked off 29-07-2026.
     D-16); `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-7 (wf: 8804e5cd75c4): The developer can face an AI opponent that values a tower highly enough to
-convert into one, and that prefers a path or timing avoiding a costly pass through an enemy tower's
-range when a cheaper option exists, so that towers are a real threat against the AI and not just the
-human. **Depends on FR-6.** Core-only; no new drawing, no new script directive. Until this ships the
-AI is expected to fly armies straight through tower fire — accepted through FR-4, not a defect.
+build one of its own, and that prefers a source/target pair avoiding a costly pass through an enemy
+tower's range when a cheaper one exists, so that towers are a real threat against the AI and not just
+the human. **Depends on FR-6 (#49, merged).** Core-only; no new drawing, no new script directive, no
+new dump field. Until this ships the AI is expected to fly armies straight through tower fire —
+accepted through FR-4, not a defect. Kicked off 30-07-2026.
+  - Settled at kickoff: the map is one fixed six-base layout and armies always travel in a straight
+    line with no pathfinding (§6), so "routing around" a tower means preferring which source/target
+    base pair to use, never genuine waypoint routing. The stub note's "or timing" is dropped: FR-4
+    made towers deterministically always-ready the instant an eligible army enters range, so there is
+    no firing-schedule gap for the AI to wait out — path (pair selection) is the only real lever.
+  - Acceptance: `BrainDecision` grows a third case carrying a `ConvertCommand`, still at most one
+    command per decision (D-16), distinguished in the type system exactly as the existing send/upgrade
+    split is; `MatchRunner` dispatches it to `Match.Execute(ConvertCommand)`, exactly as it already
+    dispatches the upgrade case.
+  - Acceptance: clause order becomes **defend → upgrade → convert → attack → consolidate**. A new
+    `TryConvert` clause: a base is a candidate only when owned by this player, a producer, not under
+    construction, garrison at least `LevelTable.ConversionCost` (30), and no enemy army in flight to it
+    (the same threatened-base guard `TryUpgrade` uses, D-30). The AI owning fewer than two bases
+    produces no convert command at all, regardless of saturation — converting its only base would
+    permanently remove its sole source of new units (mirrors `TryConsolidate`'s `Count < 2` guard).
+  - Acceptance: among remaining candidates, the one whose nearest not-owned base is **nearest** (the
+    front, unlike upgrade's furthest/safest), ties by lowest id — `NearestNotOwnedDistance` shared with
+    `TryConsolidate` and `TryUpgrade`, read the same direction as consolidate's front. The clause
+    re-fires as the front changes: a tower's empty `GarrisonCap` (D-28) removes it from future
+    candidacy, and the AI's new front becomes the next candidate once it saturates past 30 — provable
+    building more than one tower in a long match.
+  - Acceptance: a shared Core geometry helper estimates, for a straight segment and an enemy tower's
+    position/level, whether the segment enters that tower's range and the units lost crossing it (chord
+    length in range converted to ticks via `ArmySpeedUnitsPerTick`, divided by
+    `LevelTable.Tower.FirePeriodTicks`, floored — one unit per shot, mirroring FR-4's own damage model).
+    Zero when the segment never enters range; no allocation, no `Random`, no wall-clock read.
+  - Acceptance: `TryAttack`'s winnability check becomes `(unclampedHalf - expectedTowerLoss) >
+    predictedGarrison`, summing the helper's estimate over every enemy-owned tower (never the AI's own,
+    FR-4) the segment crosses. Among winnable targets for a source, the AI prefers the lower
+    `expectedTowerLoss`, ties as today (nearest, then lowest id) — a preference, not a refusal: it still
+    attacks the only winnable option even if it crosses a tower. `TryDefend` and `TryConsolidate` are
+    unchanged (avoidance is attack-only, settled at kickoff).
+  - Acceptance: every command the brain produces, including the new convert case, is still accepted by
+    `Match.Execute` with no rejection over a full headless match (D-25's AI-side counterpart, extending
+    FR-6's own test). Determinism (D-12) across chunked advances for convert decisions, tower
+    conversions, and attack choices the loss estimate changes.
+  - Acceptance: headless tests for — two viable targets, one crossing an enemy tower and one not,
+    otherwise equally winnable, the AI avoids the tower; a single viable target crossing a tower, the AI
+    attacks when still winnable net of losses and withholds when not; the AI converting its saturated
+    front base to a tower (`Type=Tower`, level reset to 1, garrison down exactly 30); an AI holding
+    exactly one base never converting it regardless of saturation.
+  - Acceptance (scope guard): no new dump field, script directive, flag, or presentation change — an
+    AI-built tower is already visible through `Type=`, `Cap=none`, `Building=`, and FR-5's drawing.
+  - Acceptance (corrections in the same PR): `AiBrain`'s and `BrainDecision`'s XML docs, and this entry
+    and `ARCHITECTURE.md`'s AI section if either still states the AI never builds towers or never
+    accounts for tower fire. `MW2-PARITY.md`'s **G-21** stays open — this is still MW3's own invention,
+    not observed MW2 behaviour.
+  - Acceptance: every pre-existing test and committed script still passes in its budget; a genuinely
+    invalidated AI expectation is re-authored in place, never weakened. `MW3.Core` stays
+    `netstandard2.1` and engine-free with no `Random` and no lookahead beyond one decision (D-15, D-16);
+    `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
+  - Out of scope: reverting a tower to a producer; genuine pathfinding/multi-hop routing; timing-based
+    avoidance; tower-aware `TryDefend`/`TryConsolidate`; a deliberate multi-tower "wall" strategy;
+    closing parity gap G-21.
 
 ### Tuning values
 
