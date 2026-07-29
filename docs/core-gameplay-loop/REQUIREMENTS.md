@@ -180,8 +180,9 @@ deterministic rules.
     seconds (~17 ticks to the nearest neutral, ~38 to the AI base), never less than one tick.
   - Acceptance: `Match` exposes in-flight armies read-only — owner, source, target, count, launch
     tick, arrival tick — enough for FR-5 to interpolate a position with no drawing knowledge in
-    Core. Armies are inert in flight: no interception, recall, or change of owner if their source
-    base is captured.
+    Core. **Superseded by phase 3 FR-4**: an army's count can now drop in flight (an owned tower
+    shooting it down), so it is destroyed and never arrives if that reaches zero. Recall and change
+    of owner if the source base is captured remain impossible, unchanged by FR-4.
   - Acceptance: arrival at a base owned by the army's owner reinforces it; arrival elsewhere
     resolves 1:1 with no defender advantage (N > M captures with N − M; N ≤ M leaves the defender
     with M − N, so N == M leaves the defender owning zero units) — D-15.
@@ -476,8 +477,9 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting:
   tap-to-tap is deliberately not offered as a second path to the same command.
 - **Choosing how many units a send dispatches.** FR-5 fixes it at half the garrison rounded down,
   never below 1. No slider, percentage picker, multi-tap-to-add, or HUD showing totals.
-- **Rally points, army recall, and interception in flight.** FR-4 settled that armies are inert
-  once launched; FR-5 does not reopen it.
+- **Rally points and army recall.** FR-4 settled that armies cannot be recalled or redirected once
+  launched; FR-5 does not reopen it. **Interception no longer belongs on this list**: phase 3 FR-4
+  makes armies vulnerable to towers specifically (parity gap G-13's own feature, not FR-5's).
 - **Fog of war and pathfinding around obstacles.** Armies travel base-to-base in a straight line.
 - **Nice-to-have, explicitly deferred rather than forgotten**: a HUD totalling a player's units,
   garrison caps, pause, camera pan/zoom, and the build/version info and app icon still owed from

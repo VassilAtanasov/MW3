@@ -133,8 +133,8 @@ public sealed class Match
             command.SourceBaseId,
             command.TargetBaseId,
             command.UnitCount,
-            LaunchTick: ElapsedTicks,
-            ArrivalTick: ElapsedTicks + travelTicks));
+            launchTick: ElapsedTicks,
+            arrivalTick: ElapsedTicks + travelTicks));
 
         return SendArmyOutcome.Accepted;
     }
@@ -329,6 +329,17 @@ public sealed class Match
 
         while (true)
         {
+            // Tower fire (FR-4) must be evaluated on every single tick, not skipped the way
+            // production is computed in closed form over a span - so while any owned tower exists,
+            // the rest of this Advance call switches to a per-tick path. A conversion completing
+            // mid-call can create the first tower partway through; re-checking at the top of every
+            // segment (the only place a completion boundary can land) is what catches that.
+            if (HasAnyOwnedTower())
+            {
+                AdvanceTickByTick(targetElapsedTicks);
+                return;
+            }
+
             var nextBoundaryTick = EarliestBoundaryTickUpTo(targetElapsedTicks);
             var segmentEnd = nextBoundaryTick ?? targetElapsedTicks;
 
@@ -340,9 +351,13 @@ public sealed class Match
                 return;
             }
 
-            // Construction completion before arrivals (D-30, FR-3c): a base finishing an upgrade or
-            // conversion on the tick it is attacked defends at its new level or type.
+            // Construction completion before tower fire before arrivals (D-30, FR-3c, D-24): a base
+            // finishing an upgrade or conversion on the tick it is attacked defends at its new level
+            // or type, and a conversion completing into a tower on this exact tick still needs its
+            // own fire check run for this tick - the per-tick path below only takes over starting
+            // next tick, so skipping this call would silently miss the boundary tick itself.
             CompleteConstructionsAtTick(ElapsedTicks);
+            EvaluateTowerFireAtTick(ElapsedTicks);
             ResolveArrivalsAtTick(ElapsedTicks);
             EvaluateOutcome();
 
@@ -351,6 +366,140 @@ public sealed class Match
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// The per-tick path (FR-4): one tick at a time up to <paramref name="targetElapsedTicks"/>, in
+    /// the exact order construction completion -&gt; tower fire -&gt; arrivals -&gt; outcome, evaluated
+    /// on every tick rather than only at computed boundaries - required once a tower can fire, since
+    /// a tower with nothing else happening on a given tick still has to be checked on that tick.
+    /// </summary>
+    private void AdvanceTickByTick(long targetElapsedTicks)
+    {
+        while (ElapsedTicks < targetElapsedTicks)
+        {
+            var tick = ElapsedTicks + 1;
+            ApplyProduction(ElapsedTicks, tick);
+            ElapsedTicks = tick;
+
+            CompleteConstructionsAtTick(tick);
+            EvaluateTowerFireAtTick(tick);
+            ResolveArrivalsAtTick(tick);
+            EvaluateOutcome();
+
+            if (Outcome != MatchOutcome.InProgress)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>Whether any base is both a <see cref="BaseType.Tower"/> and owned - the only condition under which anything can fire.</summary>
+    private bool HasAnyOwnedTower()
+    {
+        foreach (var b in _bases)
+        {
+            if (b.Type == BaseType.Tower && b.Owner is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Fires every owned tower that is ready on <paramref name="tick"/> (FR-4): each tracks its own
+    /// <see cref="Base.LastFireTick"/> and is ready when that is null or at least its level's fire
+    /// period has elapsed. A ready tower hits the closest enemy army within its range - ties broken
+    /// by the lowest army id - removing exactly one unit from it; an army whose strength reaches
+    /// zero is destroyed on the spot, never arriving. A garrison of zero does not stop a tower from
+    /// firing (FR-3: a garrison is not ammunition), and a tower never fires at its own owner's armies.
+    /// Allocates nothing: plain indexed loops over both lists, no LINQ (docs/CONVENTIONS.md).
+    /// </summary>
+    private void EvaluateTowerFireAtTick(long tick)
+    {
+        for (var i = 0; i < _bases.Count; i++)
+        {
+            var tower = _bases[i];
+            if (tower.Type != BaseType.Tower || tower.Owner is null)
+            {
+                continue;
+            }
+
+            var period = LevelTable.Tower.FirePeriodTicks(tower.Level);
+            if (tower.LastFireTick is long lastFire && tick - lastFire < period)
+            {
+                continue;
+            }
+
+            var range = LevelTable.Tower.RangeUnits(tower.Level);
+            Army? nearest = null;
+            var nearestDistance = double.MaxValue;
+
+            for (var j = 0; j < _armies.Count; j++)
+            {
+                var army = _armies[j];
+                if (army.Owner == tower.Owner)
+                {
+                    continue;
+                }
+
+                var armyPosition = PositionAtTick(army, tick);
+                var dx = armyPosition.X - tower.Position.X;
+                var dy = armyPosition.Y - tower.Position.Y;
+                var distance = Math.Sqrt((dx * dx) + (dy * dy));
+                if (distance > range)
+                {
+                    continue;
+                }
+
+                if (nearest is null || distance < nearestDistance || (distance == nearestDistance && army.Id < nearest.Id))
+                {
+                    nearest = army;
+                    nearestDistance = distance;
+                }
+            }
+
+            if (nearest is null)
+            {
+                continue;
+            }
+
+            tower.LastFireTick = tick;
+            nearest.UnitCount--;
+
+            if (nearest.UnitCount <= 0)
+            {
+                _armies.Remove(nearest);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An army's normalized-space position at <paramref name="tick"/> (FR-4): a pure function of its
+    /// source and target base positions and its own launch/arrival ticks, recomputed fresh every
+    /// time rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to
+    /// an endpoint rather than extrapolating past it. Returns the source's own position (fraction 0)
+    /// if either base is somehow unknown, which cannot happen for a live army on the hardcoded map.
+    /// </summary>
+    private MapPoint PositionAtTick(Army army, long tick)
+    {
+        var source = FindBase(army.SourceBaseId);
+        var target = FindBase(army.TargetBaseId);
+        if (source is null || target is null)
+        {
+            return default;
+        }
+
+        var span = army.ArrivalTick - army.LaunchTick;
+        var fraction = span > 0 ? (double)(tick - army.LaunchTick) / span : 1.0;
+        fraction = Math.Clamp(fraction, 0.0, 1.0);
+
+        var x = source.Position.X + ((target.Position.X - source.Position.X) * fraction);
+        var y = source.Position.Y + ((target.Position.Y - source.Position.Y) * fraction);
+
+        return new MapPoint(x, y);
     }
 
     private Base? FindBase(int id)

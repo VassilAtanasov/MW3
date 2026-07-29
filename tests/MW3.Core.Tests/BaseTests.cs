@@ -18,6 +18,7 @@ public class BaseTests
                 nameof(Base.GarrisonCap),
                 nameof(Base.GarrisonCount),
                 nameof(Base.Id),
+                nameof(Base.LastFireTick),
                 nameof(Base.LastOwnerChangeTick),
                 nameof(Base.Level),
                 nameof(Base.MaxLevel),

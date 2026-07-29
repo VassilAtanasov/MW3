@@ -51,6 +51,14 @@ public sealed class Base
     public Player? OwnerBeforeLastChange { get; internal set; }
 
     /// <summary>
+    /// The tick this base (as a tower) last fired, or null if it never has - an idle tower is
+    /// always ready, so its first shot lands on the tick an enemy army enters range (FR-4). Read
+    /// only for a <see cref="BaseType.Tower"/>; meaningless while <see cref="Type"/> is
+    /// <see cref="BaseType.Producer"/>, which never fires.
+    /// </summary>
+    public long? LastFireTick { get; internal set; }
+
+    /// <summary>
     /// This base's level, between <see cref="LevelTable.MinLevel"/> and this base's own
     /// <see cref="MaxLevel"/>. Raised one step at a time by an <see cref="UpgradeCommand"/>, and
     /// dropped one step (never below the minimum) when the base is captured - the structure
