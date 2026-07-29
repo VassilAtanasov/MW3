@@ -510,10 +510,83 @@ updated in place. **Depends on FR-3a (#38)**; FR-3b (#39) and FR-3c (#40) are so
     asserts inertness it is corrected in place to assert the new rule, never weakened or deleted.
     `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
-FR-5 (wf: b6e8bc28daa9): The player can convert a base from the action menu in both directions, see
-a tower drawn distinguishably from a producer, see a tower's range on screen, and watch an army's
-count shrink as it is shot in transit — so that everything FR-3 and FR-4 added is visible and
-reachable. Adds no rule of its own.
+FR-5 (wf: b6e8bc28daa9, issue #48): The player can convert a base from the action menu in both
+directions, see a tower drawn distinguishably from a producer, see a tower's range on screen, and
+watch an army's count shrink as it is shot in transit — so that everything FR-3 and FR-4 added is
+visible and reachable. Adds no rule of its own: the only `MW3.Core` change is `AvailableActions`
+offering the second action it was always going to offer (D-25), and the simulation is identical
+whether or not a menu is opened (D-26). Kicked off 29-07-2026.
+  - Acceptance: `BaseActionKind` gains `Convert` and `AvailableActions` returns exactly two actions
+    for an owned base, always in the order Upgrade, Convert, so button indices, arc layout, and dump
+    output are stable. Their availability is computed **independently** — the current early return at
+    max level goes, so a level-4 village offers `Upgrade=AlreadyAtMaxLevel Cost=0` alongside a live
+    Convert, and a base under construction offers both as `UnderConstruction`.
+  - Acceptance: the Convert cost is the existing conversion constant (30, identical both directions)
+    read from the tuning table with none named at a call site (D-22), and the action carries the
+    **target type** — the opposite of the base's current type — so the widget never picks one.
+  - Acceptance: no new availability state is invented. A level-1 base whose cap (20) is permanently
+    below the cost (30) reads `GarrisonBelowCost` like any other unaffordable action; that
+    permanent-until-upgraded shape is MW2's, already settled in "Tuning values", and is asserted as a
+    board state rather than special-cased.
+  - Acceptance: no simulation rule changes at all — garrisons, production, combat, tower fire,
+    capture, and outcome untouched, proved by every pre-existing Core test passing unchanged.
+  - Acceptance: two buttons fit the existing arc fully inside the viewport at 1280x720 and 1808x1018
+    including the top base row at y=0.25; labels come from the action rather than a hardcoded string
+    (`Convert: 30`, `Convert: Building`), correcting `FormatLabel`'s assumption that every action is
+    an Upgrade; releasing on an enabled Convert submits `ConvertCommand` and dismisses the menu, a
+    greyed one submits nothing and leaves it open, and `BaseActionMenu` still compares no cost to a
+    garrison (D-25).
+  - Acceptance: a conversion completing while its menu is open relabels Convert to the opposite
+    direction and flips the header's cap to or from `none` in the next frame, re-queried only on a
+    real change and allocating nothing per frame. A tower's header reads `<garrison> / none` (D-28),
+    with no sentinel standing in.
+  - Acceptance: a tower is drawn as a **square** and a producer as a circle, tinted by owner and
+    distinguishable in a screenshot at both sizes; the level ring, the selection highlight, and
+    FR-3c's construction ring follow the shape. Core's `HitTester` keeps one radius for both types,
+    so which base a tap lands on never depends on shape (D-18).
+  - Acceptance: **every tower's range is drawn at all times, for both players**, as an outline in the
+    owner's tint — settled at this kickoff (29-07-2026) because routing around enemy fire is the
+    premise FR-7 will teach the AI, so the human must see the same board, and because an always-on
+    outline is directly provable by screenshot. Considered and rejected: revealing range only while
+    that tower's menu is open (leaves enemy reach permanently invisible) and only for the human's own
+    towers (a design position about hidden information, not just a display choice).
+  - Acceptance: the drawn range matches Core's in-range test rather than approximating it. `Match`
+    measures distance in normalized `MapPoint` units while the screen maps X by viewport width and Y
+    by height, so the true reach is an **ellipse** on a non-square viewport; a circle sized from the
+    smaller dimension would show fire reaching where it does not. Extent read from the tower's own
+    level — four visibly different sizes — with no magic number in `MatchScreen` (D-22), its texture
+    created once and disposed with the others, and nothing allocated per frame.
+  - Acceptance: a base under construction *into* a tower draws no range and stays a circle until its
+    completion tick; a tower converting back draws its range up to the moment it completes.
+  - Acceptance: the drawn army count already tracks current strength (FR-4 corrected the per-army
+    text cache), so this feature adds no drawing code for it and instead **proves** it — two runs of
+    one scenario dumping at different ticks show the same in-flight army with a strictly lower
+    `Count=` in the later one. The per-army dump line gains no field.
+  - Acceptance: `--dump-state`'s per-base line gains exactly one field, `Type=`, appended after
+    `Building=` with every other field unchanged in name, order, and meaning
+    (`Base 1: Owner=Human Garrison=12 Level=2 Cap=40 Building=none Type=Producer`, values matching
+    the `BaseType` names). The `Menu:` line gains three tokens after the existing `Cost=`, which
+    keeps its name and meaning:
+    `Menu: Base=1 Garrison=12/40 Upgrade=Affordable Cost=10 Convert=GarrisonBelowCost ConvertCost=30 ConvertTo=Tower`.
+    `Menu: none` is unchanged and the line is still written by `MatchScreen` (D-26). No new script
+    directive and no new command-line flag.
+  - Acceptance: new `qa/scripts/` — `greyed-convert-does-nothing.txt` (menu stays open, nothing
+    changes), `convert-pending.txt` (garrison down 30, `Type=Producer` still,
+    `Building=ConvertToTower@<tick>`, `Convert=UnderConstruction`), `convert-completed.txt`
+    (`Type=Tower Cap=none Building=none`, `ConvertTo=Producer`, square with range outline), and the
+    `army-shrinking-early.txt` / `army-shrinking-late.txt` pair. Screenshots at both sizes.
+  - Acceptance (device, blocking): on the MI Pad 4 (`43e75e5`), a tap opens an owned base's menu, a
+    tap on Convert is accepted, and after the build the base is visibly a square with a range
+    outline — against a freshly installed APK whose `lastUpdateTime` is newer than the branch build.
+  - Acceptance (corrections in the same PR): `BaseActionKind`'s XML doc, `BaseActionMenu`'s class and
+    `Activate` docs, `MatchScreen`'s class doc ("one circle per base"), and FR-3's line deferring
+    `Type=` to FR-5. `ARCHITECTURE.md` §2a and §4 already carry this kickoff's dump format, script
+    list, and the range/shape decisions, so the implementation matches them rather than restating
+    them. **No parity gap closes** — G-13 and G-22 in particular stay open.
+  - Acceptance: every pre-existing test and committed script still passes in its budget; a test
+    asserting the one-action menu is re-authored in place to assert two, never weakened. `MW3.Core`
+    stays `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and
+    `./gate.ps1` both pass.
 
 FR-6 (wf: 7eea0544b808): The developer can face an AI opponent that upgrades its own bases and stops
 pouring production into a capped one, so that the economy decision this phase adds is a decision the

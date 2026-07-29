@@ -135,6 +135,34 @@ one. `upgrade-completed.txt` repeats the same press, then waits past the build u
 `Level=2`, `Building=none`, and `Upgrade=Affordable` again, and the screenshot shows the pending
 ring gone.
 
+**FR-5's `--dump-state` line format**, settled at kickoff 29-07-2026: the per-base line gains one
+final field, `Type=`, written after `Building=` with every other field unchanged in name, order, and
+meaning - `Base 1: Owner=Human Garrison=12 Level=2 Cap=40 Building=none Type=Producer`, its values
+matching the `BaseType` member names (`Producer` / `Tower`). A tower still renders `Cap=none`
+(D-28). The `Menu:` line gains three tokens after the existing `Cost=`, which keeps its name and its
+meaning of *the Upgrade cost*:
+`Menu: Base=1 Garrison=12/40 Upgrade=Affordable Cost=10 Convert=GarrisonBelowCost ConvertCost=30 ConvertTo=Tower`
+- `Convert=` one of the four `BaseActionAvailability` names, `ConvertTo=` one of `Tower` /
+`Producer`. `Menu: none` is unchanged. The per-**army** line gains nothing: `Count=` has reported
+current strength since FR-4 made `Army.UnitCount` mutable, so an army shrinking in transit is
+already observable, and FR-5 proves it with two runs dumping at different ticks rather than by adding
+a field.
+
+FR-5 adds five scripts under `qa/scripts/` - still no new directive and no new flag:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/greyed-convert-does-nothing.txt --screenshot greyed-convert.png --dump-state greyed-convert.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/convert-pending.txt --screenshot convert-pending.png --dump-state convert-pending.txt --time-scale 50
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/convert-completed.txt --screenshot convert-completed.png --dump-state convert-completed.txt --time-scale 50
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/army-shrinking-early.txt --dump-state shrink-early.txt --time-scale 50
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/army-shrinking-late.txt --dump-state shrink-late.txt --time-scale 50
+```
+
+The two `army-shrinking-*` scripts are one scenario read at two moments, exactly as
+`upgrade-pending` / `upgrade-completed` are: the human converts a front base to a tower and the AI's
+next attack flies into its range, and the later dump shows the same in-flight AI army with a strictly
+lower `Count=`.
+
 ## 3. Project layout
 
 No new projects. Within the existing ones:
@@ -379,6 +407,33 @@ the part most likely to be got wrong: production is computed in closed form acro
 (D-21a), so a period that changes mid-segment would be credited at one rate for the whole span.
 Within a tick, construction completes **before** arrivals resolve, so a base finishing an upgrade on
 the tick it is attacked defends at its new level.
+
+**Settled at FR-5's kickoff 29-07-2026: every tower's range is drawn on the map at all times, for
+both players, and it is drawn as the ellipse the rules actually describe.** MW2 publishes its
+shooting radius only as a percentage of an unstated base and says nothing about whether it is shown
+(parity **G-22**), so this is MW3's own answer. Considered: revealing a range only while that tower's
+action menu is open, which is the cleanest map and the usual selection-driven idiom - rejected
+because an *enemy* tower's reach would then never be visible at all, and routing around enemy fire is
+the whole premise FR-7 teaches the AI, so the human would be playing blind against the one thing the
+opponent can see. Considered: always-on for the human's towers only, which is a deliberate
+hidden-information position rather than a display choice, and one no source supports. Chosen:
+always, both owners, an outline in the owner's tint - the state of the board is public, as every
+garrison count already is.
+
+The second half is the part most likely to be got wrong. `Match` measures range as plain Euclidean
+distance in normalized `MapPoint` units, while `MatchScreen` maps X by viewport width and Y by
+viewport height (D-14). On a non-square viewport those disagree: the set of points actually within
+range is an **ellipse** on screen, and a circle sized from the smaller dimension - the obvious
+implementation - would draw fire reaching where it does not and failing to reach where it does. The
+drawn shape is derived from the same normalized radius the simulation uses, scaled per axis, so the
+picture cannot drift from the rule. If the two ever need to agree exactly, it is the drawing that
+follows Core, never Core that is bent to suit the drawing.
+
+**A tower is drawn as a square and a producer as a circle**, also settled at that kickoff: shape
+rather than tint, because owner is already carried by tint and a screenshot must distinguish the two
+at 1280x720 and 1808x1018. The level ring, the selection highlight, and FR-3c's construction ring
+follow the base's shape. **Hit-testing does not**: `HitTester` keeps one radius for both types, so
+which base a tap lands on never depends on what shape it happens to be drawn as (D-18).
 
 ## 5. Cross-cutting conventions
 
