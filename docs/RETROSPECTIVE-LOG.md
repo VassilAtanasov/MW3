@@ -95,3 +95,39 @@ standalone). Records outcome and lessons; never gates or reopens a shipped featu
   naming the "computed send size vs. live garrison" validation gap #24's review caught, so the next
   feature that computes a command value from live state gets checked against this pattern explicitly
   rather than relying on the reviewer to notice the asymmetry by inspection again.
+
+## 2026-07-29 — autopilot run (interrupted at #40, resumed for #36)
+- Outcome: 2 shipped (#40 build time + recapture grace, PR #43; #36 tower fire, PR #45), 0 skipped
+  for clarification, 0 circuit breakers tripped. `main` green (both PRs' CI passed before merge;
+  the two subsequent docs-only learning-log pushes each also triggered a full CI run rather than
+  being skipped, a known separate issue - see follow-ups).
+- Went well: #40's much larger surface (a new construction-state model touching commands, `Advance`'s
+  segment logic, capture, the action menu, and presentation) passed code review and QA verification
+  on the first pass with zero findings. Both features' new tests caught real bugs before shipping
+  rather than after: #36's `RecaptureGraceTests`-style reflection rigging for #40 and the dedicated
+  `ABaseConvertingToATower_FiresOnTheExactTickItsBuildCompletes` test for #36 each independently
+  proved out a same-tick ordering requirement that a looser test would have missed, and the latter
+  went on to catch the real review finding below when it was deliberately re-run against a
+  temporarily-reverted fix, confirming the test - not just the fix - was load-bearing.
+- Caused rework: #36 needed one review cycle - a Major finding (the first tower-fire implementation
+  switched `Match.Advance` to a fully per-tick loop the moment any tower existed, which also forced
+  production out of its closed-form batching for the rest of the match - directly contradicting the
+  issue's own "production stays closed-form; fire does not" criterion and this project's per-tick
+  no-allocation standard). Fixed by keeping the existing boundary-jumping segment structure and only
+  sweeping interior ticks for fire (no production call) when a tower exists, restoring one
+  closed-form production call per segment; re-approved on delta re-review with no further findings.
+  This is a shape worth naming for next time: a feature that must run *something* every tick is not
+  the same requirement as running *everything* every tick - only the tick-sensitive piece needs the
+  fine-grained path, the rest should keep whatever coarser-grained path it already had.
+- Follow-ups filed: #46 `BaseActionMenu`'s cache-invalidation guard (`GarrisonCount`/`Level` only)
+  will miss a construction or type change once FR-5 wires up the convert button - flagged by
+  code-reviewer on #40 as non-blocking at the time, filed here so it isn't forgotten before FR-5.
+  A second gap - `ci.yml` actually runs full CI on docs-only pushes to `main` despite CLAUDE.md
+  claiming a `docs/**` path-ignore, observed repeatedly this run (the #40 and #36 learning-log
+  commits each triggered a redundant run) - was flagged as a background-task suggestion mid-run
+  rather than filed as a GitHub issue here, and the user has already started that fix in a separate
+  session.
+- Process adjustments applied: none to `CLAUDE.md`/`docs/CONVENTIONS.md` this run - the production-
+  batching finding is closer to a one-off algorithmic subtlety of this specific feature (mixing a
+  closed-form span computation with a per-tick requirement) than a recurring pattern with an obvious
+  standing rule to add; noting it in this log is judged sufficient unless it recurs.
