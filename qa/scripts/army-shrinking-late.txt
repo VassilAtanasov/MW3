@@ -1,0 +1,15 @@
+# Same run as army-shrinking-early.txt, waited a little further: Army 30 (Source=2, Target=0, same
+# launch/arrival ticks as the earlier dump) now shows a strictly lower Count= - the tower's fire
+# during transit is the only feedback this feature draws (no projectile, no floating damage number).
+# Run with --time-scale 10 (see convert-pending.txt for why).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.176563 0.281944
+25 up 0.176563 0.281944
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075000 0.281944
+335 up 0.075000 0.281944
+480 wait

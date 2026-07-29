@@ -49,6 +49,18 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         {
             _scriptedInput = new ScriptedInputSource(scriptDirectives);
             _input = _scriptedInput;
+
+            // MonoGame's default fixed timestep can call Update() more than once per Draw() to
+            // catch up on accumulated real time, or occasionally drop a step, when a frame runs
+            // slow (host load, first-frame JIT/texture costs). Scripted playback counts elapsed
+            // Update() calls (ScriptedInputSource._currentFrame) to know when to fire a directive
+            // and when to stop, so a variable call count made two runs of the same script diverge
+            // by a few ticks even after pairing every call with a fixed nominal step (below) -
+            // observed as a non-byte-identical screenshot on individual re-runs of
+            // qa/scripts/army-shrinking-early.txt. Disabling the fixed step for scripted runs pairs
+            // Update and Draw 1:1 with no catch-up, so the call count is exactly the script's own
+            // frame count and nothing else. Unscripted play is unaffected.
+            IsFixedTimeStep = false;
         }
         else
         {
@@ -88,12 +100,23 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         ArgumentNullException.ThrowIfNull(gameTime);
 
         // Screens receive only the elapsed millisecond count, never GameTime itself, so no screen
-        // can reach for a wall-clock member (D-12). MonoGame's fixed timestep (the default) makes
-        // this value identical on every Update call, which is what keeps a --script run's frame
-        // count alone determining the total elapsed time deterministically. --time-scale (FR-7)
-        // multiplies this value only - the tick sequence it produces is exactly the one real-time
-        // play would, just delivered sooner; no rule or behaviour changes, only how fast it arrives.
-        var elapsedMilliseconds = (long)gameTime.ElapsedGameTime.TotalMilliseconds * _timeScale;
+        // can reach for a wall-clock member (D-12). --time-scale (FR-7) multiplies this value only -
+        // the tick sequence it produces is exactly the one real-time play would, just delivered
+        // sooner; no rule or behaviour changes, only how fast it arrives.
+        //
+        // Under scripted playback, this reads TargetElapsedTime rather than the measured
+        // gameTime.ElapsedGameTime. The two are equal in the common case (MonoGame's fixed timestep
+        // targets a constant step), but MonoGame's catch-up accumulator can occasionally deliver one
+        // Update call with a slightly different ElapsedGameTime under host load, which --time-scale
+        // then amplifies into a several-tick discrepancy between otherwise-identical runs of the same
+        // script - observed as a non-byte-identical screenshot for a script re-run individually
+        // (qa/scripts/army-shrinking-early.txt). A script's frame count (how many Update calls have
+        // happened) is exact regardless of that accumulator's internal bookkeeping, so anchoring
+        // scripted ticks to the nominal step instead of the measured one removes the jitter without
+        // touching real, unscripted play at all.
+        var elapsedMilliseconds = _scriptedInput is not null
+            ? (long)TargetElapsedTime.TotalMilliseconds * _timeScale
+            : (long)gameTime.ElapsedGameTime.TotalMilliseconds * _timeScale;
         var backRequestedExit = _screenManager.Update(_input, GraphicsDevice.Viewport, elapsedMilliseconds);
 
         // Outside scripted playback, a back request on the last screen exits immediately - there

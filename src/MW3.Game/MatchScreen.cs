@@ -7,8 +7,9 @@ using MW3.Core;
 namespace MW3.Game;
 
 /// <summary>
-/// Draws the match live: one circle per base, tinted by owner, with its rising garrison count, plus
-/// the drag interaction that sends armies (FR-5). Owns a fresh <see cref="Match"/> and a fresh
+/// Draws the match live: a circle per producer base and a square per tower base (FR-5), tinted by
+/// owner, with its rising garrison count, plus the drag interaction that sends armies. Owns a fresh
+/// <see cref="Match"/> and a fresh
 /// <see cref="MatchRunner"/> (with a fresh AI brain) per instance, so pushing this screen always
 /// starts a new match against a new opponent. Presentation reads and commands write: this class
 /// reads <see cref="Match"/> state directly to draw it, but advances and submits commands only
@@ -29,6 +30,19 @@ internal sealed class MatchScreen : IScreen
 
     private SpriteFont? _font;
     private Texture2D? _circleTexture;
+
+    // Towers are squares, producers stay circles (FR-5) - one extra texture, stretched by Rectangle
+    // sizing exactly like the circle already is, never allocated per frame.
+    private Texture2D? _squareTexture;
+
+    // A tower's range is drawn as an outline (an annulus: transparent center, opaque rim) stretched
+    // by a non-uniform Rectangle into an ellipse - the same stretch trick the circle texture already
+    // uses for the base fill and its rings, applied here to map Core's normalized-space circular
+    // range onto the viewport's non-square pixel aspect (FR-5). Created once, disposed alongside the
+    // other textures.
+    private Texture2D? _rangeRingTexture;
+    private const float _rangeRingInnerFraction = 0.94f;
+    private static readonly Color _rangeRingBaseColor = Color.White;
 
     // Garrison text is formatted only when a base's count actually changes (at most once every
     // production period per base, and not at all while it sits at its cap), not on every Draw call
@@ -84,6 +98,8 @@ internal sealed class MatchScreen : IScreen
 
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
+        _squareTexture = CreateSquareTexture(graphicsDevice, diameter: 128);
+        _rangeRingTexture = CreateRingTexture(graphicsDevice, diameter: 128, innerFraction: _rangeRingInnerFraction);
         _buttonTexture = CreateButtonTexture(graphicsDevice);
 
         _garrisonText = new string[_match.Bases.Count];
@@ -331,7 +347,8 @@ internal sealed class MatchScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_font is null || _circleTexture is null || _garrisonText is null || _lastGarrisonCount is null)
+        if (_font is null || _circleTexture is null || _squareTexture is null || _rangeRingTexture is null
+            || _garrisonText is null || _lastGarrisonCount is null)
         {
             return;
         }
@@ -345,16 +362,22 @@ internal sealed class MatchScreen : IScreen
             var b = bases[i];
             var center = new Vector2((float)(b.Position.X * viewport.Width), (float)(b.Position.Y * viewport.Height));
 
+            // Shape follows the base's current, committed type (b.Type) - never a pending
+            // conversion's target type, which only takes effect at Advance's completion tick (D-30,
+            // FR-3c). A base converting into a tower stays a circle with no range until then; one
+            // converting back to a producer stays a square with its range drawn right up to then.
+            var shapeTexture = b.Type == BaseType.Tower ? _squareTexture : _circleTexture;
+
             if (b.Id == _selectedSourceBaseId)
             {
                 var highlightRadius = radius * _selectionHighlightScale;
                 var highlightDiameter = (int)(highlightRadius * 2);
                 var highlightDestination = new Rectangle(
                     (int)(center.X - highlightRadius), (int)(center.Y - highlightRadius), highlightDiameter, highlightDiameter);
-                spriteBatch.Draw(_circleTexture, highlightDestination, _selectionHighlightColor);
+                spriteBatch.Draw(shapeTexture, highlightDestination, _selectionHighlightColor);
             }
 
-            // The level ring is drawn first, as a larger copy of the same circle in a darker shade of
+            // The level ring is drawn first, as a larger copy of the same shape in a darker shade of
             // the owner's tint, so the fill drawn on top of it leaves exactly a ring of that shade
             // visible around the rim - three thicknesses distinguishable at both target resolutions,
             // with no per-level literal here (the fraction lives in LevelTable, D-22).
@@ -363,7 +386,7 @@ internal sealed class MatchScreen : IScreen
             var ringDiameter = (int)(ringRadius * 2);
             var ringDestination = new Rectangle(
                 (int)(center.X - ringRadius), (int)(center.Y - ringRadius), ringDiameter, ringDiameter);
-            spriteBatch.Draw(_circleTexture, ringDestination, DarkenOwnerColor(GetOwnerColor(b.Owner)));
+            spriteBatch.Draw(shapeTexture, ringDestination, DarkenOwnerColor(GetOwnerColor(b.Owner)));
 
             // A base under construction (D-30, FR-3c) draws one further ring, outside the level ring,
             // in a fixed colour - distinguishable from both its current level (the darker ring just
@@ -378,11 +401,29 @@ internal sealed class MatchScreen : IScreen
                     (int)(center.Y - constructionRingRadius),
                     constructionRingDiameter,
                     constructionRingDiameter);
-                spriteBatch.Draw(_circleTexture, constructionRingDestination, _constructionRingColor);
+                spriteBatch.Draw(shapeTexture, constructionRingDestination, _constructionRingColor);
+            }
+
+            // Every tower's range is drawn always, both owners, as an outline in the owner's tint -
+            // read from LevelTable, never a literal here (FR-5). Core's range is a Euclidean distance
+            // in normalized MapPoint units where X and Y both span 0..1, so a circle of radius R maps
+            // to an ellipse of half-width R*viewport.Width and half-height R*viewport.Height on
+            // screen - the same stretch-a-circle-into-a-Rectangle trick the base shapes already use.
+            if (b.Type == BaseType.Tower)
+            {
+                var rangeUnits = LevelTable.Tower.RangeUnits(b.Level);
+                var rangeHalfWidth = (float)(rangeUnits * viewport.Width);
+                var rangeHalfHeight = (float)(rangeUnits * viewport.Height);
+                var rangeDestination = new Rectangle(
+                    (int)(center.X - rangeHalfWidth),
+                    (int)(center.Y - rangeHalfHeight),
+                    (int)(rangeHalfWidth * 2),
+                    (int)(rangeHalfHeight * 2));
+                spriteBatch.Draw(_rangeRingTexture, rangeDestination, GetOwnerColor(b.Owner));
             }
 
             var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
-            spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(b.Owner));
+            spriteBatch.Draw(shapeTexture, destination, GetOwnerColor(b.Owner));
 
             if (_lastGarrisonCount[i] != b.GarrisonCount)
             {
@@ -503,7 +544,7 @@ internal sealed class MatchScreen : IScreen
             var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
             var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
             writer.WriteLine(FormattableString.Invariant(
-                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap} {FormatBuildingField(b)}"));
+                $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap} {FormatBuildingField(b)} Type={b.Type}"));
         }
 
         foreach (var army in _match.ArmiesInFlight)
@@ -536,20 +577,23 @@ internal sealed class MatchScreen : IScreen
         }
 
         var anchorBase = FindBase(_openMenu.BaseId);
-        var action = _openMenu.Actions.Count > 0 ? _openMenu.Actions[0] : null;
-        if (anchorBase is null || action is null)
+        var upgrade = _openMenu.Actions.Count > 0 ? _openMenu.Actions[0] : null;
+        var convert = _openMenu.Actions.Count > 1 ? _openMenu.Actions[1] : null;
+        if (anchorBase is null || upgrade is null || convert is null)
         {
             return "Menu: none";
         }
 
         var cap = anchorBase.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
         return FormattableString.Invariant(
-            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{cap} Upgrade={action.Availability} Cost={action.Cost}");
+            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{cap} Upgrade={upgrade.Availability} Cost={upgrade.Cost} Convert={convert.Availability} ConvertCost={convert.Cost} ConvertTo={convert.ConvertTargetType}");
     }
 
     public void Dispose()
     {
         _circleTexture?.Dispose();
+        _squareTexture?.Dispose();
+        _rangeRingTexture?.Dispose();
         _buttonTexture?.Dispose();
     }
 
@@ -581,6 +625,45 @@ internal sealed class MatchScreen : IScreen
             {
                 var distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
                 data[(y * diameter) + x] = distance <= radius ? Color.White : Color.Transparent;
+            }
+        }
+
+        texture.SetData(data);
+        return texture;
+    }
+
+    private static Texture2D CreateSquareTexture(GraphicsDevice graphicsDevice, int diameter)
+    {
+        var texture = new Texture2D(graphicsDevice, diameter, diameter);
+        var data = new Color[diameter * diameter];
+        for (var j = 0; j < data.Length; j++)
+        {
+            data[j] = Color.White;
+        }
+
+        texture.SetData(data);
+        return texture;
+    }
+
+    /// <summary>
+    /// An annulus: transparent everywhere except a ring within <paramref name="innerFraction"/> of
+    /// the outer radius, opaque there - stretched non-uniformly at draw time into an ellipse to
+    /// render a tower's range (FR-5).
+    /// </summary>
+    private static Texture2D CreateRingTexture(GraphicsDevice graphicsDevice, int diameter, float innerFraction)
+    {
+        var texture = new Texture2D(graphicsDevice, diameter, diameter);
+        var data = new Color[diameter * diameter];
+        var radius = diameter / 2f;
+        var innerRadius = radius * innerFraction;
+        var center = new Vector2(radius, radius);
+
+        for (var y = 0; y < diameter; y++)
+        {
+            for (var x = 0; x < diameter; x++)
+            {
+                var distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                data[(y * diameter) + x] = distance <= radius && distance >= innerRadius ? _rangeRingBaseColor : Color.Transparent;
             }
         }
 
