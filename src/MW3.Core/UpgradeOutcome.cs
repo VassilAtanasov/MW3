@@ -11,6 +11,7 @@ public enum UpgradeOutcome
     BaseNotFound,
     BaseNotOwnedByIssuer,
     AlreadyAtMaxLevel,
+    UnderConstruction,
     GarrisonBelowCost,
     MatchAlreadyDecided,
 }

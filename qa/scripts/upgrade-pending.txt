@@ -1,0 +1,11 @@
+# Tap Play, open the human base's action menu, press its Upgrade button (starts the 100-tick / 5 s
+# build and deducts the cost immediately), then reopen the menu straight away so the reply shows the
+# button greyed while building. Run without --time-scale so playback finishes well inside the build.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.120000 0.260000
+25 up 0.120000 0.260000
+30 down 0.120000 0.500000
+35 up 0.120000 0.500000

@@ -28,6 +28,29 @@ public sealed class Base
     public Player? Owner { get; internal set; }
 
     /// <summary>
+    /// This base's construction in progress, or null if it is not building anything (D-30, FR-3c).
+    /// Set by an accepted <see cref="UpgradeCommand"/> or <see cref="ConvertCommand"/>, cleared by
+    /// <see cref="Match.Advance"/> on completion or discarded outright on capture - never cancelled
+    /// any other way, since the rules offer no cancel.
+    /// </summary>
+    public PendingConstruction? Construction { get; internal set; }
+
+    /// <summary>
+    /// The tick this base last changed owner, or null if it never has. Compared against the current
+    /// tick to decide the recapture grace (D-30, FR-3c) - a remembered tick rather than a countdown,
+    /// so it needs no per-tick stepping and survives irregular chunking (D-12).
+    /// </summary>
+    public long? LastOwnerChangeTick { get; internal set; }
+
+    /// <summary>
+    /// The owner this base had immediately before <see cref="LastOwnerChangeTick"/>, or null if that
+    /// owner was neutral (or if the base has never changed owner). A capture within
+    /// <see cref="LevelTable.RecaptureGraceTicks"/> skips the usual demotion only when the capturing
+    /// player equals this value - a true retake, not merely any capture within the window.
+    /// </summary>
+    public Player? OwnerBeforeLastChange { get; internal set; }
+
+    /// <summary>
     /// This base's level, between <see cref="LevelTable.MinLevel"/> and this base's own
     /// <see cref="MaxLevel"/>. Raised one step at a time by an <see cref="UpgradeCommand"/>, and
     /// dropped one step (never below the minimum) when the base is captured - the structure

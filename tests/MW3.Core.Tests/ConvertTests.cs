@@ -13,7 +13,7 @@ public class ConvertTests
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
 
     [Fact]
-    public void Convert_ToTower_SubtractsCost_SetsTheType_AndResetsTheLevel()
+    public void Convert_SubtractsTheCostImmediately_ButOnlySetsTheTypeOnCompletion()
     {
         var match = new Match();
         var humanBase = HumanBase(match);
@@ -23,23 +23,36 @@ public class ConvertTests
         var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
 
         Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(10, humanBase.GarrisonCount); // paid immediately
+        Assert.Equal(BaseType.Producer, humanBase.Type); // still a producer - the type change is delayed (D-30)
+        Assert.Equal(3, humanBase.Level); // level reset is delayed too
+        Assert.NotNull(humanBase.Construction);
+
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+
         Assert.Equal(BaseType.Tower, humanBase.Type);
         Assert.Equal(LevelTable.MinLevel, humanBase.Level);
-        Assert.Equal(10, humanBase.GarrisonCount);
+        Assert.Null(humanBase.Construction);
     }
 
     [Fact]
-    public void Convert_BackToProducer_ResetsLevelAndZeroesProgress_StartingAFreshPeriod()
+    public void Convert_BackToProducer_ResetsLevelAndZeroesProgress_OnlyOnCompletion()
     {
         var match = new Match();
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, 70); // leaves room below the level-1 cap after both conversion costs
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
         SetLevel(humanBase, 3);
 
         var outcome = match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Producer));
-
         Assert.Equal(ConvertOutcome.Accepted, outcome);
+        Assert.Equal(BaseType.Tower, humanBase.Type); // still a tower while this conversion builds
+        Assert.Equal(3, humanBase.Level);
+
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+
         Assert.Equal(BaseType.Producer, humanBase.Type);
         Assert.Equal(LevelTable.MinLevel, humanBase.Level);
         Assert.Equal(0, humanBase.ProductionProgressTicks);
@@ -60,6 +73,8 @@ public class ConvertTests
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, 40);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
         SetLevel(humanBase, 3);
         var garrison = humanBase.GarrisonCount;
 
@@ -75,6 +90,8 @@ public class ConvertTests
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, LevelTable.ConversionCost);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
 
         for (var i = 0; i < 5; i++)
         {
@@ -98,16 +115,20 @@ public class ConvertTests
         SetGarrison(humanBase, 38);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
         Assert.Equal(8, humanBase.GarrisonCount);
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
         Assert.Null(humanBase.GarrisonCap); // a tower has no cap at all - not even a very high one
 
+        var beforeReinforce = humanBase.GarrisonCount;
         SetGarrison(neutral, 20);
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
         AdvanceToNextArrival(match);
 
-        Assert.Equal(23, humanBase.GarrisonCount); // all 15 arrived - there is no cap to clamp against
+        Assert.Equal(beforeReinforce + 15, humanBase.GarrisonCount); // all 15 arrived - there is no cap to clamp against
 
+        var afterReinforce = humanBase.GarrisonCount;
         match.Advance(1000);
-        Assert.Equal(23, humanBase.GarrisonCount); // still a tower: nothing produced, nothing destroyed
+        Assert.Equal(afterReinforce, humanBase.GarrisonCount); // still a tower: nothing produced, nothing destroyed
     }
 
     [Fact]
@@ -118,11 +139,14 @@ public class ConvertTests
         var neutral = match.Bases.First(b => b.Owner is null);
         SetGarrison(humanBase, 40);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
+        var garrisonBeforeSend = humanBase.GarrisonCount;
 
         var outcome = match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 5));
 
         Assert.Equal(SendArmyOutcome.Accepted, outcome);
-        Assert.Equal(5, humanBase.GarrisonCount);
+        Assert.Equal(garrisonBeforeSend - 5, humanBase.GarrisonCount);
     }
 
     [Fact]
@@ -132,13 +156,17 @@ public class ConvertTests
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, 60);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
-        Assert.Equal(30, humanBase.GarrisonCount);
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
+        var afterConversion = humanBase.GarrisonCount;
 
         var outcome = match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id));
-
         Assert.Equal(UpgradeOutcome.Accepted, outcome);
+        Assert.Equal(afterConversion - LevelTable.UpgradeCost(BaseType.Tower, LevelTable.MinLevel), humanBase.GarrisonCount);
+
+        match.Advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel));
+
         Assert.Equal(LevelTable.MinLevel + 1, humanBase.Level);
-        Assert.Equal(30 - LevelTable.UpgradeCost(BaseType.Tower, LevelTable.MinLevel), humanBase.GarrisonCount);
 
         var afterUpgrade = humanBase.GarrisonCount;
         match.Advance(1000);
@@ -156,7 +184,9 @@ public class ConvertTests
         var aiBase = AiBase(match);
         SetGarrison(aiBase, 35);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
-        Assert.Equal(5, aiBase.GarrisonCount);
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, aiBase.Type);
+        SetGarrison(aiBase, 5);
 
         SetGarrison(humanBase, 40);
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 10)));
@@ -177,6 +207,8 @@ public class ConvertTests
 
         SetGarrison(aiBase, 40);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, aiBase.Type);
         SetLevel(aiBase, 3);
         SetGarrison(aiBase, 1);
         SetGarrison(humanBase, 40);
@@ -246,7 +278,12 @@ public class ConvertTests
 
         Assert.Equal(MatchOutcome.InProgress, match.Outcome);
         Assert.Equal(match.HumanPlayer, humanBase.Owner);
-        Assert.Equal(5, humanBase.GarrisonCount); // 35 - 30 conversion cost, unchanged: it never produces
+        Assert.Equal(BaseType.Tower, humanBase.Type);
+
+        // 35 - 30 conversion cost = 5, plus exactly one unit produced at the still-current level-1
+        // rate during the 100-tick build itself (D-30) - then nothing at all for the remaining 1900
+        // ticks once it is a tower.
+        Assert.Equal(6, humanBase.GarrisonCount);
     }
 
     [Fact]
@@ -294,6 +331,21 @@ public class ConvertTests
         Assert.Equal(
             ConvertOutcome.AlreadyOfTargetType,
             match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Producer)));
+        Assert.Equal(before, Snapshot(match));
+    }
+
+    [Fact]
+    public void Convert_AlreadyUnderConstruction_IsRejected_LeavingStateUntouched()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+        SetGarrison(humanBase, 40);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        var before = Snapshot(match);
+
+        Assert.Equal(
+            ConvertOutcome.UnderConstruction,
+            match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
         Assert.Equal(before, Snapshot(match));
     }
 
@@ -363,8 +415,9 @@ public class ConvertTests
         SetGarrison(humanBase, LevelTable.ConversionCost);
 
         var outcome = runner.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower));
-
         Assert.Equal(ConvertOutcome.Accepted, outcome);
+
+        runner.Advance(LevelTable.ConversionBuildDurationTicks);
         Assert.Equal(BaseType.Tower, humanBase.Type);
     }
 
@@ -375,6 +428,8 @@ public class ConvertTests
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, 40);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, humanBase.Id, BaseType.Tower)));
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+        Assert.Equal(BaseType.Tower, humanBase.Type);
 
         var action = Assert.Single(match.AvailableActions(match.HumanPlayer, humanBase.Id));
 

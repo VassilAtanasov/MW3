@@ -20,20 +20,38 @@ public class ConvertDeterminismTests
         var humanBase = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var aiBase = match.Bases.Single(b => b.Owner == match.AiPlayer);
 
+        // The human base upgrades too, early, so its cap (and so its eventual attacking force) is
+        // large enough to take a level-2 tower (170% defence) at the end of the script however
+        // little the AI's own spending has left it holding.
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+
         // The AI base must earn its way up to level 3 first: a level-1 village's cap (20) cannot
         // afford the 30-unit conversion cost, and the garrison left over after converting must still
         // cover the tower's own 20-unit upgrade cost.
         advance(60); // level 1 at 60 ticks/unit: 10 + 1 = 11
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, aiBase.Id)));
+        advance(LevelTable.UpgradeBuildDurationTicks(1)); // the 100-tick build completes: level 2
+        Assert.Equal(2, aiBase.Level);
 
-        advance(720); // level 2 at 30 ticks/unit: 6 + 24 = 30
+        advance(720);
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, aiBase.Id)));
+        advance(LevelTable.UpgradeBuildDurationTicks(2)); // the 200-tick build completes: level 3
+        Assert.Equal(3, aiBase.Level);
 
-        advance(600); // level 3 at 20 ticks/unit: 20 + 30 = 50
+        advance(600);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
-        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, aiBase.Id)));
+        advance(LevelTable.ConversionBuildDurationTicks); // the 100-tick build completes: a level-1 tower
+        Assert.Equal(BaseType.Tower, aiBase.Type);
+        Assert.Equal(LevelTable.MinLevel, aiBase.Level);
 
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 5)));
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.AiPlayer, aiBase.Id)));
+        advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel)); // the tower's own 100-tick build: level 2
+        Assert.Equal(2, aiBase.Level);
+
+        // The human base has sat at its level-1 cap of 20 for a long while by this point in the
+        // script - send the whole garrison, comfortably enough to take a level-2 tower (170%
+        // defence) however small a garrison the AI's own spending has left it holding.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, humanBase.GarrisonCount)));
         advance(400); // long enough for the send to land and the capture to resolve
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner); // the capture really happened

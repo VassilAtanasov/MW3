@@ -33,6 +33,44 @@ public static class LevelTable
     public const int ConversionCost = 30;
 
     /// <summary>
+    /// Ticks a conversion takes to complete (D-30, FR-3c), identical in both directions. 100 ticks at
+    /// the 50 ms tick is 5 seconds (<c>MW2-RULES.md</c> §2.2, §2.3 - the Time column is identical for
+    /// villages and towers).
+    /// </summary>
+    public const long ConversionBuildDurationTicks = 100;
+
+    /// <summary>
+    /// The recapture grace window (D-30, FR-3c, <c>MW2-RULES.md</c> §2.5): a capture that retakes a
+    /// base from the player who held it immediately before its last owner change, within this many
+    /// ticks of that change, skips the usual one-level demotion. 20 ticks at the 50 ms tick is 1 second.
+    /// </summary>
+    public const long RecaptureGraceTicks = 20;
+
+    // Ticks to raise a base from fromLevel to fromLevel+1, indexed by fromLevel - MinLevel. Identical
+    // for villages and towers (MW2-RULES.md §2.2, §2.3): 100/200/300 ticks = 5/10/15 seconds for
+    // levels 2/3/4. Both ladders' MaxUpgradableLevel tops out at 4, so fromLevel never exceeds 3 here.
+    private static readonly long[] _upgradeBuildDurationTicks = { 100, 200, 300 };
+
+    /// <summary>
+    /// Ticks an upgrade from <paramref name="fromLevel"/> takes to complete (D-30, FR-3c). Shared by
+    /// both ladders - MW2 publishes the same Time column for villages and towers - so unlike
+    /// <see cref="UpgradeCost(BaseType, int)"/> this is not split per type.
+    /// </summary>
+    public static long UpgradeBuildDurationTicks(int fromLevel)
+    {
+        if (fromLevel < MinLevel || fromLevel > MinLevel + _upgradeBuildDurationTicks.Length - 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(fromLevel),
+                fromLevel,
+                FormattableString.Invariant(
+                    $"Upgrade build duration is defined only for levels {MinLevel} to {MinLevel + _upgradeBuildDurationTicks.Length - 1}."));
+        }
+
+        return _upgradeBuildDurationTicks[fromLevel - MinLevel];
+    }
+
+    /// <summary>
     /// The village ladder: five levels, garrison caps <c>20 × level</c>, production periods giving
     /// <c>0.33 × level</c> units/sec at a 50 ms tick, upgrade costs 5/10/20 to reach levels 2/3/4
     /// (<c>MW2-RULES.md</c> §2.2). Level 5 is defined - its cap and period exist - but is not

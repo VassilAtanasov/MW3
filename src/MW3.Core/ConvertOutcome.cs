@@ -12,6 +12,7 @@ public enum ConvertOutcome
     BaseNotFound,
     BaseNotOwnedByIssuer,
     AlreadyOfTargetType,
+    UnderConstruction,
     GarrisonBelowCost,
     MatchAlreadyDecided,
 }
