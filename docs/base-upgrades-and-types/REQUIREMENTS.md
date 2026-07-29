@@ -209,8 +209,11 @@ nothing, so that the second base type exists as rules. Core only; shooting is FR
     ladder, which gave every base type the same cap column. Arrivals still stack above any garrison
     total exactly as D-21 already allows, cap or no cap.
   - Acceptance: a tower is a base in every other respect this phase touches — reinforced, attacked,
-    captured, upgraded, and sent from — with combat staying phase 2's plain 1:1 arithmetic and no
-    defence bonus of any kind (D-15, D-22), and no tower branch added to the send path.
+    captured, upgraded, and sent from — and no tower branch is added to the send path.
+    **Corrected by FR-3b** (29-07-2026): a tower does not fight with no defence bonus. Combat stayed
+    phase 2's plain 1:1 arithmetic only until FR-3b shipped; a tower now defends at its level's
+    percentage (140→200%) exactly as D-29 describes, which is the whole reason a tower is a
+    defensive structure rather than one that merely trades production for range.
   - Acceptance: `UpgradeCommand` is accepted on a tower at the same costs from the same table: the
     level rises by one and the base still produces nothing. For a tower a level buys fire period and
     range, which FR-4 reads; here it is asserted as the level changing while production stays zero.
@@ -510,11 +513,12 @@ decisions the opponent also makes. Extends phase 2's three-clause brain rather t
 
 ### Tuning values
 
-**FR-3a has merged (29-07-2026): the table below is now the one in force.** The staging ladder
-that shipped with FR-1, FR-2, and FR-3 is retired — kept below only as a historical record of what
-FR-3a replaced and why it was tuned that way, not as anything a caller may still read from. Every
-tuning number in `MW3.Core`, in a test, and in a `qa/scripts/` budget now comes from the table this
-section documents as current.
+**FR-3a and FR-3b have both merged (29-07-2026): the table below is now the one in force.** The
+staging ladder that shipped with FR-1, FR-2, and FR-3 is retired — kept below only as a historical
+record of what FR-3a replaced and why it was tuned that way, not as anything a caller may still read
+from. Every tuning number in `MW3.Core`, in a test, and in a `qa/scripts/` budget now comes from the
+table this section documents as current, including FR-3b's defence percentages and its
+`Bu = (a/d) × Wu` combat formula.
 
 #### Superseded by FR-3a on 29-07-2026 (the former staging ladder)
 
@@ -538,24 +542,31 @@ single `LevelTable` split, because MW2's two building types have different ladde
 lengths.
 
 Villages — capacity is `20 × level`, production `0.33 × level` units/sec, which at 50 ms is exactly
-`60 / level` ticks:
+`60 / level` ticks. The **Defence** column is FR-3b's (merged 29-07-2026, `MW2-RULES.md` §2.2):
 
-| Village level | Garrison cap | Ticks per unit produced | Cost to reach this level |
+| Village level | Garrison cap | Ticks per unit produced | Cost to reach this level | Defence |
+|---|---|---|---|---|
+| 1 | 20 | 60 | — (starting level) | 100% |
+| 2 | 40 | 30 | 5 units | 110% |
+| 3 | 60 | 20 | 10 units | 120% |
+| 4 | 80 | 15 | 20 units | 130% |
+| 5 | 100 | 12 | **not reachable by upgrading** | 140% |
+
+Towers — four levels, a flat 20 units per upgrade, **no garrison cap at all**, and (FR-3b, §2.3) a
+defence percentage that already matches or beats a fully upgraded village at level 1:
+
+| Tower level | Cost to reach this level | Garrison cap | Defence |
 |---|---|---|---|
-| 1 | 20 | 60 | — (starting level) |
-| 2 | 40 | 30 | 5 units |
-| 3 | 60 | 20 | 10 units |
-| 4 | 80 | 15 | 20 units |
-| 5 | 100 | 12 | **not reachable by upgrading** |
+| 1 | — (arrived at by conversion) | none | 140% |
+| 2 | 20 units | none | 170% |
+| 3 | 20 units | none | 190% |
+| 4 | 20 units | none | 200% |
 
-Towers — four levels, a flat 20 units per upgrade, and **no garrison cap at all**:
-
-| Tower level | Cost to reach this level | Garrison cap |
-|---|---|---|
-| 1 | — (arrived at by conversion) | none |
-| 2 | 20 units | none |
-| 3 | 20 units | none |
-| 4 | 20 units | none |
+**Combat resolves by `Bu = (a/d) × Wu`** (FR-3b, merged 29-07-2026), not phase 2's plain 1:1: the
+attacker captures iff `Wu × a > Du × d`, integer cross-multiplication with no rounding in the
+decision. `a` (attacker) and `d` (defender) each compose the defence percentage above with a morale
+and a forge contribution, both fixed at 100 until parity gaps **G-1** and **G-6** exist. At `a = d =
+100%` (every level-1 producer) this is bit-identical to phase 2's 1:1 arithmetic.
 
 The tower's **gunnery columns arrive with FR-4**, the feature that reads them, exactly as FR-3
 deferred them before: ranges 0.20 / 0.22 / 0.25 / 0.28 and fire periods 6 / 5 / 4 / 3 ticks at one

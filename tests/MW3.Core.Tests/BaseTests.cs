@@ -13,6 +13,7 @@ public class BaseTests
         Assert.Equal(
             new[]
             {
+                nameof(Base.DefencePercentage),
                 nameof(Base.GarrisonCap),
                 nameof(Base.GarrisonCount),
                 nameof(Base.Id),

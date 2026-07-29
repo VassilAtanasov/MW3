@@ -192,4 +192,50 @@ public class LevelTableTests
     {
         Assert.True(LevelTable.Village.GarrisonCap(LevelTable.MinLevel) < LevelTable.ConversionCost);
     }
+
+    [Theory]
+    [InlineData(1, 100)]
+    [InlineData(2, 110)]
+    [InlineData(3, 120)]
+    [InlineData(4, 130)]
+    [InlineData(5, 140)]
+    public void Village_DefencePercentage_MatchesTheAgreedLadder(int level, int expectedPercent)
+    {
+        Assert.Equal(expectedPercent, LevelTable.Village.DefencePercentage(level));
+        Assert.Equal(expectedPercent, LevelTable.DefencePercentage(BaseType.Producer, level));
+    }
+
+    [Theory]
+    [InlineData(1, 140)]
+    [InlineData(2, 170)]
+    [InlineData(3, 190)]
+    [InlineData(4, 200)]
+    public void Tower_DefencePercentage_MatchesTheAgreedLadder(int level, int expectedPercent)
+    {
+        Assert.Equal(expectedPercent, LevelTable.Tower.DefencePercentage(level));
+        Assert.Equal(expectedPercent, LevelTable.DefencePercentage(BaseType.Tower, level));
+    }
+
+    /// <summary>
+    /// The reference's own stated consequence (D-29): a level-1 tower defends exactly as well as a
+    /// fully upgraded village, which is what makes a tower a defensive structure rather than one that
+    /// merely trades production for range.
+    /// </summary>
+    [Fact]
+    public void LevelOneTower_AndLevelFiveVillage_DefendIdentically()
+    {
+        Assert.Equal(
+            LevelTable.Village.DefencePercentage(LevelTable.Village.MaxLevel),
+            LevelTable.Tower.DefencePercentage(LevelTable.MinLevel));
+    }
+
+    /// <summary>A neutral base is a level-1 producer, so taking neutrals is unchanged by D-29.</summary>
+    [Fact]
+    public void NeutralBase_DefendsAtOneHundredPercent()
+    {
+        var match = new Match();
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        Assert.Equal(100, neutral.DefencePercentage);
+    }
 }
