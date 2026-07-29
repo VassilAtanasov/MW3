@@ -1,0 +1,9 @@
+# Tap Play, then the human issues no further command at all - no other down, no up - while the AI
+# plays uninterrupted for a long time-scaled run: reaches its garrison cap, upgrades on its next
+# decision tick, and the build completes. Run with --time-scale 50 so the several-hundred-tick
+# wait fits in a handful of scripted frames. The dump shows an AI-owned base at Level=2 or better
+# while every human base stays at Level=1, so the upgrade is unambiguously the AI's own economy
+# decision (FR-6, D-31).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+90 wait

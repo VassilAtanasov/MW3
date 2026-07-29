@@ -64,6 +64,48 @@ public class MatchRunnerTests
     }
 
     [Fact]
+    public void AiBaseThatReachesItsCap_UpgradesOnTheNextDecisionTick_AndCompletesToLevelTwo()
+    {
+        var match = new Match();
+        var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
+        var aiBase = match.Bases.Single(b => b.Owner == match.AiPlayer);
+
+        var cap = LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel)!.Value;
+        typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(aiBase, new object?[] { cap });
+
+        runner.Advance(MatchRunner.DecisionIntervalTicks); // first decision tick: the saturated base upgrades
+
+        Assert.NotNull(aiBase.Construction);
+        Assert.Equal(cap - LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), aiBase.GarrisonCount);
+        Assert.Equal(LevelTable.MinLevel, aiBase.Level); // benefit still delayed (D-30)
+
+        runner.Advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel));
+
+        Assert.Null(aiBase.Construction);
+        Assert.Equal(LevelTable.MinLevel + 1, aiBase.Level);
+        Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel + 1), aiBase.GarrisonCap);
+    }
+
+    [Fact]
+    public void AiLaddersPastLevelTwo_ReachingLevelThreeOnAtLeastOneBase_OverALongMatch()
+    {
+        var match = new Match();
+        var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
+
+        for (var elapsed = 0L; elapsed < 20_000 && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)
+        {
+            runner.Advance(MatchRunner.DecisionIntervalTicks);
+
+            if (match.Bases.Any(b => b.Owner == match.AiPlayer && b.Level >= 3))
+            {
+                return;
+            }
+        }
+
+        Assert.Fail("No AI base reached level 3 within the budget.");
+    }
+
+    [Fact]
     public void PassiveHuman_AiCapturesEveryBase_WithinFiveThousandTickBudget()
     {
         var match = new Match();
@@ -110,7 +152,15 @@ public class MatchRunnerTests
 
             if (decision.HasCommand)
             {
-                match.Execute(decision.Command);
+                if (decision.IsUpgrade)
+                {
+                    match.Execute(decision.Upgrade);
+                }
+                else
+                {
+                    match.Execute(decision.Command);
+                }
+
                 lastCommandTick = tick;
             }
             else if (ownsMultipleBases && hasGrowableBase)

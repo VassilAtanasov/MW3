@@ -263,7 +263,7 @@ src/MW3.Core/
   HitTester.cs             "which base is at this point" - pure, unit tested (D-18)
   IPlayerBrain.cs          AI seam, implemented by AiBrain (D-16)
   BrainDecision.cs         "no command" vs exactly one SendArmyCommand, in the type system
-  AiBrain.cs               the three-clause heuristic: defend, attack, consolidate
+  AiBrain.cs               the four-clause heuristic: defend, upgrade, attack, consolidate
   MatchRunner.cs           owns Match + the AI brain; the only thing that Advance()s and Execute()s
   MatchOutcome.cs          in progress / human victory / human defeat (D-13)
 src/MW3.Game/

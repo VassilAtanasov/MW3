@@ -183,7 +183,7 @@ src/MW3.Core/
   ConvertCommand.cs        producer <-> tower, both directions, reversible (D-23)
   BaseAction.cs            one offerable action + its cost + whether it is affordable
   MatchRunner.cs           unchanged in shape; routes the two new command types
-  AiBrain.cs               gains clauses for upgrading and converting (FR-6)
+  AiBrain.cs               gains a clause for upgrading (FR-6)
 src/MW3.Game/
   MatchScreen.cs           draws level, cap, type, range, army strength; hosts the menu
   BaseActionMenu.cs        layout, drawing, and button hit-testing - decides nothing (D-25)

@@ -1,8 +1,8 @@
 namespace MW3.Core;
 
 /// <summary>
-/// The AI opponent's brain (D-16, FR-6): three clauses evaluated in priority order - defend,
-/// attack, consolidate - the first that produces a command wins. Every send is
+/// The AI opponent's brain (D-16, FR-6): four clauses evaluated in priority order - defend,
+/// upgrade, attack, consolidate - the first that produces a command wins. Every send is
 /// <c>floor(garrison / 2)</c> clamped to a minimum of 1, identical to the human's rule, so the AI
 /// can express nothing a human could not. No lookahead beyond one decision and no randomness
 /// (D-15): every clause is a fresh, deterministic read of the match as it stands right now.
@@ -31,6 +31,12 @@ public sealed class AiBrain : IPlayerBrain
         var ownBases = CollectOwnBasesAscendingById(match);
 
         var decision = TryDefend(match, ownBases);
+        if (decision.HasCommand)
+        {
+            return decision;
+        }
+
+        decision = TryUpgrade(match, ownBases);
         if (decision.HasCommand)
         {
             return decision;
@@ -98,6 +104,113 @@ public sealed class AiBrain : IPlayerBrain
         return source is null
             ? BrainDecision.None
             : BrainDecision.Send(new SendArmyCommand(Player, source.Id, threatened.Id, ClampedSendSize(source.GarrisonCount)));
+    }
+
+    /// <summary>
+    /// Clause 2 (D-31): a saturated base's production has already stopped earning, so spend its
+    /// surplus on a level instead. A base is a candidate only when it is owned by this player, its
+    /// garrison is at or above its cap (a tower's cap is empty, so a tower never qualifies - the
+    /// empty case, never a sentinel comparison), it is not already under construction, its level is
+    /// below <see cref="Base.MaxUpgradableLevel"/>, its garrison covers <see cref="Base.UpgradeCost"/>,
+    /// and no enemy army is in flight to it (the cost is paid immediately while the level lands
+    /// 100+ ticks later, D-30, so upgrading under attack can hand over a capture it would have
+    /// held). Among candidates, upgrades the safest: the one whose nearest not-owned base is
+    /// furthest away, ties broken by lowest id - the consolidate clause's front distance read the
+    /// other way round (one distance rule, two clauses).
+    /// </summary>
+    private BrainDecision TryUpgrade(Match match, List<Base> ownBases)
+    {
+        Base? best = null;
+        var bestDistance = -1.0;
+
+        foreach (var candidate in ownBases)
+        {
+            if (!IsUpgradeCandidate(match, candidate))
+            {
+                continue;
+            }
+
+            var nearestNotOwnedDistance = NearestNotOwnedDistance(match, candidate);
+
+            // ownBases is ascending by id, so a strictly-greater distance is the only way to
+            // replace the current pick - an equal distance leaves the lower id in place.
+            if (nearestNotOwnedDistance > bestDistance)
+            {
+                best = candidate;
+                bestDistance = nearestNotOwnedDistance;
+            }
+        }
+
+        return best is null
+            ? BrainDecision.None
+            : BrainDecision.Upgrading(new UpgradeCommand(Player, best.Id));
+    }
+
+    private bool IsUpgradeCandidate(Match match, Base candidate)
+    {
+        var cap = candidate.GarrisonCap;
+        if (cap is null || candidate.GarrisonCount < cap.Value)
+        {
+            return false;
+        }
+
+        if (candidate.Construction is not null)
+        {
+            return false;
+        }
+
+        if (candidate.Level >= candidate.MaxUpgradableLevel)
+        {
+            return false;
+        }
+
+        if (candidate.GarrisonCount < candidate.UpgradeCost)
+        {
+            return false;
+        }
+
+        return !AnyEnemyArmyInFlightTo(match, candidate.Id);
+    }
+
+    private bool AnyEnemyArmyInFlightTo(Match match, int baseId)
+    {
+        var armies = match.ArmiesInFlight;
+        for (var i = 0; i < armies.Count; i++)
+        {
+            if (armies[i].TargetBaseId == baseId && armies[i].Owner != Player)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The distance from <paramref name="from"/> to the nearest base this player does not own -
+    /// shared by the consolidate clause (nearest is the front) and the upgrade clause (furthest is
+    /// safest), per D-31: one distance rule, not two.
+    /// </summary>
+    private double NearestNotOwnedDistance(Match match, Base from)
+    {
+        var allBases = match.Bases;
+        var nearest = double.MaxValue;
+
+        for (var i = 0; i < allBases.Count; i++)
+        {
+            if (allBases[i].Owner == Player)
+            {
+                continue;
+            }
+
+            var distance = Distance(from.Position, allBases[i].Position);
+            if (distance < nearest)
+            {
+                nearest = distance;
+            }
+        }
+
+        return nearest;
     }
 
     /// <summary>
@@ -171,33 +284,19 @@ public sealed class AiBrain : IPlayerBrain
             return BrainDecision.None;
         }
 
-        var allBases = match.Bases;
         Base? front = null;
         var frontDistance = double.MaxValue;
 
         foreach (var candidate in ownBases)
         {
-            var nearestEnemyDistance = double.MaxValue;
-            for (var i = 0; i < allBases.Count; i++)
-            {
-                if (allBases[i].Owner == Player)
-                {
-                    continue;
-                }
-
-                var distance = Distance(candidate.Position, allBases[i].Position);
-                if (distance < nearestEnemyDistance)
-                {
-                    nearestEnemyDistance = distance;
-                }
-            }
+            var nearestNotOwnedDistance = NearestNotOwnedDistance(match, candidate);
 
             // ownBases is ascending by id, so a strictly-smaller distance is the only way to
             // replace the current front - an equal distance leaves the lower id in place.
-            if (nearestEnemyDistance < frontDistance)
+            if (nearestNotOwnedDistance < frontDistance)
             {
                 front = candidate;
-                frontDistance = nearestEnemyDistance;
+                frontDistance = nearestNotOwnedDistance;
             }
         }
 
@@ -288,7 +387,7 @@ public sealed class AiBrain : IPlayerBrain
 
     /// <summary>
     /// A base's garrison as of <paramref name="futureTick"/> if nothing else changes: unowned bases
-    /// never produce, so only an owned base's count grows - through
+    /// and towers (D-24) never produce, so only an owned producer's count grows - through
     /// <see cref="ProductionCalculator"/>, the same arithmetic <see cref="Match"/> itself applies,
     /// rather than a second copy of it. Sharing it is what keeps the prediction honest about the
     /// garrison cap: extrapolating past a base's ceiling would have the AI credit a defender with
@@ -296,7 +395,7 @@ public sealed class AiBrain : IPlayerBrain
     /// </summary>
     private static int PredictGarrison(Base b, long currentTick, long futureTick)
     {
-        if (b.Owner is null)
+        if (b.Owner is null || b.Type == BaseType.Tower)
         {
             return b.GarrisonCount;
         }
