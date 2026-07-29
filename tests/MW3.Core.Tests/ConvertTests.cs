@@ -188,12 +188,20 @@ public class ConvertTests
         Assert.Equal(BaseType.Tower, aiBase.Type);
         SetGarrison(aiBase, 5);
 
+        // A big enough wave that the tower's own fire during the flight (FR-4) - some fixed number
+        // of units, independent of the wave's size - still leaves enough to take the base; the
+        // survivor count is read from the army itself rather than hardcoded, since it now depends on
+        // the tower's range and period as well as the send.
         SetGarrison(humanBase, 40);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 10)));
-        AdvanceToNextArrival(match);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 20)));
+        var army = match.ArmiesInFlight.Single();
+        match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
+        var survivingAttackers = army.UnitCount;
+        Assert.True(survivingAttackers < 20, "the tower should have shot down at least one unit before arrival");
+        match.Advance(1);
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
-        Assert.Equal(2, aiBase.GarrisonCount); // (10*100 - 5*140) / 140 = 300/140 = 2, floored
+        Assert.Equal(((survivingAttackers * 100) - (5 * 140)) / 140, aiBase.GarrisonCount); // Bu = (a/d) x Wu, a=100, d=140
         Assert.Equal(BaseType.Tower, aiBase.Type); // capture keeps the type
         Assert.Equal(LevelTable.MinLevel, aiBase.Level); // was already level 1, floors there
     }

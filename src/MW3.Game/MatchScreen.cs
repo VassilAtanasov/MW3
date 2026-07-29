@@ -36,9 +36,12 @@ internal sealed class MatchScreen : IScreen
     private string[]? _garrisonText;
     private int[]? _lastGarrisonCount;
 
-    // An army's unit count never changes in flight (D-12), so its text is formatted once ever and
-    // cached by army id rather than reformatted every frame.
-    private readonly Dictionary<int, string> _armyUnitText = new();
+    // An army's unit count can now drop while it is in flight (FR-4, a tower shooting it down), so
+    // its text is cached alongside the count it was formatted from and only reformatted when that
+    // count has actually changed - not on every Draw call (docs/CONVENTIONS.md's no-per-frame-
+    // allocation rule), and not assuming the premise D-12 originally stated for this cache, which
+    // this feature is the one that reverses.
+    private readonly Dictionary<int, (string Text, int Count)> _armyUnitText = new();
 
     // Reused scratch buffer for PruneResolvedArmyText, so pruning stale cache entries allocates
     // nothing beyond its own one-time growth.
@@ -467,11 +470,13 @@ internal sealed class MatchScreen : IScreen
             var destination = new Rectangle((int)(center.X - armyRadius), (int)(center.Y - armyRadius), armyDiameter, armyDiameter);
             spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(army.Owner));
 
-            if (!_armyUnitText.TryGetValue(army.Id, out var text))
+            if (!_armyUnitText.TryGetValue(army.Id, out var cached) || cached.Count != army.UnitCount)
             {
-                text = army.UnitCount.ToString(CultureInfo.InvariantCulture);
-                _armyUnitText[army.Id] = text;
+                cached = (army.UnitCount.ToString(CultureInfo.InvariantCulture), army.UnitCount);
+                _armyUnitText[army.Id] = cached;
             }
+
+            var text = cached.Text;
 
             var unscaledSize = _font.MeasureString(text);
             var textScale = (armyDiameter * 0.5f) / unscaledSize.Y;

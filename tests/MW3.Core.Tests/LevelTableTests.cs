@@ -238,4 +238,85 @@ public class LevelTableTests
 
         Assert.Equal(100, neutral.DefencePercentage);
     }
+
+    [Theory]
+    [InlineData(1, 0.20)]
+    [InlineData(2, 0.22)]
+    [InlineData(3, 0.25)]
+    [InlineData(4, 0.28)]
+    public void Tower_RangeUnits_MatchesTheAgreedLadder(int level, double expectedRange)
+    {
+        Assert.Equal(expectedRange, LevelTable.Tower.RangeUnits(level));
+    }
+
+    [Theory]
+    [InlineData(1, 6)]
+    [InlineData(2, 5)]
+    [InlineData(3, 4)]
+    [InlineData(4, 3)]
+    public void Tower_FirePeriodTicks_MatchesTheAgreedLadder(int level, long expectedPeriod)
+    {
+        Assert.Equal(expectedPeriod, LevelTable.Tower.FirePeriodTicks(level));
+    }
+
+    [Fact]
+    public void Tower_RangeUnits_StrictlyIncreasesWithLevel()
+    {
+        for (var level = LevelTable.MinLevel; level < LevelTable.Tower.MaxLevel; level++)
+        {
+            Assert.True(LevelTable.Tower.RangeUnits(level + 1) > LevelTable.Tower.RangeUnits(level));
+        }
+    }
+
+    [Fact]
+    public void Tower_FirePeriodTicks_StrictlyDecreasesWithLevel()
+    {
+        for (var level = LevelTable.MinLevel; level < LevelTable.Tower.MaxLevel; level++)
+        {
+            Assert.True(LevelTable.Tower.FirePeriodTicks(level + 1) < LevelTable.Tower.FirePeriodTicks(level));
+        }
+    }
+
+    /// <summary>
+    /// Every range stays at or below the map's own closest base-to-base distance, and below a home
+    /// base's distance to its nearest neutral - so a tower guards its own approach rather than
+    /// reaching a neighbouring base (FR-4). Computed from the real map through the public
+    /// <see cref="Base.Position"/> surface rather than a hardcoded literal, since the map itself is
+    /// an internal implementation detail this test has no other way to reach.
+    /// </summary>
+    [Fact]
+    public void Tower_EveryRange_StaysWithinTheMapsOwnGeometry()
+    {
+        var match = new Match();
+        var bases = match.Bases;
+
+        var closestPairDistance = double.MaxValue;
+        for (var i = 0; i < bases.Count; i++)
+        {
+            for (var j = i + 1; j < bases.Count; j++)
+            {
+                var distance = Distance(bases[i].Position, bases[j].Position);
+                if (distance < closestPairDistance)
+                {
+                    closestPairDistance = distance;
+                }
+            }
+        }
+
+        var humanBase = bases.Single(b => b.Owner == match.HumanPlayer);
+        var nearestNeutralDistance = bases.Where(b => b.Owner is null).Min(b => Distance(humanBase.Position, b.Position));
+
+        for (var level = LevelTable.MinLevel; level <= LevelTable.Tower.MaxLevel; level++)
+        {
+            Assert.True(LevelTable.Tower.RangeUnits(level) <= closestPairDistance);
+            Assert.True(LevelTable.Tower.RangeUnits(level) < nearestNeutralDistance);
+        }
+    }
+
+    private static double Distance(MapPoint a, MapPoint b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt((dx * dx) + (dy * dy));
+    }
 }

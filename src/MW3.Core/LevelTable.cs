@@ -158,6 +158,17 @@ public static class LevelTable
         // production for range.
         private static readonly int[] _defencePercentages = { 140, 170, 190, 200 };
 
+        // 100/110/125/140% of a level-1 anchor of 0.20 (MW2-RULES.md §2.3's published radius
+        // *ratios* applied to an MW3-chosen base, parity G-22) - normalized map units, D-2. Every
+        // value stays at or below 0.30 (the map's closest base-to-base distance) and below 0.34 (a
+        // home base to its nearest neutral), asserted against the real map in LevelTableTests.
+        private static readonly double[] _rangeUnits = { 0.20, 0.22, 0.25, 0.28 };
+
+        // MW3's own numbers (parity G-13): MW2 never publishes tower damage or rate of fire, and
+        // MW2-RULES.md §2.3's "shooting speed" column is marked [?] and is most likely projectile
+        // speed, not fire rate - unusable as a tuning input. One unit removed per shot (FR-4).
+        private static readonly long[] _firePeriodTicks = { 6, 5, 4, 3 };
+
         public static int UpgradeCost(int fromLevel)
         {
             if (fromLevel < MinLevel || fromLevel >= MaxLevel)
@@ -174,6 +185,12 @@ public static class LevelTable
         public static double RingThicknessFractionOfRadius(int level) => _ringThicknessFractionOfRadius[IndexOfLevel(level, MaxLevel)];
 
         public static int DefencePercentage(int level) => _defencePercentages[IndexOfLevel(level, MaxLevel)];
+
+        /// <summary>The range, in normalized map units, within which this level's tower fires at an enemy army (FR-4).</summary>
+        public static double RangeUnits(int level) => _rangeUnits[IndexOfLevel(level, MaxLevel)];
+
+        /// <summary>Ticks between shots at this level, once a target is in range (FR-4). One unit removed per shot.</summary>
+        public static long FirePeriodTicks(int level) => _firePeriodTicks[IndexOfLevel(level, MaxLevel)];
     }
 
     /// <summary>
