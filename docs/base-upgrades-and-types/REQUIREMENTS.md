@@ -588,13 +588,77 @@ whether or not a menu is opened (D-26). Kicked off 29-07-2026.
     stays `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and
     `./gate.ps1` both pass.
 
-FR-6 (wf: 7eea0544b808): The developer can face an AI opponent that upgrades its own bases and stops
-pouring production into a capped one, so that the economy decision this phase adds is a decision the
-opponent also makes. Extends phase 2's three-clause brain rather than replacing it. Core-only; no new
-drawing, no new script directive. Pure economy — does not need to reason about enemy positions.
-Building or converting towers, and routing around an enemy tower's range, is FR-7's job, split out
-28-07-2026 discovery because it is a materially different kind of reasoning (spatial awareness of
-enemy defenses) than upgrading is, and bundling both risked an oversized PR.
+FR-6 (wf: 7eea0544b808, issue #49): The developer can face an AI opponent that upgrades its own bases
+and stops pouring production into a capped one, so that the economy decision this phase adds is a
+decision the opponent also makes. Extends phase 2's three-clause brain rather than replacing it.
+Core-only; no new drawing, no new script directive. Pure economy — does not need to reason about
+enemy positions. Building or converting towers, and routing around an enemy tower's range, is FR-7's
+job, split out 28-07-2026 in discovery because it is a materially different kind of reasoning
+(spatial awareness of enemy defences) than upgrading is, and bundling both risked an oversized PR.
+Kicked off 29-07-2026.
+  - Acceptance: `BrainDecision` carries **either** a `SendArmyCommand` **or** an `UpgradeCommand`,
+    still at most one command per decision (D-16), distinguished in the type system — never a null, a
+    sentinel, a list, a bool discriminant, or a second `IPlayerBrain` method. FR-7 extends the same
+    seam with convert, so the shape must admit a third case without another rewrite. `MatchRunner`
+    dispatches to the matching `Match.Execute` overload and remains the only submitter; `AiBrain`
+    still never executes and never mutates.
+  - Acceptance: clause order becomes **defend → upgrade → attack → consolidate** (D-31). Placing
+    upgrade after consolidate would make it unreachable, since consolidate fires whenever the AI
+    holds two or more bases and its front is untargeted.
+  - Acceptance: a base is an upgrade candidate only when all of these hold, each asserted separately
+    — owned by this brain's player; garrison **at or above its garrison cap**; it has a cap at all;
+    not under construction; level below `MaxUpgradableLevel`; garrison at least the next level's
+    cost; and no enemy army in flight to it. The "has a cap at all" test is explicit: `GarrisonCap`
+    is empty for a tower (D-28), so a tower is never a candidate by the empty case rather than by a
+    sentinel comparison that happens to be true.
+  - Acceptance: the threatened-base guard stands alone — the cost is deducted immediately while the
+    benefit lands 100+ ticks later (FR-3c), so a base upgrading under attack can hand over a capture
+    it would have held. A capped, affordable, otherwise-valid base with an incoming enemy army
+    produces no upgrade that decision.
+  - Acceptance: among candidates the AI upgrades the **safest** — the one whose nearest not-owned
+    base is furthest away, ties by lowest id. This is the consolidate clause's own
+    nearest-not-owned-base distance read the other way round, so the brain carries one distance rule
+    rather than two: consolidate feeds the front, upgrade develops the rear.
+  - Acceptance: over a full headless match **every** command the brain produces is accepted by
+    `Match.Execute` — no rejection of any kind, asserted by a test that fails on any non-acceptance
+    outcome. The AI-side counterpart of D-25 and of phase 2 #24's standing note in
+    `docs/CONVENTIONS.md`.
+  - Acceptance: `PredictGarrison` respects base type — a tower never produces, so its predicted
+    garrison is its current garrison. A live defect the moment FR-5 (#48) merges and the human can
+    build towers: the brain calls the village-only `ProductionCalculator` for every owned base, which
+    would inflate a tower defender and make the AI refuse attacks it would win. The window between
+    the two merges is accepted, exactly as FR-4 accepted the AI flying through tower fire until FR-7.
+    Prediction still shares one copy of the production arithmetic with the simulation.
+  - Acceptance: **no rule forbidding the AI to reinforce a capped base.** D-21 makes the cap a
+    production ceiling and blesses massing above it as strategy; a clause refusing to stage units
+    would contradict a shipped decision. "Respects garrison caps" means spending a saturated base's
+    surplus on a level and never predicting past a ceiling — not avoiding stacking.
+  - Acceptance: an AI base reaching its cap upgrades on the next decision tick — command accepted,
+    garrison down by exactly the cost, `Building=UpgradeToLevel2@<tick>` recorded, and after
+    completion the base is level 2 at cap 40 on a 30-tick period, asserted as a board state. In a
+    long match at least one AI base reaches level 3, proving the clause re-fires as each new cap
+    saturates rather than firing once.
+  - Acceptance (success criterion 5 gets its test): a headless match in which the human upgrades its
+    home base and then issues no further command does not hand the human a win — the AI upgrades at
+    least one base and the outcome is an AI victory. Phase 2's passive-human defeat test is extended
+    rather than duplicated, its budget re-stated if this clause changes it.
+  - Acceptance: determinism (D-12) across single-call and irregular-chunk advances for levels,
+    garrisons, construction, owners, and outcome, on a run where one decision tick issues an upgrade
+    and another completes it. Nothing allocated per tick.
+  - Acceptance: no new dump field, script directive, flag, or presentation change — an AI upgrade is
+    already visible through `Level=`, `Cap=`, `Building=`, and FR-2's ring thickness. One new
+    `qa/scripts/` script in which the human issues nothing and the dump shows an AI base at `Level=2`
+    or better with the human's still at `Level=1`. Device criterion blocking on the MI Pad 4: an AI
+    base's ring visibly thickens against a freshly installed APK.
+  - Acceptance (corrections in the same PR): `AiBrain`'s class doc, `BrainDecision`'s doc ("exactly
+    one `SendArmyCommand`"), `ProductionCalculator`'s doc where it describes the brain's prediction,
+    `docs/core-gameplay-loop/ARCHITECTURE.md`'s "three-clause heuristic: defend, attack, consolidate",
+    and this phase's ARCHITECTURE §3 line claiming `AiBrain.cs` gains converting here — that is
+    FR-7's. **No parity gap closes**; **G-21** stays open and is not weakened.
+  - Acceptance: every pre-existing test and committed script passes in its budget; a phase-2 brain
+    expectation genuinely invalidated is re-authored in place, never weakened. `MW3.Core` stays
+    `netstandard2.1` and engine-free with no `Random` and no lookahead beyond one decision (D-15,
+    D-16); `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1` both pass.
 
 FR-7 (wf: 8804e5cd75c4): The developer can face an AI opponent that values a tower highly enough to
 convert into one, and that prefers a path or timing avoiding a costly pass through an enemy tower's

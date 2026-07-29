@@ -408,6 +408,40 @@ the part most likely to be got wrong: production is computed in closed form acro
 Within a tick, construction completes **before** arrivals resolve, so a base finishing an upgrade on
 the tick it is attacked defends at its new level.
 
+**D-31: the AI upgrades a base whose production has *stalled*, and that clause outranks attacking.**
+Added 29-07-2026 for FR-6. Two decisions, and they only work together. Clause order becomes **defend
+→ upgrade → attack → consolidate**. Considered: appending upgrade as a fourth clause, which is the
+tidiest diff — rejected because clause 3 (consolidate) fires whenever the AI holds two or more bases
+and its front is not already targeted, so a fourth clause would be close to dead code dressed as a
+feature. Considered: placing it after attack — rejected for the same reachability reason, though less
+severely. Chosen: second, ahead of attack. The obvious objection is that an AI which grows before it
+strikes gives away early tempo and free neutrals, which is the opposite of REQUIREMENTS §3's success
+criterion 5 — and that objection is answered by the *gate*, not by the ordering.
+
+The gate is saturation: a base is a candidate only when its garrison is **at or above its cap**,
+which means its production has already stopped earning. Upgrading it is the move that literally
+un-stalls the economy, and it preempts an attack only in the state where striking is the weaker play
+anyway. So "upgrade outranks attack" is narrow in practice rather than passive. Every other condition
+is a rejection the brain must not walk into: not under construction, level below the upgradable
+maximum, garrison at least the next cost, and **no enemy army in flight to it** — the cost is
+deducted immediately while the benefit lands 100+ ticks later (D-30), so a base upgrading under
+attack can hand over a capture it would have held.
+
+Two consequences worth stating. A tower is never an upgrade candidate under this clause, and it falls
+out of the cap test rather than needing a type check: `GarrisonCap` is *empty* for a tower (D-28), so
+"at or above its cap" has no answer — handled as the empty case, never by a sentinel comparison that
+happens to be true. And the target rule reuses geometry the brain already has: among candidates, the
+one whose nearest not-owned base is **furthest** away, which is the consolidate clause's front
+calculation read the other way round. One distance rule, two clauses — consolidate feeds the front,
+upgrade develops the rear.
+
+**What this deliberately does not add**: any rule against reinforcing a base at its cap. D-21 makes
+the cap a production ceiling and explicitly blesses massing above it as strategy rather than a leak,
+so a clause refusing to stage units would contradict a shipped decision. "Respects garrison caps"
+means the AI spends a saturated base's surplus and never predicts past a ceiling — not that it avoids
+stacking. `BrainDecision` widens to carry either a send or an upgrade, still at most one command per
+decision (D-16), in a shape that admits FR-7's convert as a third case without another rewrite.
+
 **Settled at FR-5's kickoff 29-07-2026: every tower's range is drawn on the map at all times, for
 both players, and it is drawn as the ellipse the rules actually describe.** MW2 publishes its
 shooting radius only as a percentage of an unstated base and says nothing about whether it is shown
