@@ -232,10 +232,14 @@ These run without a human gate and never block or reopen a feature:
 - Active project: **Base upgrades and types** (`docs/base-upgrades-and-types/`), discovered
   28-07-2026. Phases 1 and 2 are both complete — phase 1's FR-4 APK artifact shipped as issue #21,
   and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. Phase 3's
-  board is **20**; FR-1 (#30), FR-2 (#32), and FR-3 (#34) are merged, and FR-4 is kicked off as
-  issue #36 but not started. Discovery on 28-07-2026 inserted the MW2 correction features **FR-3a,
-  FR-3b, and FR-3c** between FR-3 and FR-4 — none kicked off yet, and they are the next work.
-  FR-4/5/6 are pending re-discovery on top of them; see the phase 3 table below.
+  board is **20**; FR-1 (#30), FR-2 (#32), FR-3 (#34), FR-3a (#38), FR-3b (#39), FR-3c (#40), and
+  FR-4 (#36) are all merged (FR-4 merged 29-07-2026 as PR #45). There are no open `feature`-labelled
+  issues right now. FR-5 and FR-6 were re-discovered on 29-07-2026 against the merged correction —
+  FR-5's slice held unchanged, and FR-6 ("upgrades, converts, respects caps") was split: FR-6 is now
+  economy-only (upgrade, respect caps) and a new **FR-7** takes building/converting towers and
+  routing around enemy ranges, since that is a materially different kind of reasoning and the
+  bundle risked an oversized PR. Next work is `/kickoff` on FR-5, in dependency order, then FR-6,
+  then FR-7.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -304,7 +308,8 @@ Phase 3 features, in dependency order (`/kickoff` one at a time):
 | 3c | Build time for upgrades and conversions, and the one-second recapture grace | `a4c8cacb426a` |
 | 4 | Towers shoot enemy armies passing within range, in the core rules | `b7427e502078` (issue #36) |
 | 5 | The action menu gains convert, and towers, ranges, and transit losses drawn | `b6e8bc28daa9` |
-| 6 | The AI opponent upgrades, converts, and respects garrison caps | `7eea0544b808` |
+| 6 | The AI opponent upgrades its own bases and respects garrison caps | `7eea0544b808` |
+| 7 | The AI opponent builds towers and routes armies around enemy ranges | `8804e5cd75c4` |
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it
@@ -312,9 +317,10 @@ with MW2's literal economy on a 50 ms tick, give levels a defence percentage wit
 `Bu = (a/d) × Wu`, and add build time plus the one-second recapture grace. They close parity gaps
 G-7 (partly), G-8, G-9, G-10, G-11, G-12, and G-14. Three consequences bind everything after them:
 
-- **FR-4, FR-5, and FR-6 are pending re-discovery** and must not be built as currently written.
-  Issue **#36 (FR-4) is kicked off but has no branch and no code**, so its kickoff is re-run rather
-  than corrected.
+- **FR-4 was re-kicked-off** against these three (issue #36 had no branch and no code, so its
+  kickoff was re-run rather than corrected) and has since merged. **FR-5 and FR-6 were re-discovered
+  on 29-07-2026**: FR-5's slice was confirmed unchanged; FR-6 was split into economy-only FR-6 and a
+  new spatial-reasoning FR-7 (builds towers, routes around enemy ranges) that depends on it.
 - **Every tick count in the codebase doubles** at FR-3a (100 ms → 50 ms, army speed 0.02 → 0.01).
   Re-authoring tests and `qa/scripts/` budgets against the new numbers is expected work for these
   features; a test *weakened* rather than re-authored is still a defect.

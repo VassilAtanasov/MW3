@@ -413,12 +413,18 @@ construction. **Depends on FR-3a (#38)** for the tick rate every duration is exp
     `netstandard2.1` and engine-free; `dotnet build MW3.slnx -warnaserror -m:1` and `./gate.ps1`
     both pass.
 
-> **FR-5 and FR-6 below are pending re-discovery** (28-07-2026). They were settled against phase 3's
-> staging economy, and FR-3a/b/c change the ladder, the tick rate, and combat underneath them.
-> Nothing in them may be built as-is.
->
 > **FR-4 has been re-kicked-off** (28-07-2026) and its entry below is current. Issue #36 was updated
-> in place rather than replaced, since it was still Todo with no branch and no code.
+> in place rather than replaced, since it was still Todo with no branch and no code. It has since
+> merged (29-07-2026, issue #36 / PR #45).
+>
+> **FR-5 and FR-6 were re-discovered** (29-07-2026), after FR-3a/b/c and FR-4 merged. FR-5's slice
+> was confirmed unchanged — everything FR-3a/b/c added (the five/four-level ladder, the deliberate
+> under-construction ring, the fourth menu availability state) was already drawn by the feature that
+> introduced it, so FR-5 still owes only the convert button, tower/range visuals, and the shrinking
+> army count. FR-6 was found to be oversized — "upgrades, converts, respects caps" bundled a pure
+> economy decision with the AI's spatial reasoning about enemy tower positions — and was split in
+> two: **FR-6** now covers only upgrading and respecting caps, and the AI building/converting towers
+> and routing around enemy ranges moves to a new **FR-7**, which depends on FR-6.
 
 FR-4 (wf: b7427e502078, issue #36): The developer can have a tower fire on enemy armies passing
 within its range, removing units from them in transit and destroying them outright when their count
@@ -509,9 +515,19 @@ a tower drawn distinguishably from a producer, see a tower's range on screen, an
 count shrink as it is shot in transit — so that everything FR-3 and FR-4 added is visible and
 reachable. Adds no rule of its own.
 
-FR-6 (wf: 7eea0544b808): The player can face an AI opponent that upgrades its bases, builds and
-un-builds towers, and stops pouring production into a capped base, so that the new decisions are
-decisions the opponent also makes. Extends phase 2's three-clause brain rather than replacing it.
+FR-6 (wf: 7eea0544b808): The developer can face an AI opponent that upgrades its own bases and stops
+pouring production into a capped one, so that the economy decision this phase adds is a decision the
+opponent also makes. Extends phase 2's three-clause brain rather than replacing it. Core-only; no new
+drawing, no new script directive. Pure economy — does not need to reason about enemy positions.
+Building or converting towers, and routing around an enemy tower's range, is FR-7's job, split out
+28-07-2026 discovery because it is a materially different kind of reasoning (spatial awareness of
+enemy defenses) than upgrading is, and bundling both risked an oversized PR.
+
+FR-7 (wf: 8804e5cd75c4): The developer can face an AI opponent that values a tower highly enough to
+convert into one, and that prefers a path or timing avoiding a costly pass through an enemy tower's
+range when a cheaper option exists, so that towers are a real threat against the AI and not just the
+human. **Depends on FR-6.** Core-only; no new drawing, no new script directive. Until this ships the
+AI is expected to fly armies straight through tower fire — accepted through FR-4, not a defect.
 
 ### Tuning values
 
