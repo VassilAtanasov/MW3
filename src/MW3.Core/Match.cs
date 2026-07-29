@@ -329,62 +329,60 @@ public sealed class Match
 
         while (true)
         {
-            // Tower fire (FR-4) must be evaluated on every single tick, not skipped the way
-            // production is computed in closed form over a span - so while any owned tower exists,
-            // the rest of this Advance call switches to a per-tick path. A conversion completing
-            // mid-call can create the first tower partway through; re-checking at the top of every
-            // segment (the only place a completion boundary can land) is what catches that.
-            if (HasAnyOwnedTower())
-            {
-                AdvanceTickByTick(targetElapsedTicks);
-                return;
-            }
-
             var nextBoundaryTick = EarliestBoundaryTickUpTo(targetElapsedTicks);
             var segmentEnd = nextBoundaryTick ?? targetElapsedTicks;
+            var segmentStart = ElapsedTicks;
 
-            ApplyProduction(ElapsedTicks, segmentEnd);
+            // Tower fire (FR-4) must be evaluated on every single tick, not skipped the way
+            // production is computed in closed form over a span - but production itself must stay
+            // closed-form regardless (a naive per-tick production call here was a real regression:
+            // it silently abandoned batching for the rest of the match the moment any tower existed).
+            // So while an owned tower exists, sweep every interior tick strictly before this
+            // segment's boundary for fire only; the boundary tick's own fire check happens below,
+            // after construction completion, exactly as the no-tower path already did.
+            if (HasAnyOwnedTower())
+            {
+                for (var tick = segmentStart + 1; tick < segmentEnd; tick++)
+                {
+                    EvaluateTowerFireAtTick(tick);
+                    EvaluateOutcome();
+
+                    if (Outcome != MatchOutcome.InProgress)
+                    {
+                        ApplyProduction(segmentStart, tick);
+                        ElapsedTicks = tick;
+                        return;
+                    }
+                }
+            }
+
+            ApplyProduction(segmentStart, segmentEnd);
             ElapsedTicks = segmentEnd;
 
             if (nextBoundaryTick is null)
             {
+                // Reached the requested total with no arrival or completion due: if a tower exists,
+                // this final tick still needs its own fire check - the sweep above stops one short
+                // of it on purpose, since a real boundary would still need construction completed
+                // first, but there is no boundary here at all.
+                if (HasAnyOwnedTower())
+                {
+                    EvaluateTowerFireAtTick(segmentEnd);
+                    EvaluateOutcome();
+                }
+
                 return;
             }
 
             // Construction completion before tower fire before arrivals (D-30, FR-3c, D-24): a base
             // finishing an upgrade or conversion on the tick it is attacked defends at its new level
             // or type, and a conversion completing into a tower on this exact tick still needs its
-            // own fire check run for this tick - the per-tick path below only takes over starting
-            // next tick, so skipping this call would silently miss the boundary tick itself.
+            // own fire check run for this same tick. The call is unconditional (safe and cheap when
+            // no tower exists at all - a single pass finding none) rather than gated, since it only
+            // ever runs once per boundary, never once per tick.
             CompleteConstructionsAtTick(ElapsedTicks);
             EvaluateTowerFireAtTick(ElapsedTicks);
             ResolveArrivalsAtTick(ElapsedTicks);
-            EvaluateOutcome();
-
-            if (Outcome != MatchOutcome.InProgress)
-            {
-                return;
-            }
-        }
-    }
-
-    /// <summary>
-    /// The per-tick path (FR-4): one tick at a time up to <paramref name="targetElapsedTicks"/>, in
-    /// the exact order construction completion -&gt; tower fire -&gt; arrivals -&gt; outcome, evaluated
-    /// on every tick rather than only at computed boundaries - required once a tower can fire, since
-    /// a tower with nothing else happening on a given tick still has to be checked on that tick.
-    /// </summary>
-    private void AdvanceTickByTick(long targetElapsedTicks)
-    {
-        while (ElapsedTicks < targetElapsedTicks)
-        {
-            var tick = ElapsedTicks + 1;
-            ApplyProduction(ElapsedTicks, tick);
-            ElapsedTicks = tick;
-
-            CompleteConstructionsAtTick(tick);
-            EvaluateTowerFireAtTick(tick);
-            ResolveArrivalsAtTick(tick);
             EvaluateOutcome();
 
             if (Outcome != MatchOutcome.InProgress)
