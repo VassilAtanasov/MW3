@@ -435,9 +435,13 @@ public sealed class Match
     /// <summary>
     /// Applies one army's arrival using the target's owner at this moment - not at launch - so a
     /// base that changed hands mid-flight is reinforced or attacked based on who holds it now.
-    /// Combat is 1:1 with no defender advantage: N attackers against M defenders leaves the base
-    /// captured by the attacker holding N - M when N &gt; M, or held by the defender holding M - N
-    /// (possibly zero) when N &lt;= M.
+    /// <para>
+    /// <b>Superseded by D-29 (FR-3b):</b> an attack no longer resolves as plain 1:1 subtraction.
+    /// Combat is <see cref="CombatResolver"/>'s <c>Bu = (a/d) × Wu</c>, so a defended base can hold
+    /// against a wave that would have captured it under the old arithmetic. Reinforcement (this
+    /// method's same-owner branch) is untouched - defence never applies to a player's own arriving
+    /// units.
+    /// </para>
     /// </summary>
     private void ResolveArrival(Army army)
     {
@@ -465,9 +469,13 @@ public sealed class Match
             return;
         }
 
-        if (army.UnitCount > target.GarrisonCount)
+        var attackerIndex = CombatResolver.ComposeAttackerIndex();
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage);
+        var result = CombatResolver.Resolve(attackerIndex, defenderIndex, army.UnitCount, target.GarrisonCount);
+
+        if (result.Captured)
         {
-            target.GarrisonCount = army.UnitCount - target.GarrisonCount;
+            target.GarrisonCount = result.RemainingGarrison;
             target.Owner = army.Owner;
 
             // The structure survives the fighting, but one level of the previous owner's
@@ -484,7 +492,7 @@ public sealed class Match
         }
         else
         {
-            target.GarrisonCount -= army.UnitCount;
+            target.GarrisonCount = result.RemainingGarrison;
         }
     }
 

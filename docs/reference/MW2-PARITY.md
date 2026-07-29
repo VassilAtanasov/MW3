@@ -10,7 +10,9 @@
 >
 > Stated by the user 28-07-2026. Reconciled against the repo the same day: phase 3 with FR-1/FR-2/FR-3
 > merged (issues #30, #32, #34) and FR-4 (#36) kicked off. Updated 29-07-2026: FR-3a (`f5f3320ec408`,
-> issue #38) merged, closing G-8 and G-14 and shipping §3's tick-rate decision.
+> issue #38) merged, closing G-8 and G-14 and shipping §3's tick-rate decision. Updated again
+> 29-07-2026: FR-3b (`f585a0868ecc`, issue #39) merged, closing G-9 and G-10 and partially closing
+> G-7.
 
 ## 0. How Ivan uses this file
 
@@ -56,6 +58,7 @@ Nothing to do. Recorded so it is not re-litigated.
 | Base action menu | MW2's radial menu ≈ MW3's arc menu (phase 3 FR-2) |
 | Village and tower ladder length | Villages have 5 levels (4 reachable by upgrading, per MW2-RULES.md §2.2's `[?]`), towers have 4 — both games. Closed **G-8**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
 | Conversion and upgrade costs | Conversion costs 30; upgrades cost 5/10/20 (villages) and a flat 20 (towers) — both games. Closed **G-14**, merged by phase 3 FR-3a (`f5f3320ec408`) 29-07-2026 |
+| Levels buy defence | Villages 100→140% (+10pp/level), towers 140→200% — both games. A level-1 tower already matches a level-5 village. Closed **G-9** and **G-10**, merged by phase 3 FR-3b (`f585a0868ecc`) 29-07-2026 |
 
 ## 2. Gaps to close 🔴
 
@@ -64,13 +67,14 @@ future phase.
 
 > **Eight of these were assigned** (28-07-2026), to three correction features sitting between FR-3
 > and FR-4 in dependency order. **FR-3a merged 29-07-2026**, closing **G-8** and **G-14** and
-> settling §3's tick-rate question — both have moved to §1. FR-3b and FR-3c remain assigned but not
-> yet merged, so **G-7** (in part), **G-9**, **G-10**, **G-11**, and **G-12** stay in this table:
+> settling §3's tick-rate question — both have moved to §1. **FR-3b merged 29-07-2026**, closing
+> **G-9** and **G-10** (moved to §1) and partially closing **G-7** (stays below - see its row).
+> FR-3c remains assigned but not yet merged, so **G-11** and **G-12** stay in this table:
 >
 > | Feature | wf | Closes |
 > |---|---|---|
 > | FR-3a — the MW2 ladder, caps, costs, and the 50 ms tick | `f5f3320ec408` | G-8, G-14, §3 — **merged** |
-> | FR-3b — levels buy defence; combat becomes `(a/d) × Wu` | `f585a0868ecc` | G-9, G-10, most of G-7 |
+> | FR-3b — levels buy defence; combat becomes `(a/d) × Wu` | `f585a0868ecc` | G-9, G-10, most of G-7 — **merged** |
 > | FR-3c — build time and the one-second recapture grace | `a4c8cacb426a` | G-11, G-12 |
 >
 > A row stays in this table until the feature closing it has **merged**, not when it is assigned.
@@ -87,14 +91,12 @@ future phase.
 | G-4 | **Heroes**: 24 across 4 tribes, 4 abilities each on a shared 500-energy pool, with slot-fixed costs and cooldowns | Nothing | Becomes **insect heroes** (§5). [MW2-HEROES.md](MW2-HEROES.md) — note §"Design patterns worth stealing" |
 | G-5 | **Energy**: 2.5/sec passive plus `0.45 × k` per unit lost attacking, where `k` rises as morale falls — so a losing player earns 5× the energy per casualty | Nothing | The game's rubber band. Depends on G-1 for `k` |
 | G-6 | **Forges**: a third building type giving a global attack/defence buff to its owner, 125–150% defence and 150–200% attack, capping at 4 | Two building types only | Phase 3 §6 forbids a third type *this phase*. Feeds the combat formula (G-7) |
-| G-7 | **Combat formula** `Bu = (a/d) × Wu`, with building defence, morale and forges stacking into `a` and `d` | Plain 1:1 | MW3 already **equals** MW2 at morale 0 with no forges and no abilities — so this gap closes largely by closing G-1 and G-6 rather than by rewriting arithmetic |
+| G-7 | **Combat formula** `Bu = (a/d) × Wu`, with building defence, morale and forges stacking into `a` and `d` | **Partially closed** by phase 3 FR-3b (`f585a0868ecc`) 29-07-2026: the resolver and building defence are live; morale and forge terms exist in the formula's signature but are fixed at identity | Stays open only because G-1 and G-6 haven't supplied a value yet — closing them populates the remaining terms rather than requiring a rewrite |
 
 ### 2.2 Medium — buildings and economy
 
 | # | MW2 | MW3 today | Notes |
 |---|---|---|---|
-| G-9 | **Levels buy defence**: villages +10pp/level (100→140%), towers 140→200% | No defence bonus at all | Phase 3 §6 refused this deliberately, to keep every phase-2 combat test meaningful. Now a gap — §4 |
-| G-10 | Towers are **far more defensible** than villages — a level-1 tower already matches a level-5 village | Towers defend identically to producers | Follows from G-9. Currently MW3's tower trades production for range only |
 | G-11 | **Build/upgrade time**: 5 / 5 / 10 / 15 s, and conversion takes time too | Instant | Settled as "no build time" at FR-3's kickoff. Now a gap — §4 |
 | G-12 | **Recapture grace**: retake a building within 1 second and it does not demote further | No such rule | Small, cheap, and a genuinely good anti-thrash rule. The same 1-second window governs the Domination loss condition |
 | G-13 | Tower shots have a **damage radius** (implied by Kenor's Explosive Shells) | 1 unit per shot, single target, closest army | MW2's own tower damage is **never published** — closing this needs observation, not research |

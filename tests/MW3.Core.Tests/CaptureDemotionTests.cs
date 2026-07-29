@@ -109,8 +109,9 @@ public class CaptureDemotionTests
         var humanBase = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var aiBase = match.Bases.Single(b => b.Owner == match.AiPlayer);
 
-        // A level-3 base (cap 50) captured by a large enough army leaves the attacker holding more
-        // than level 2's cap of 35 - so the demotion lands the base above its own new ceiling.
+        // A level-3 base (cap 50, defence 120% - D-29) captured by a large enough army leaves the
+        // attacker holding more than level 2's cap of 35 - so the demotion lands the base above its
+        // own new ceiling.
         SetLevel(aiBase, 3);
         SetGarrison(aiBase, 1);
         SetGarrison(humanBase, 100);
@@ -118,7 +119,9 @@ public class CaptureDemotionTests
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 60)));
 
         // The defender keeps producing throughout the flight, so what it holds on arrival - not
-        // what it held at launch - is what the 1:1 arithmetic subtracts from.
+        // what it held at launch - is what CombatResolver's ratio formula subtracts from. At a=100,
+        // d=120 (level 3): Wu*a = 6000, exactly divisible by d, so the surviving garrison is
+        // 6000/120 - defendersOnArrival = 50 - defendersOnArrival with no remainder to floor.
         var army = match.ArmiesInFlight.Single();
         match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
         var defendersOnArrival = aiBase.GarrisonCount;
@@ -126,7 +129,7 @@ public class CaptureDemotionTests
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
         Assert.Equal(2, aiBase.Level);
-        Assert.Equal(60 - defendersOnArrival, aiBase.GarrisonCount);
+        Assert.Equal(50 - defendersOnArrival, aiBase.GarrisonCount);
         Assert.True(aiBase.GarrisonCount > aiBase.GarrisonCap);
 
         var aboveCap = aiBase.GarrisonCount;

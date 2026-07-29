@@ -7,8 +7,10 @@ namespace MW3.Core;
 /// tuning by exponent; a table in code rather than a content file, because this phase keeps one map
 /// and one ruleset hardcoded (REQUIREMENTS.md §6).
 /// <para>
-/// A level buys economy only - capacity and production rate - never combat strength: combat stays
-/// the plain 1:1 arithmetic phase 2 established (D-15, D-22).
+/// <b>Superseded in part by D-29 (FR-3b, 29-07-2026):</b> a level no longer buys economy only. It
+/// also buys defence, read by <see cref="CombatResolver"/> rather than left at phase 2's plain 1:1
+/// arithmetic (D-15). The claim below is retained as the record of D-22's original reasoning, not as
+/// a rule still in force.
 /// </para>
 /// <para>
 /// Villages and towers are separate ladders (D-28), sourced from MW2's published economy
@@ -56,6 +58,9 @@ public static class LevelTable
         // 60/30/20/15/12 ticks at 50ms = 3.0/1.5/1.0/0.75/0.6 seconds per unit = 0.33/0.66/1.00/1.33/1.66 units/sec.
         private static readonly long[] _productionPeriodTicks = { 60, 30, 20, 15, 12 };
 
+        // +10 percentage points per level (MW2-RULES.md §2.2), D-29.
+        private static readonly int[] _defencePercentages = { 100, 110, 120, 130, 140 };
+
         // Indexed by the level being upgraded *from*, so [0] is the cost to reach level 2. The first
         // upgrade is deliberately affordable from the starting garrison of 10 without waiting, so
         // "grow first" is a live opening move rather than something a player only saves toward.
@@ -68,6 +73,8 @@ public static class LevelTable
         public static int GarrisonCap(int level) => _garrisonCaps[IndexOfLevel(level, MaxLevel)];
 
         public static long ProductionPeriodTicks(int level) => _productionPeriodTicks[IndexOfLevel(level, MaxLevel)];
+
+        public static int DefencePercentage(int level) => _defencePercentages[IndexOfLevel(level, MaxLevel)];
 
         public static int UpgradeCost(int fromLevel)
         {
@@ -108,6 +115,11 @@ public static class LevelTable
 
         private static readonly double[] _ringThicknessFractionOfRadius = { 0.05, 0.12, 0.19, 0.26 };
 
+        // 140/170/190/200% (MW2-RULES.md §2.3), D-29 - a level-1 tower already matches a level-5
+        // village, which is what makes a tower a defensive structure rather than one that trades
+        // production for range.
+        private static readonly int[] _defencePercentages = { 140, 170, 190, 200 };
+
         public static int UpgradeCost(int fromLevel)
         {
             if (fromLevel < MinLevel || fromLevel >= MaxLevel)
@@ -122,6 +134,8 @@ public static class LevelTable
         }
 
         public static double RingThicknessFractionOfRadius(int level) => _ringThicknessFractionOfRadius[IndexOfLevel(level, MaxLevel)];
+
+        public static int DefencePercentage(int level) => _defencePercentages[IndexOfLevel(level, MaxLevel)];
     }
 
     /// <summary>
@@ -172,6 +186,19 @@ public static class LevelTable
     {
         BaseType.Producer => Village.UpgradeCost(fromLevel),
         BaseType.Tower => Tower.UpgradeCost(fromLevel),
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
+    };
+
+    /// <summary>
+    /// The percentage of the flat 1:1 baseline this base defends at (D-29): 100 at a level-1
+    /// village, rising to 140 for a fully upgraded one, and 140 to 200 across the tower ladder - so a
+    /// level-1 tower already defends as well as a level-5 village. Read by
+    /// <see cref="CombatResolver"/>, never applied inline at the arrival site.
+    /// </summary>
+    public static int DefencePercentage(BaseType type, int level) => type switch
+    {
+        BaseType.Producer => Village.DefencePercentage(level),
+        BaseType.Tower => Tower.DefencePercentage(level),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 

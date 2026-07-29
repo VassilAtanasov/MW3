@@ -80,4 +80,10 @@ public sealed class Base
 
     /// <summary>How thick this base's level ring is drawn, as a fraction of its radius.</summary>
     public double RingThicknessFractionOfRadius => LevelTable.RingThicknessFractionOfRadius(Type, Level);
+
+    /// <summary>
+    /// The percentage of the flat 1:1 baseline this base defends at right now (D-29), read from its
+    /// own type and level. A level-1 tower (140%) already matches a level-5 village (140%).
+    /// </summary>
+    public int DefencePercentage => LevelTable.DefencePercentage(Type, Level);
 }

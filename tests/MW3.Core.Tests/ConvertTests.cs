@@ -146,8 +146,11 @@ public class ConvertTests
     }
 
     [Fact]
-    public void Tower_CanBeCaptured_WithPlainOneToOneCombat_AndNoDefenceBonus()
+    public void Tower_CanBeCaptured_ButDefendsAtItsLevelsDefencePercentage()
     {
+        // Superseded by D-29 (FR-3b): a level-1 tower defends at 140%, not phase 2's plain 1:1.
+        // 10 attackers (a=100) against 5 defenders (d=140): Wu*a=1000 > Du*d=700, so it still
+        // falls, but the survivor count now comes from the ratio formula, not N - M.
         var match = new Match();
         var humanBase = HumanBase(match);
         var aiBase = AiBase(match);
@@ -160,7 +163,7 @@ public class ConvertTests
         AdvanceToNextArrival(match);
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
-        Assert.Equal(5, aiBase.GarrisonCount); // plain 1:1: 10 attackers - 5 defenders
+        Assert.Equal(2, aiBase.GarrisonCount); // (10*100 - 5*140) / 140 = 300/140 = 2, floored
         Assert.Equal(BaseType.Tower, aiBase.Type); // capture keeps the type
         Assert.Equal(LevelTable.MinLevel, aiBase.Level); // was already level 1, floors there
     }
