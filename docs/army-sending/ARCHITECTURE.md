@@ -58,11 +58,11 @@ than here:
 - **FR-2** adds the currently-selected strength to the screen's own state line (alongside `Menu:`),
   since it is presentation state the human controls, not simulation state — following D-26's
   precedent that menu state lives in `MatchScreen` and is dumped by it, never by `MW3.Core`.
-- **FR-3** extends the per-army line. An army today reports id, owner, source, target, launch tick,
-  arrival tick, and current strength (`Count=`, mutable since phase 3 FR-4). It gains three fields
-  identifying which send it belongs to and where in that send's wave sequence it sits, so a script
-  asserting "this send arrived as 3 waves, the first captured nothing, the second captured it" has
-  something to key on.
+- **FR-3** extends the per-army line with `Send=<id>` and `Wave=<index>/<count>`, read verbatim:
+  `Army 3: Owner=Human Source=1 Target=3 Count=8 Launch=120 Arrival=154 Send=2 Wave=1/3`. A
+  single-arrival send reads `Wave=1/1`. FR-2's `Strength:` line is untouched, so a script asserting
+  "this send arrived as 3 waves, the first captured nothing, the second captured it" has something
+  to key on.
 
 ## 3. Project layout
 
@@ -131,20 +131,32 @@ separate sends, which the drawn column (FR-4) and any wave-aware test need to te
 gains `SendId` (shared by every wave from one `Execute` call), `WaveIndex` (1-based), and
 `WaveCount`, metadata only, read by nothing in `ResolveArrival` or `CombatResolver`.
 
-**The wave interval is a tuning value, not an architecture decision, and is deliberately not fixed
-here.** `MW2-RULES.md` §3.3 states that waves "don't strike simultaneously" but never publishes the
-gap between them — §10's known-gaps list is amended to say so. The only thing known is that a
-passive skill shortens it (out of scope, parity **G-20**, §2 of `MW2-ITEMS-AND-PROGRESSION.md`),
-which confirms a baseline interval exists but supplies no value. Per `CLAUDE.md`'s tuning-values
-rule (D-22's routing rule) and following the precedent FR-4 set for tower range and fire period
-when MW2 was equally silent (parity **G-13**, **G-22**), the number is derived and recorded in this
-phase's `REQUIREMENTS.md` §"Tuning values" table at FR-3's `/kickoff`, calibrated against MW3's own
-`Match.TickDurationMilliseconds` (50 ms) and `ArmySpeedUnitsPerTick` (0.01) rather than guessed.
-Guidance for that kickoff, not a decision made here: the interval should be small enough that even a
-maximum send (a capped level-5 village's 100 units, 13 waves) finishes launching well inside the
-shortest inter-base travel time (30 ticks between the closest pair of bases, per
-`docs/base-upgrades-and-types/REQUIREMENTS.md`'s tuning narration), so a large attack still reads as
-one attack rather than a slow trickle.
+**The wave interval is a tuning value, settled at FR-3's kickoff.** `MW2-RULES.md` §3.3 states that
+waves "don't strike simultaneously" but never publishes the gap between them — §10's known-gaps list
+records this. Per `CLAUDE.md`'s tuning-values rule (D-22's routing rule) and following the precedent
+FR-4 set for tower range and fire period when MW2 was equally silent (parity **G-13**, **G-22**),
+`SendWaveCalculator.WaveIntervalTicks = 5` (250 ms) and `WaveSizeUnits = 8` are recorded in this
+phase's `REQUIREMENTS.md` §"Tuning values" table — 8 is MW2's published wave size (`MW2-RULES.md`
+§3.3 `[S]`), 5 is MW3's own number, chosen above the fastest tower's 3-tick fire period so every
+wave gap admits a fresh shot at any tower level.
+
+**D-35: a pending wave lives outside `ArmiesInFlight` until its own launch tick, not inside it with
+a future `LaunchTick`.** Considered: adding every wave to `ArmiesInFlight` at `Execute` with its real
+(future) `LaunchTick`, and having `PositionAtTick`/tower fire/`--dump-state` skip anything whose
+`LaunchTick` is still ahead. Rejected — every reader of `ArmiesInFlight` (tower fire, the dump line,
+determinism tests) would need its own "is this actually launched yet" guard, multiplying one rule
+into N call sites, exactly the duplication D-32 already rejected for the strength arithmetic.
+Considered also: staggering `ArrivalTick` instead of `LaunchTick`, keeping every wave "launched" at
+tick 0 but arriving later — rejected because it would make a wave's position formula diverge from an
+ordinary army's (`PositionAtTick` extrapolating from a source it never actually left) and would let
+a tower fire on units still standing in the source base, contradicting FR-4's own model of what
+"in range" means. Chosen: `Match` holds a private pending-wave list; wave 1 enters `_armies` (and so
+`ArmiesInFlight`) immediately at `Execute`, exactly as today's single-army send does; waves 2..N wait
+in the pending list and move into `_armies` only when `Advance` reaches their own `LaunchTick` — a
+boundary evaluated after construction completion and before tower fire and arrivals, so a wave is a
+legitimate tower target from the tick it launches, never before. Once `Match.Outcome` leaves
+`InProgress`, no pending wave ever launches and none are reported anywhere — the same freeze phase 2
+FR-7 already applies to decision-making, extended to this one remaining source of state change.
 
 **D-34: the strength control is a persistent, standing selection, not a per-drag modifier.**
 Considered: a radial or press-and-hold gesture layered onto the existing drag-to-send, chosen at the

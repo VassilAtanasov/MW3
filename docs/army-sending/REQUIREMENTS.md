@@ -264,12 +264,17 @@ line; FR-2 did not touch the per-army line, so there is no collision to negotiat
     pins the accepted consequence that `AssessThreat` now weighs a whole column's units against the
     garrison predicted at wave 1's arrival, making the AI slightly more defensive.
   - Acceptance: two new `qa/scripts/` scripts, both using FR-2's shipped strength picker rather than
-    any new mechanism — one waiting for the human base to reach its level-1 cap of 20, selecting
-    100% on the control, then dragging to a neutral, showing **three** armies sharing one `Send=`
-    with `Wave=1/3`, `2/3`, `3/3`, counts 8, 8, 4 (so the remainder wave is exercised, not just the
-    even split) and launch ticks exactly 5 apart; one pinning `Wave=1/1` for a send of 8 or fewer.
-    Every existing committed script passes unchanged in its budget, or has the budget re-derived
-    with the reason recorded in the PR — never raised merely to turn a red script green.
+    any new mechanism. **Re-derived at implementation time**: the original design waited for the
+    human base to reach its level-1 cap of 20 before sending at 100% for an even three-wave 8/8/4
+    split; that 600+ tick wait was found unreliable in manual verification against the live desktop
+    head — the AI had enough real playing time to mount and land an attack on the now-emptied human
+    base before the dump. `send-wave-column.txt` instead selects 100% and drags immediately, using
+    the starting garrison of 10 (already above `WaveSizeUnits`) to produce a two-wave column — 8,
+    then the 2-unit remainder — sharing one `Send=`, reading `Wave=1/2`, `2/2`, with launch ticks
+    exactly 5 apart; the remainder wave is still exercised (2 ≠ 8), just not via a three-wave split.
+    `send-single-wave-boundary.txt` pins `Wave=1/1` for a send of 8 or fewer. Every existing
+    committed script passes unchanged in its budget, or has the budget re-derived with the reason
+    recorded in the PR — never raised merely to turn a red script green.
   - Acceptance: `ARCHITECTURE.md` records D-35 with its rejected alternatives, replaces D-33's "the
     wave interval is deliberately not fixed here" paragraph with a pointer to the table below, and
     corrects §2a's per-army dump description to the field names actually shipped.

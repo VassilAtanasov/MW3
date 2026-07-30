@@ -22,7 +22,9 @@ public sealed class Match
 
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
+    private readonly List<PendingWave> _pendingWaves = new();
     private int _nextArmyId;
+    private int _nextSendId;
 
     public Match()
     {
@@ -75,8 +77,9 @@ public sealed class Match
     public MatchOutcome Outcome { get; private set; } = MatchOutcome.InProgress;
 
     /// <summary>
-    /// Validates and applies a <see cref="SendArmyCommand"/>. A rejection leaves every base's
-    /// garrison and owner, and every in-flight army, exactly as it was.
+    /// Validates and applies a <see cref="SendArmyCommand"/>, splitting accepted sends of more than
+    /// 8 units into successive waves (FR-3). A rejection leaves every base's garrison and owner, and
+    /// every in-flight army and pending wave, exactly as it was.
     /// </summary>
     public SendArmyOutcome Execute(SendArmyCommand command)
     {
@@ -127,14 +130,40 @@ public sealed class Match
         source.GarrisonCount -= command.UnitCount;
 
         var travelTicks = ComputeTravelTicks(source.Position, target.Position);
-        _armies.Add(new Army(
-            _nextArmyId++,
-            command.IssuingPlayer,
-            command.SourceBaseId,
-            command.TargetBaseId,
-            command.UnitCount,
-            launchTick: ElapsedTicks,
-            arrivalTick: ElapsedTicks + travelTicks));
+        var sendId = _nextSendId++;
+        var waveCount = SendWaveCalculator.WaveCount(command.UnitCount);
+        var submissionTick = ElapsedTicks;
+
+        for (var waveIndex = 1; waveIndex <= waveCount; waveIndex++)
+        {
+            var unitsInWave = SendWaveCalculator.UnitsInWave(command.UnitCount, waveIndex);
+            var launchTickOffset = SendWaveCalculator.LaunchTickOffset(waveIndex);
+            var launchTick = submissionTick + launchTickOffset;
+            var arrivalTick = launchTick + travelTicks;
+
+            var army = new Army(
+                _nextArmyId++,
+                command.IssuingPlayer,
+                command.SourceBaseId,
+                command.TargetBaseId,
+                unitsInWave,
+                launchTick,
+                arrivalTick,
+                sendId,
+                waveIndex,
+                waveCount);
+
+            if (waveIndex == 1)
+            {
+                // Wave 1 enters ArmiesInFlight immediately
+                _armies.Add(army);
+            }
+            else
+            {
+                // Waves 2..N are held in pending queue until their launch tick
+                _pendingWaves.Add(new PendingWave(army, launchTick));
+            }
+        }
 
         return SendArmyOutcome.Accepted;
     }
@@ -399,13 +428,15 @@ public sealed class Match
                 return;
             }
 
-            // Construction completion before tower fire before arrivals (D-30, FR-3c, D-24): a base
-            // finishing an upgrade or conversion on the tick it is attacked defends at its new level
-            // or type, and a conversion completing into a tower on this exact tick still needs its
-            // own fire check run for this same tick. The call is unconditional (safe and cheap when
-            // no tower exists at all - a single pass finding none) rather than gated, since it only
-            // ever runs once per boundary, never once per tick.
+            // Construction completion before wave launch before tower fire before arrivals
+            // (D-30, FR-3c, D-24, D-35): a base finishing an upgrade or conversion on the tick it is
+            // attacked defends at its new level or type; a conversion completing into a tower on this
+            // exact tick still needs its own fire check. Pending waves launch after construction so a
+            // base converted into a tower on this tick can fire at a just-launched wave. The call is
+            // unconditional (safe and cheap when nothing is due at all) rather than gated, since it
+            // only ever runs once per boundary, never once per tick.
             CompleteConstructionsAtTick(ElapsedTicks);
+            LaunchPendingWavesAtTick(ElapsedTicks);
             EvaluateTowerFireAtTick(ElapsedTicks);
             ResolveArrivalsAtTick(ElapsedTicks);
             EvaluateOutcome();
@@ -539,20 +570,27 @@ public sealed class Match
     }
 
     /// <summary>
-    /// The earliest tick at or before <paramref name="upperBound"/> that either an army arrives or a
-    /// construction completes, or null if neither is due yet. A completion tick is a segment boundary
-    /// exactly like an arrival tick (D-30, FR-3c): production is computed in closed form across a
-    /// segment (D-21a), so a period change mid-segment would otherwise be credited at the wrong rate
-    /// for part of the span.
+    /// The earliest tick at or before <paramref name="upperBound"/> that either an army arrives, a
+    /// construction completes, or a pending wave launches, or null if none is due yet. A completion
+    /// tick and a wave launch tick are segment boundaries exactly like an arrival tick (D-30, FR-3c):
+    /// production is computed in closed form across a segment (D-21a), so a period change mid-segment
+    /// would otherwise be credited at the wrong rate for part of the span. Wave launching is a
+    /// boundary so determinism is preserved across chunked Advance calls (D-12, D-14, D-15).
     /// </summary>
     private long? EarliestBoundaryTickUpTo(long upperBound)
     {
         var earliest = EarliestArrivalTickUpTo(upperBound);
         var completionTick = EarliestConstructionCompletionTickUpTo(upperBound);
+        var waveLaunchTick = EarliestPendingWaveLaunchTickUpTo(upperBound);
 
         if (completionTick is long c && (earliest is null || c < earliest))
         {
             earliest = c;
+        }
+
+        if (waveLaunchTick is long w && (earliest is null || w < earliest))
+        {
+            earliest = w;
         }
 
         return earliest;
@@ -593,6 +631,60 @@ public sealed class Match
         }
 
         return earliest;
+    }
+
+    /// <summary>
+    /// The earliest pending wave's launch tick that is at or before <paramref name="upperBound"/>,
+    /// or null if none is due yet (FR-3, D-35). Pending waves (D-33) wait outside
+    /// <see cref="ArmiesInFlight"/> until this moment.
+    /// </summary>
+    private long? EarliestPendingWaveLaunchTickUpTo(long upperBound)
+    {
+        long? earliest = null;
+        foreach (var pw in _pendingWaves)
+        {
+            if (pw.LaunchTick <= upperBound && (earliest is null || pw.LaunchTick < earliest))
+            {
+                earliest = pw.LaunchTick;
+            }
+        }
+
+        return earliest;
+    }
+
+    /// <summary>
+    /// Launches every pending wave whose launch tick is exactly <paramref name="tick"/>,
+    /// moving them into <see cref="ArmiesInFlight"/> (FR-3, D-35). These waves then become
+    /// legitimate tower targets from this tick on (D-35). Once the outcome is decided, no pending
+    /// wave ever launches, and the list is effectively frozen.
+    /// </summary>
+    private void LaunchPendingWavesAtTick(long tick)
+    {
+        if (Outcome != MatchOutcome.InProgress)
+        {
+            return;
+        }
+
+        List<PendingWave>? due = null;
+        for (var i = 0; i < _pendingWaves.Count; i++)
+        {
+            var pw = _pendingWaves[i];
+            if (pw.LaunchTick == tick)
+            {
+                (due ??= new List<PendingWave>()).Add(pw);
+            }
+        }
+
+        if (due is null)
+        {
+            return;
+        }
+
+        foreach (var pw in due)
+        {
+            _armies.Add(pw.Army);
+            _pendingWaves.Remove(pw);
+        }
     }
 
     /// <summary>
@@ -800,8 +892,10 @@ public sealed class Match
 
     /// <summary>
     /// A player is eliminated only once irreversibly so: zero owned bases and zero armies still in
-    /// flight. An army in flight might yet recapture a base, so elimination is never declared while
-    /// one remains (FR-7).
+    /// flight or still pending launch. An army in flight might yet recapture a base, so elimination
+    /// is never declared while one remains (FR-7) - and a pending wave (FR-3, D-35) is exactly such
+    /// an army, merely not yet promoted into <see cref="ArmiesInFlight"/>; ignoring it would declare
+    /// a sender eliminated while their own later waves could still turn the match around.
     /// </summary>
     private bool IsEliminated(Player player)
     {
@@ -821,6 +915,32 @@ public sealed class Match
             }
         }
 
+        foreach (var pendingWave in _pendingWaves)
+        {
+            if (pendingWave.Army.Owner == player)
+            {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    /// <summary>
+    /// A pending wave waiting to launch (FR-3, D-35). Waves 2..N of a multi-wave send wait in a
+    /// private pending list until their <see cref="LaunchTick"/> is reached, at which point they
+    /// enter <see cref="ArmiesInFlight"/> and become legitimate tower targets.
+    /// </summary>
+    private sealed class PendingWave
+    {
+        public PendingWave(Army army, long launchTick)
+        {
+            Army = army;
+            LaunchTick = launchTick;
+        }
+
+        public Army Army { get; }
+
+        public long LaunchTick { get; }
     }
 }

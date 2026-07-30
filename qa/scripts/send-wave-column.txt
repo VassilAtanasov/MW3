@@ -1,0 +1,17 @@
+# Tap Play, select 100% on the strength control, then immediately drag from the human base to the
+# nearest neutral. The starting garrison of 10 already exceeds SendWaveCalculator.WaveSizeUnits (8),
+# so the send splits into a two-wave column - 8, then the 2-unit remainder - with no wait at all.
+#
+# The kickoff's original design waited for the base to reach its level-1 cap of 20 for an even
+# three-wave 8/8/4 split; that wait (600+ ticks of real AI play) was found to be unreliable in
+# practice - the AI had time to mount and land an attack on the now-emptied human base before the
+# dump, observed capturing it during manual verification. Sending immediately at the starting
+# garrison keeps the same essential proof (a shared Send=, an uneven remainder wave, launch ticks
+# exactly WaveIntervalTicks apart) with no AI-interference window at all.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.033203 0.670139
+15 up 0.033203 0.670139
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000
+40 wait

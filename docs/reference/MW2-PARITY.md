@@ -16,7 +16,8 @@
 > Updated 30-07-2026: phase 4, "Sending armies the MW2 way" (`docs/army-sending/`), discovered —
 > **G-2** and **G-3** are now assigned to it (FR-3 `ed9c0ead836c` and FR-1/FR-2 `fa6d69f05f9d` /
 > `4d4a9bac3f90` respectively). Updated again 30-07-2026: FR-1 (#54) and FR-2 (#58) merged, closing
-> **G-3**. FR-3 (G-2) not yet merged.
+> **G-3**. Updated 31-07-2026: FR-3 (`ed9c0ead836c`, issue #61) closes G-2 for the rules layer — the
+> drawn column is FR-4's job (`a3e0351a6c4b`), still open.
 
 ## 0. How Ivan uses this file
 
@@ -92,7 +93,7 @@ future phase.
 | # | MW2 | MW3 today | Notes |
 |---|---|---|---|
 | G-1 | **Morale**: a per-player multiplier, 0–5 suns, worth +125% defence / +25% attack / +50% speed, earned by capturing and defending, drained by losses and by **inactivity on a timer that accelerates as you climb** | Nothing | The largest single system in MW2 and the one every source calls the skill differentiator. Anti-turtle, anti-snowball, and it touches combat, speed and production at once. [MW2-RULES.md](MW2-RULES.md) §5 |
-| G-2 | **Waves**: a send arrives as successive 8-unit waves that do not strike simultaneously, so defenders regenerate, towers fire, and reinforcements land mid-fight | An army is one object arriving whole | This is what makes defending a larger attack viable, and it is the precondition for G-3. Probably the highest-leverage gap after morale. The wave interval itself is unpublished and upgradeable in MW2 via a "row density" passive skill ([MW2-RULES.md](MW2-RULES.md) §3.3, §10) — the passive-skill modifier is G-20's territory; this gap closes only the fixed baseline interval. **Assigned** to phase 4 FR-3 (`ed9c0ead836c`), not yet merged |
+| G-2 | **Waves**: a send arrives as successive 8-unit waves that do not strike simultaneously, so defenders regenerate, towers fire, and reinforcements land mid-fight | Closed for rules by FR-3 (`ed9c0ead836c`, issue #61): `Match.Execute(SendArmyCommand)` splits an accepted send of `n` units into `ceil(n/8)` ordinary `Army` objects staggered by `SendWaveCalculator.WaveIntervalTicks` (5 ticks, MW3's own number — MW2 publishes none, see below); the drawn column is still owed by FR-4 (`a3e0351a6c4b`) | This is what makes defending a larger attack viable, and it is the precondition for G-3 (closed). The wave interval itself is unpublished and upgradeable in MW2 via a "row density" passive skill ([MW2-RULES.md](MW2-RULES.md) §3.3, §10) — the passive-skill modifier is G-20's territory; this gap closes only the fixed baseline interval |
 | G-3 | **Send-strength picker**: 25 / 50 / 75 / 100% of the garrison, plus **snaking** (repeated 25% sends producing a tapered column, used for deception and defensive spread) | **Closed** by FR-1 (`fa6d69f05f9d`, #54) and FR-2 (`4d4a9bac3f90`, #58): a persistent 25/50/75/100% control on both input heads, backed by `SendStrengthCalculator`. MW2's sticky tap-the-target selection (`MW2-RULES.md` §3.3) is not adopted — MW3 repeats the same drag gesture instead (§6) | Phase 3 §6 scoped this out as "its own phase"; phase 4 closed it |
 | G-4 | **Heroes**: 24 across 4 tribes, 4 abilities each on a shared 500-energy pool, with slot-fixed costs and cooldowns | Nothing | Becomes **insect heroes** (§5). [MW2-HEROES.md](MW2-HEROES.md) — note §"Design patterns worth stealing" |
 | G-5 | **Energy**: 2.5/sec passive plus `0.45 × k` per unit lost attacking, where `k` rises as morale falls — so a losing player earns 5× the energy per casualty | Nothing | The game's rubber band. Depends on G-1 for `k` |

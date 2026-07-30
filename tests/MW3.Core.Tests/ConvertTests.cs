@@ -121,10 +121,11 @@ public class ConvertTests
 
         var beforeReinforce = humanBase.GarrisonCount;
         SetGarrison(neutral, 20);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
+        // 8 units - the largest send that stays a single wave (FR-3) - reinforce in one arrival.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 8)));
         AdvanceToNextArrival(match);
 
-        Assert.Equal(beforeReinforce + 15, humanBase.GarrisonCount); // all 15 arrived - there is no cap to clamp against
+        Assert.Equal(beforeReinforce + 8, humanBase.GarrisonCount); // all 8 arrived - there is no cap to clamp against
 
         var afterReinforce = humanBase.GarrisonCount;
         match.Advance(1000);
@@ -177,8 +178,7 @@ public class ConvertTests
     public void Tower_CanBeCaptured_ButDefendsAtItsLevelsDefencePercentage()
     {
         // Superseded by D-29 (FR-3b): a level-1 tower defends at 140%, not phase 2's plain 1:1.
-        // 10 attackers (a=100) against 5 defenders (d=140): Wu*a=1000 > Du*d=700, so it still
-        // falls, but the survivor count now comes from the ratio formula, not N - M.
+        // The wave still falls it, but the survivor count comes from the ratio formula, not N - M.
         var match = new Match();
         var humanBase = HumanBase(match);
         var aiBase = AiBase(match);
@@ -186,22 +186,22 @@ public class ConvertTests
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.AiPlayer, aiBase.Id, BaseType.Tower)));
         match.Advance(LevelTable.ConversionBuildDurationTicks);
         Assert.Equal(BaseType.Tower, aiBase.Type);
-        SetGarrison(aiBase, 5);
+        // A level-1 tower's own fire hits its incoming attacker on the way in (FR-4), so the
+        // defending garrison is set to 0 here rather than a token few: with the tower stripping
+        // most of an 8-unit wave - the largest that stays a single wave (FR-3) - down to a handful
+        // of survivors, any nonzero defender at 140% would be enough to repel what is left.
+        SetGarrison(aiBase, 0);
 
-        // A big enough wave that the tower's own fire during the flight (FR-4) - some fixed number
-        // of units, independent of the wave's size - still leaves enough to take the base; the
-        // survivor count is read from the army itself rather than hardcoded, since it now depends on
-        // the tower's range and period as well as the send.
         SetGarrison(humanBase, 40);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 20)));
-        var army = match.ArmiesInFlight.Single();
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 8)));
+        var army = match.ArmiesInFlight.Single(); // 8 units or fewer never splits into waves (FR-3)
         match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
         var survivingAttackers = army.UnitCount;
-        Assert.True(survivingAttackers < 20, "the tower should have shot down at least one unit before arrival");
+        Assert.True(survivingAttackers < 8, "the tower should have shot down at least one unit before arrival");
         match.Advance(1);
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
-        Assert.Equal(((survivingAttackers * 100) - (5 * 140)) / 140, aiBase.GarrisonCount); // Bu = (a/d) x Wu, a=100, d=140
+        Assert.Equal((survivingAttackers * 100) / 140, aiBase.GarrisonCount); // Bu = (a/d) x Wu, a=100, d=140
         Assert.Equal(BaseType.Tower, aiBase.Type); // capture keeps the type
         Assert.Equal(LevelTable.MinLevel, aiBase.Level); // was already level 1, floors there
     }
@@ -218,10 +218,14 @@ public class ConvertTests
         match.Advance(LevelTable.ConversionBuildDurationTicks);
         Assert.Equal(BaseType.Tower, aiBase.Type);
         SetLevel(aiBase, 3);
-        SetGarrison(aiBase, 1);
+        // A level-3 tower's own fire hits its incoming attacker on the way in (FR-4), so the
+        // defending garrison is set to 0 here rather than a token 1: with the tower stripping most
+        // of an 8-unit wave - the largest that stays a single wave (FR-3) - down to a handful of
+        // survivors, any nonzero defender at 190% would be enough to repel what is left.
+        SetGarrison(aiBase, 0);
         SetGarrison(humanBase, 40);
 
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 30)));
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 8)));
         AdvanceToNextArrival(match);
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);

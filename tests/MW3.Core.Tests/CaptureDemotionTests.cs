@@ -108,28 +108,34 @@ public class CaptureDemotionTests
         var match = new Match();
         var humanBase = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var aiBase = match.Bases.Single(b => b.Owner == match.AiPlayer);
+        var neutral = match.Bases.First(b => b.Owner is null);
+
+        // Give the AI a second base first, so capturing aiBase below does not eliminate it and
+        // freeze the rest of the column's pending waves (D-35's own rule: once the outcome is
+        // decided, no pending wave ever launches).
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, neutral.Id, 8)));
+        AdvanceToNextArrival(match);
+        Assert.Equal(match.AiPlayer, neutral.Owner);
 
         // A level-3 base (cap 50, defence 120% - D-29) captured by a large enough army leaves the
-        // attacker holding more than level 2's cap of 35 - so the demotion lands the base above its
-        // own new ceiling.
+        // attacker holding more than level 2's cap of 40 - so the demotion lands the base above its
+        // own new ceiling. 60 units splits into a column of waves (FR-3): the first wave captures
+        // and demotes the base, and every later wave in the same send then reinforces the new owner
+        // directly rather than fighting it, so the column as a whole still leaves far more than 40
+        // behind by the time every wave has landed.
         SetLevel(aiBase, 3);
         SetGarrison(aiBase, 1);
         SetGarrison(humanBase, 100);
 
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 60)));
 
-        // The defender keeps producing throughout the flight, so what it holds on arrival - not
-        // what it held at launch - is what CombatResolver's ratio formula subtracts from. At a=100,
-        // d=120 (level 3): Wu*a = 6000, exactly divisible by d, so the surviving garrison is
-        // 6000/120 - defendersOnArrival = 50 - defendersOnArrival with no remainder to floor.
-        var army = match.ArmiesInFlight.Single();
-        match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
-        var defendersOnArrival = aiBase.GarrisonCount;
-        match.Advance(1);
+        var waveCount = SendWaveCalculator.WaveCount(60);
+        var firstWave = match.ArmiesInFlight.OrderBy(a => a.WaveIndex).First();
+        var lastWaveArrival = firstWave.ArrivalTick + SendWaveCalculator.LaunchTickOffset(waveCount);
+        match.Advance(lastWaveArrival - match.ElapsedTicks + 1); // past every wave's arrival
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
         Assert.Equal(2, aiBase.Level);
-        Assert.Equal(50 - defendersOnArrival, aiBase.GarrisonCount);
         Assert.True(aiBase.GarrisonCount > aiBase.GarrisonCap);
 
         var aboveCap = aiBase.GarrisonCount;
