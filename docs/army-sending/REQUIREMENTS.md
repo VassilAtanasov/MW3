@@ -289,9 +289,89 @@ line; FR-2 did not touch the per-army line, so there is no collision to negotiat
     (§6); morale, energy, heroes, forges (G-1, G-4, G-5, G-6); draining the source garrison wave by
     wave instead of once at `Execute`.
 
-FR-4 (wf: a3e0351a6c4b): The player can see a multi-wave send drawn as a tapered column rather than
-a single marker, with a tower visibly firing into it as waves pass. `MW3.Game` only; adds no rule of
-its own, reading FR-3's wave-grouping metadata.
+FR-4 (wf: a3e0351a6c4b, issue #63): The player can see a multi-wave send read as **one send arriving
+in waves** rather than as several coincidental armies sharing a path, and can see a tower firing into
+that column as an event rather than only as a number quietly decrementing. Closes parity **G-2**'s
+visual half, which FR-3 left owed. `MW3.Game` only; adds no rule of its own, reading FR-3's
+wave-grouping metadata. Kicked off 31-07-2026.
+  - Settled at kickoff: **this entry's original wording was misleading twice, and is corrected
+    here.** It said a multi-wave send should be "drawn as a tapered column rather than a single
+    marker". But a column *already draws* — since D-33 made a wave an ordinary `Army`,
+    `DrawArmiesInFlight` renders each wave as its own circle with its own count, so nothing needs
+    constructing; the real gap is the cost D-33 named, that waves of one send are indistinguishable
+    from separate sends. And "tapered" belongs to **snaking** (D-32, repeated 25% sends against a
+    shrinking garrison, shipped in FR-2), not to waves, which are 8, 8, …, remainder — flat with one
+    short tail. This feature does taper the column, but as a legibility device, not as a depiction
+    of wave sizes.
+  - Settled at kickoff: **the constraint that drives the design is marker overlap.** Wave spacing
+    along the path is `ArmySpeedUnitsPerTick × SendWaveCalculator.WaveIntervalTicks` = 0.05
+    normalized units, while a marker's diameter is `2 × _armyRadiusFraction (0.08) × min(viewport
+    width, height)`. Consecutive waves therefore overlap by 44% on a horizontal path at 1280×720,
+    69% on a vertical one, and 45% on the MI PAD 4 at 1808×1018 — counts collide and markers occlude
+    on exactly the paths where waves matter most. No phase document anticipated this.
+  - Settled at kickoff: **taper the radius plus a shared spine** (D-36). Wave 1 draws at the existing
+    fraction and the last at a smaller trailing one, linear between, which cuts occlusion where it
+    is worst — the tail; a thin line in the owner's tint connects in-flight waves of one send beneath
+    the markers. Every wave keeps its own count, since per-wave counts are what actually resolve
+    against the defender. Rejected: one composed shape with a single aggregate count (hides a 4-unit
+    tail wave about to bounce); perpendicular stagger (puts markers off the travel line the range
+    test uses); index badges alone (does nothing about the overlap).
+  - Settled at kickoff: **tower fire is shown without a tracer.** The tower flashes from the
+    already-public `Base.LastFireTick`, and the army whose `UnitCount` just decremented briefly
+    highlights. A literal tower→army tracer was rejected: `MW3.Core` never exposes which army a tower
+    hit, and adding it would break this feature's no-rules-change scope — that would be its own
+    slice, needing a Core criterion, determinism coverage, and a dump field.
+  - Acceptance: waves are grouped by `Army.SendId`, **never** by adjacency in `ArmiesInFlight` —
+    FR-3 appends a pending wave at its own launch tick, so a second send launched mid-column
+    interleaves. A test constructs exactly that interleaving and asserts both columns still group.
+  - Acceptance: an army's drawn radius tapers on `(waveIndex - 1) / (waveCount - 1)`, with the
+    trailing fraction chosen so the tail's diameter no longer exceeds the 0.05-unit wave spacing at
+    1280×720 — the worst overlap materially reduced, not merely shifted.
+  - Acceptance: the spine links only waves **currently in flight**, in `WaveIndex` order, so a send
+    whose lead wave has arrived and whose later waves are still pending draws across only what is
+    actually on the map, and never obscures a count.
+  - Acceptance: a single-arrival send is drawn **bit-identically to today** — `WaveCount == 1` means
+    the existing `_armyRadiusFraction`, no taper, no spine — asserted rather than assumed, so every
+    screenshot-bearing `qa/scripts/` script from phases 2 and 3 is unaffected.
+  - Acceptance: the `UnitCount` decrement is detected in `Update`, on the tick, **not** in `Draw`, so
+    the flash does not depend on frame cadence and two decrements in quick succession are not
+    collapsed into one. The per-army record is pruned alongside the existing `_armyUnitText` cache,
+    allocating nothing per frame. Documented limitation, stated in the code: an army destroyed
+    outright leaves `ArmiesInFlight` the same tick, so its final hit does not flash.
+  - Acceptance: the column's geometry lives in a pure, headlessly testable helper in `MW3.Game` that
+    decides nothing and draws nothing (D-25's pattern, as `SendStrengthSelector`), with drawing left
+    in `MatchScreen`. Headless `MW3.Game.Tests` cover, with no graphics device, the taper at wave
+    counts 1/2/3/10, spine endpoints for a partially-arrived send, the interleaving case above, and
+    both flash predicates as pure tick arithmetic.
+  - Acceptance: all new layout and timing constants are **presentation, not tuning** — viewport
+    fractions and flash durations held as `BaseActionMenu`'s and `SendStrengthSelector`'s are. They
+    do not enter the "Tuning values" table; D-22 governs simulation numbers, the same call FR-2's
+    kickoff settled.
+  - Acceptance: no `MW3.Core` change at all — every existing `MW3.Core.Tests` test passes untouched.
+    No new script directive, no new command-line flag, and `--dump-state` output stays
+    **byte-identical** for the same script and tick, since FR-3 already added `Send=` and `Wave=i/n`.
+  - Acceptance: a new `qa/scripts/` script produces a `--screenshot` of a mid-flight column showing
+    the taper, the spine, and individually legible per-wave counts, at both 1280×720 and 1808×1018
+    (the overlap arithmetic differs and the MI PAD 4 is the worse case). It follows
+    `send-wave-column.txt`'s hard-won pattern of sending immediately at the starting garrison rather
+    than waiting for a cap — that script's own header records a 600-tick wait letting the AI capture
+    the emptied human base before the dump. Every existing committed script passes unchanged in its
+    budget; since this feature changes only drawing, any that needs re-authoring is a signal the
+    single-arrival path was not left bit-identical.
+  - Acceptance (device, blocking): on the MI PAD 4 (`43e75e5`, viewport ~1808×1018) a real match
+    shows a multi-wave column grouping legibly and a tower flashing as it fires into one — verified
+    against a freshly built and installed APK whose `lastUpdateTime` is newer than the branch build,
+    per follow-up #28's lesson.
+  - Acceptance: `ARCHITECTURE.md` records **D-36** with the overlap arithmetic and every rejected
+    alternative above; this entry carries the acceptance conditions; and
+    `docs/reference/MW2-PARITY.md`'s **G-2** row moves from closed-for-rules to **fully closed**,
+    rules by FR-3 and visual by FR-4. `./gate.ps1` passes locally and CI is green.
+  - Out of scope: any `MW3.Core` change, including recording a tower's fire target; the snaking
+    count-sequence tuning question (follow-up #60 — a tuning decision, not a rendering one); any new
+    script directive, command-line flag, or dump field; animation, easing, particles, or sound (the
+    flashes are the minimum that makes an event legible, per §1's "presentation stays deliberately
+    plain"); row density (G-20); the AI varying its send strength (G-21); multiselect and converging
+    attacks (§6); morale, energy, heroes, forges (G-1, G-4, G-5, G-6).
 
 ### Tuning values
 
