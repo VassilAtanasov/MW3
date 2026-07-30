@@ -98,8 +98,80 @@ Kicked off 30-07-2026.
     feature, parity G-21); wave splitting and per-wave combat (FR-3); any new drawing (FR-4).
 
 FR-2 (wf: 4d4a9bac3f90): The player can choose a send strength from a persistent 25/50/75/100%
-control on both input heads before dragging to send, and can snake a garrison by repeatedly tapping
-a target at 25%. Reads FR-1's command shape; adds no rule of its own.
+control on both input heads before dragging to send, and can snake a garrison by repeating a 25%
+send. Reads FR-1's command shape; adds no rule of its own. `MW3.Game` only — `MW3.Core` is not
+modified, since FR-1 (#54) already shipped the enum and the calculator. Kicked off 30-07-2026
+(issue #58).
+  - Settled at kickoff: the control is a **bottom-left vertical strip**, four buttons stacked
+    upward with `25` at the bottom and `100` at the top — 25% is the repeatedly-tapped snaking
+    option and so sits nearest a resting thumb on the MI PAD 4 in landscape. A vertically-centred
+    left strip was rejected: the human's home base sits at `(0.12, 0.50)` with
+    `HitTester.SelectionThresholdUnits = 0.1`, so a centred strip would have covered the
+    most-pressed base in the game.
+  - Settled at kickoff: **no new script directive.** `ScriptParser` is unchanged; a QA script
+    selects a strength by pressing the control with the existing `down`/`up`, exactly as it presses
+    an action-menu button — which also verifies the widget's real hit-testing, where a directive
+    would bypass it entirely. This supersedes `ARCHITECTURE.md` §2a's expectation of one new
+    directive; that section is corrected in this feature's PR.
+  - Settled at kickoff: layout constants are presentation (`minDimension` fractions in the widget,
+    as `BaseActionMenu`'s are), not a §"Tuning values" entry — D-22 governs simulation numbers.
+  - Settled at kickoff: **snaking uses the existing drag gesture, repeated.** MW2's sticky
+    selection — source stays selected, tap the *target* repeatedly (`MW2-RULES.md` §3.3) — is not
+    adopted; §6's "exactly one drag gesture per send" holds. The tapering that makes snaking worth
+    having is present either way, and D-32 means it needs no code at all: this feature's obligation
+    is to *demonstrate* snaking under script, not to implement it.
+  - Acceptance: a new `SendStrengthSelector` widget in `MW3.Game` owns the control's layout,
+    drawing, and hit-testing and decides nothing itself (D-25); it draws four buttons in a
+    bottom-left vertical strip ordered `25`, `50`, `75`, `100` upward, sized and spaced as
+    fractions of the viewport's smaller dimension.
+  - Acceptance: every button lies at least `HitTester.SelectionThresholdUnits` (0.1 normalized)
+    from every base position in `MapLayout`, asserted by a headless test against the real map, so
+    no press is ever contested between the control and a base.
+  - Acceptance: the selected strength is drawn visibly differently from the other three (selected
+    affordable-coloured, the rest greyed, reusing the menu's palette and button texture), so a
+    screenshot alone shows which is active.
+  - Acceptance: the selection defaults to `SendStrength.Half` when a match screen opens and a fresh
+    match starts at `Half` again; press-then-release on a button sets the strength, matching
+    `BaseActionMenu`'s activation pattern; and the selection persists across sends until changed.
+  - Acceptance: a press beginning on the control never selects a base and never starts a send drag
+    — the control is hit-tested before `HitTester.FindBaseAt`, and a press it consumes leaves the
+    selected source null.
+  - Acceptance: a completed drag from an owned source to a different base issues a
+    `SendArmyCommand` whose `UnitCount` equals
+    `SendStrengthCalculator.Compute(source.GarrisonCount, <selected strength>)`, garrison read at
+    release, and `MatchScreen.cs` is left with no `GarrisonCount / 2` or other inline percentage
+    arithmetic anywhere.
+  - Acceptance: while an action menu is open, a press on the control only dismisses the menu — no
+    strength change, no selection, release swallowed — exactly as D-26 specifies for a press
+    outside the menu's buttons.
+  - Acceptance: once the outcome is decided the control accepts no presses and does not intercept
+    the dismiss gesture; a press-and-release after the outcome still pops back to the welcome
+    screen, including on the control, and `qa/scripts/dismiss-ending.txt` still passes.
+  - Acceptance: `--dump-state` gains a screen-owned `Strength: 50` line alongside `Menu:`, written
+    by `MatchScreen` and never by `MW3.Core` (D-26).
+  - Acceptance: headless tests in `MW3.Game.Tests` cover the selector's layout and hit-testing
+    without a graphics device, mirroring `BaseActionMenuTests` — a press on each of the four
+    buttons, and a press in the gap between two resolving to none.
+  - Acceptance: a new `qa/scripts/` script selects 25% and drags from the human base to the nearest
+    neutral, with `--dump-state` showing `Strength: 25` and one army whose `Count=` is a quarter of
+    the source garrison rather than half.
+  - Acceptance: a new `qa/scripts/` script demonstrates snaking — 25% selected, the same drag
+    repeated three times, `--dump-state` showing three in-flight armies from that source with
+    strictly decreasing `Count=`.
+  - Acceptance: every existing `qa/scripts/` drag-to-send script is unchanged and still produces
+    the same command, because the default is `Half`.
+  - Acceptance: a `--screenshot` run shows the control with one option highlighted, and the same
+    run on the MI PAD 4 in landscape shows it fully inside the viewport, tappable, and overlapping
+    no base — rebuilding and reinstalling from the branch first, per follow-up #28's lesson.
+  - Acceptance: `ARCHITECTURE.md` §2a is corrected in this PR to record that no new script
+    directive was added, and `docs/reference/MW2-PARITY.md`'s **G-3** row is updated to record the
+    picker as closed by FR-1/FR-2, noting that MW2's sticky tap-the-target selection is not adopted.
+  - Acceptance: `./gate.ps1` passes locally, CI is green, and `MW3.Core` still contains no engine
+    type.
+  - Out of scope: any `MW3.Core` change (FR-1, #54); wave splitting and the wave interval (FR-3);
+    the drawn tapered column and visible tower fire (FR-4); a new `--script` directive of any kind;
+    the AI varying its own strength (parity G-21); MW2's sticky selection and multiselect/converging
+    attacks (§6); morale, energy, heroes, forges (G-1, G-4, G-5, G-6).
 
 FR-3 (wf: ed9c0ead836c): The developer can have a send split into successive 8-unit waves that
 arrive and resolve independently — so the defender regenerates, an owned tower gets multiple shots,
