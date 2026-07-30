@@ -179,8 +179,10 @@ shots, and capture (with the recapture grace) is decided per wave rather than fo
 once. This is the phase's structural feature and closes parity **G-2** at the rules level. Every
 rule lives in `MW3.Core`; the one presentation edit is the per-army `--dump-state` line, which
 `MatchScreen` writes because Core never formats output — so the "`MW3.Core` only" shorthand this
-entry originally used is corrected here. Independent of FR-2 (#58) in both directions: different
-projects, colliding only on separate lines of `DumpState`. Kicked off 30-07-2026.
+entry originally used is corrected here. FR-2 (#58) merged earlier the same day (PR #59), so FR-3
+branches off a `main` that already carries the strength picker and the screen-owned `Strength:`
+line; FR-2 did not touch the per-army line, so there is no collision to negotiate. Kicked off
+30-07-2026.
   - Settled at kickoff: the wave interval is **5 ticks (250 ms)** — MW3's own number, since MW2
     publishes none (`MW2-RULES.md` §3.3, §10). Above the fastest tower's 3-tick fire period so every
     wave gap admits a fresh shot at any tower level, and low enough that an ordinary 40-unit send
@@ -261,11 +263,13 @@ projects, colliding only on separate lines of `DumpState`. Kicked off 30-07-2026
     (two boolean any-checks; `AssessThreat` sums `UnitCount` rather than counting armies). A test
     pins the accepted consequence that `AssessThreat` now weighs a whole column's units against the
     garrison predicted at wave 1's arrival, making the AI slightly more defensive.
-  - Acceptance: two new `qa/scripts/` scripts — one waiting for the human base to reach its level-1
-    cap of 20 then dragging to a neutral, showing two armies with the same `Send=`, `Wave=1/2` and
-    `Wave=2/2`, counts 8 and 2, and launch ticks exactly 5 apart; one pinning `Wave=1/1` for a send
-    of 8 or fewer. Every existing committed script passes unchanged in its budget, or has the budget
-    re-derived with the reason recorded in the PR — never raised merely to turn a red script green.
+  - Acceptance: two new `qa/scripts/` scripts, both using FR-2's shipped strength picker rather than
+    any new mechanism — one waiting for the human base to reach its level-1 cap of 20, selecting
+    100% on the control, then dragging to a neutral, showing **three** armies sharing one `Send=`
+    with `Wave=1/3`, `2/3`, `3/3`, counts 8, 8, 4 (so the remainder wave is exercised, not just the
+    even split) and launch ticks exactly 5 apart; one pinning `Wave=1/1` for a send of 8 or fewer.
+    Every existing committed script passes unchanged in its budget, or has the budget re-derived
+    with the reason recorded in the PR — never raised merely to turn a red script green.
   - Acceptance: `ARCHITECTURE.md` records D-35 with its rejected alternatives, replaces D-33's "the
     wave interval is deliberately not fixed here" paragraph with a pointer to the table below, and
     corrects §2a's per-army dump description to the field names actually shipped.
