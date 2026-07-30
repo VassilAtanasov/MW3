@@ -86,8 +86,19 @@ public class MatchRunnerTests
         Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel + 1), aiBase.GarrisonCap);
     }
 
+    /// <summary>
+    /// Re-authored for FR-7 (issue #53): <c>TryConvert</c>'s candidate rule is a flat garrison
+    /// threshold (D-31's own text, "garrison at least LevelTable.ConversionCost"), not a cap-relative
+    /// one the way <c>TryUpgrade</c>'s is - so a base that picks up a large reinforcement stack well
+    /// under its level's cap can legitimately be converted to a tower instead of continuing to
+    /// upgrade, cutting its climb toward level 3 short. That is new, sanctioned AI behavior, not a
+    /// regression: the original expectation (some base reaches level 3) is replaced with the wider
+    /// property this phase actually promises - the AI meaningfully spends a saturated base's surplus
+    /// one way or the other, exactly as FR-6's and FR-7's own doc comments describe upgrading and
+    /// converting as the two forms of the same self-investment decision.
+    /// </summary>
     [Fact]
-    public void AiLaddersPastLevelTwo_ReachingLevelThreeOnAtLeastOneBase_OverALongMatch()
+    public void AiInvestsItsSurplus_ReachingLevelThreeOrBuildingATower_OverALongMatch()
     {
         var match = new Match();
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
@@ -96,13 +107,15 @@ public class MatchRunnerTests
         {
             runner.Advance(MatchRunner.DecisionIntervalTicks);
 
-            if (match.Bases.Any(b => b.Owner == match.AiPlayer && b.Level >= 3))
+            var reachedLevelThree = match.Bases.Any(b => b.Owner == match.AiPlayer && b.Level >= 3);
+            var builtATower = match.Bases.Any(b => b.Owner == match.AiPlayer && b.Type == BaseType.Tower);
+            if (reachedLevelThree || builtATower)
             {
                 return;
             }
         }
 
-        Assert.Fail("No AI base reached level 3 within the budget.");
+        Assert.Fail("The AI neither reached level 3 on any base nor built a tower within the budget.");
     }
 
     [Fact]
@@ -155,6 +168,10 @@ public class MatchRunnerTests
                 if (decision.IsUpgrade)
                 {
                     match.Execute(decision.Upgrade);
+                }
+                else if (decision.IsConvert)
+                {
+                    match.Execute(decision.Convert);
                 }
                 else
                 {

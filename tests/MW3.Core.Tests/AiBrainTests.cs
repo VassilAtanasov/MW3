@@ -273,6 +273,214 @@ public class AiBrainTests
         Assert.Equal(aiBase.Id, decision.Upgrade.BaseId);
     }
 
+    // --- Clause 3: convert ---
+
+    [Fact]
+    public void TryConvert_SaturatedMaxLevelCandidate_ProducesAConvertCommand_ForThatBase()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral5 = match.Bases[5];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Advance(34);
+
+        // aiBase (id 1) is the only saturated-at-max-level candidate; neutral5 (id 5, now AI-owned)
+        // has only 1 garrison, well below LevelTable.ConversionCost - not a candidate at all.
+        SetLevel(aiBase, LevelTable.MaxUpgradableLevel(BaseType.Producer));
+        SetGarrison(aiBase, LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MaxUpgradableLevel(BaseType.Producer))!.Value);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.True(decision.IsConvert);
+        Assert.Equal(ai, decision.Convert.IssuingPlayer);
+        Assert.Equal(aiBase.Id, decision.Convert.BaseId);
+        Assert.Equal(BaseType.Tower, decision.Convert.TargetType);
+    }
+
+    [Fact]
+    public void TryConvert_YieldsNothing_WhenNoBaseIsAtOrAboveTheConversionCost()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral5 = match.Bases[5];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Advance(34);
+        SetGarrison(aiBase, LevelTable.ConversionCost - 1); // just under the cost
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryConvert_ATower_IsNeverACandidate_EvenWhenGarrisonExceedsTheConversionCost()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral5 = match.Bases[5];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Advance(34);
+        SetType(aiBase, BaseType.Tower);
+        SetGarrison(aiBase, 999);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryConvert_UnderConstruction_IsNotACandidate()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral5 = match.Bases[5];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Advance(34);
+        SetGarrison(aiBase, LevelTable.ConversionCost + 20);
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(ai, aiBase.Id, BaseType.Tower)));
+        SetGarrison(aiBase, LevelTable.ConversionCost + 20); // restore: saturation alone shouldn't disqualify it
+        Assert.NotNull(aiBase.Construction);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryConvert_ThreatenedCandidate_IsNotACandidate_EvenWhenAffordable()
+    {
+        // D-30: the conversion's cost is deducted immediately while the type change lands 100 ticks
+        // later, so converting under attack can hand over a capture it would otherwise have held.
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var humanBase = match.Bases.Single(b => b.Owner == human);
+        var neutral5 = match.Bases[5];
+
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Advance(34);
+        SetGarrison(aiBase, LevelTable.ConversionCost + 20);
+
+        match.Execute(new SendArmyCommand(human, humanBase.Id, aiBase.Id, 1)); // in flight, any size
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryConvert_NeverProducesACommand_WhenTheAiOwnsOnlyOneBase()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        SetGarrison(aiBase, 999); // saturated well past the conversion cost, but the AI's only base
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    [Fact]
+    public void TryConvert_AmongCandidates_PicksTheOneNearestTheFront_MirroringConsolidate()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral4 = match.Bases[4];
+        var neutral5 = match.Bases[5];
+
+        // Capture both flank neutrals so the AI has three candidates to choose among.
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral4.Id, 6));
+        var army1 = match.ArmiesInFlight.Single();
+        match.Advance(army1.ArrivalTick - match.ElapsedTicks);
+
+        SetGarrison(aiBase, 6);
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        var army2 = match.ArmiesInFlight.Single();
+        match.Advance(army2.ArrivalTick - match.ElapsedTicks);
+
+        // aiBase (id 1)'s nearest not-owned base (id 4 or 5, whichever wasn't captured - here
+        // neither, both are now owned) is id 0.34 away via id2/id3; neutral4 and neutral5 are each
+        // 0.30 away from their own nearest not-owned neighbor (id 2 and id 3 respectively) - nearer
+        // than aiBase, so one of them is the front. All three are made candidates; the nearer one
+        // (lower id on a tie) wins, exactly TryConsolidate's own tie-break.
+        SetGarrison(aiBase, LevelTable.ConversionCost + 5);
+        SetGarrison(neutral4, LevelTable.ConversionCost + 5);
+        SetGarrison(neutral5, LevelTable.ConversionCost + 5);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryConvert", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.True(decision.IsConvert);
+        Assert.Equal(neutral4.Id, decision.Convert.BaseId); // 0.30 away, tied with neutral5, lower id wins
+    }
+
+    [Fact]
+    public void TryConvertDecision_WhenExecuted_ConvertsTheBaseAndDropsGarrisonByExactlyTheConversionCost()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral5 = match.Bases[5];
+
+        // TryConvert's own guard requires at least two owned bases (converting the AI's only base
+        // would remove its sole source of new units) - capture a second one first.
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Advance(34);
+
+        SetLevel(aiBase, LevelTable.MaxUpgradableLevel(BaseType.Producer));
+        SetGarrison(aiBase, LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MaxUpgradableLevel(BaseType.Producer))!.Value);
+
+        var brain = new AiBrain(ai);
+        var decision = brain.Decide(match);
+        Assert.True(decision.HasCommand);
+        Assert.True(decision.IsConvert);
+
+        var garrisonBeforeConvert = aiBase.GarrisonCount;
+        Assert.Equal(ConvertOutcome.Accepted, match.Execute(decision.Convert));
+        Assert.Equal(garrisonBeforeConvert - LevelTable.ConversionCost, aiBase.GarrisonCount);
+
+        match.Advance(LevelTable.ConversionBuildDurationTicks);
+
+        Assert.Equal(BaseType.Tower, aiBase.Type);
+        Assert.Equal(LevelTable.MinLevel, aiBase.Level);
+    }
+
+    [Fact]
+    public void Decide_SingleBase_SaturatedWellPastTheConversionCost_UpgradesInsteadOfConverting()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        SetGarrison(aiBase, 999); // saturated well past LevelTable.ConversionCost (30), the AI's only base
+
+        var brain = new AiBrain(ai);
+        var decision = brain.Decide(match);
+
+        Assert.True(decision.HasCommand);
+        Assert.True(decision.IsUpgrade);
+        Assert.False(decision.IsConvert);
+        Assert.Equal(aiBase.Id, decision.Upgrade.BaseId);
+    }
+
     // --- PredictGarrison ---
 
     [Fact]
@@ -290,7 +498,7 @@ public class AiBrainTests
         Assert.Equal(7, predicted);
     }
 
-    // --- Clause 3: attack ---
+    // --- Clause 4: attack ---
 
     [Fact]
     public void TryAttack_ChoosesTheNearerWinnableTarget_OverAFurtherWinnableOne()
@@ -353,7 +561,99 @@ public class AiBrainTests
         Assert.Equal(7, decision.Command.UnitCount); // floor(14 / 2) after the 1-unit decoy left
     }
 
-    // --- Clause 4: consolidate ---
+    // --- Clause 4: attack, routing around enemy tower fire (FR-7) ---
+
+    [Fact]
+    public void TryAttack_AmongTwoEquallyWinnableTargets_PrefersTheOneThatAvoidsAnEnemyTower()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral4 = match.Bases[4]; // tied distance with neutral5 from aiBase
+        var neutral5 = match.Bases[5];
+
+        // neutral4 becomes a level-1 enemy tower: an army flying straight at it from aiBase spends
+        // most of the final stretch inside its own range, losing an estimated 3 units (see
+        // TowerThreatEstimator). neutral5 sits far outside any tower's range on this map (ranges are
+        // deliberately kept below the map's minimum base-to-base distance), so attacking it costs
+        // nothing. Both start with the same garrison (5), so both are equally winnable ignoring
+        // tower losses.
+        SetOwner(neutral4, human);
+        SetType(neutral4, BaseType.Tower);
+        SetLevel(neutral4, LevelTable.MinLevel);
+        SetGarrison(neutral4, 5);
+
+        // Large enough that unclampedHalf (9) still exceeds predictedGarrison (5) even after the
+        // estimated 3-unit tower loss - both targets stay genuinely winnable, so this proves a
+        // preference, not a refusal.
+        SetGarrison(aiBase, 18);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral5.Id, decision.Command.TargetBaseId);
+    }
+
+    [Fact]
+    public void TryAttack_OnlyViableTargetBehindATower_IsStillAttacked_WhenWinnableAfterTheEstimatedLoss()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral4 = match.Bases[4];
+
+        MakeOnlyNeutral4Viable(match, human, neutral4);
+        SetGarrison(aiBase, 18); // unclampedHalf 9, minus the ~3-unit estimated loss, still > 5
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral4.Id, decision.Command.TargetBaseId);
+    }
+
+    [Fact]
+    public void TryAttack_OnlyViableTargetBehindATower_IsDeclined_WhenUnwinnableAfterTheEstimatedLoss()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral4 = match.Bases[4];
+
+        MakeOnlyNeutral4Viable(match, human, neutral4);
+        SetGarrison(aiBase, 14); // unclampedHalf 7, minus the ~3-unit estimated loss, no longer > 5
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    /// <summary>
+    /// Sets up every other base on the map as unwinnable, leaving neutral4 - a level-1 enemy tower
+    /// with garrison 5 - the AI's only viable attack candidate from its own base.
+    /// </summary>
+    private static void MakeOnlyNeutral4Viable(Match match, Player human, Base neutral4)
+    {
+        SetOwner(neutral4, human);
+        SetType(neutral4, BaseType.Tower);
+        SetLevel(neutral4, LevelTable.MinLevel);
+        SetGarrison(neutral4, 5);
+
+        foreach (var other in match.Bases.Where(b => b.Id != neutral4.Id && b.Owner != match.AiPlayer))
+        {
+            SetGarrison(other, 1000); // unwinnable regardless of unclampedHalf
+        }
+    }
+
+    private static void SetOwner(Base b, Player? owner) =>
+        typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { owner });
+
+    // --- Clause 5: consolidate ---
 
     [Fact]
     public void TryConsolidate_SkippedWhenTheAiOwnsFewerThanTwoBases()
@@ -483,6 +783,11 @@ public class AiBrainTests
                 Assert.Equal(match.AiPlayer, decision.Upgrade.IssuingPlayer);
                 match.Execute(decision.Upgrade);
             }
+            else if (decision.IsConvert)
+            {
+                Assert.Equal(match.AiPlayer, decision.Convert.IssuingPlayer);
+                match.Execute(decision.Convert);
+            }
             else
             {
                 Assert.Equal(match.AiPlayer, decision.Command.IssuingPlayer);
@@ -510,6 +815,11 @@ public class AiBrainTests
             {
                 var upgradeOutcome = match.Execute(decision.Upgrade);
                 Assert.Equal(UpgradeOutcome.Accepted, upgradeOutcome);
+            }
+            else if (decision.IsConvert)
+            {
+                var convertOutcome = match.Execute(decision.Convert);
+                Assert.Equal(ConvertOutcome.Accepted, convertOutcome);
             }
             else
             {
@@ -548,6 +858,10 @@ public class AiBrainTests
                 {
                     Assert.Equal(UpgradeOutcome.Accepted, Runner!.Execute(decision.Upgrade));
                 }
+                else if (decision.IsConvert)
+                {
+                    Assert.Equal(ConvertOutcome.Accepted, Runner!.Execute(decision.Convert));
+                }
                 else
                 {
                     Assert.Equal(SendArmyOutcome.Accepted, Runner!.Execute(decision.Command));
@@ -562,7 +876,7 @@ public class AiBrainTests
     /// Mirrors the standing convention from phase 2's issue #24 finding, restated for the widened
     /// decision shape: every command the brain produces over a full headless match, run through
     /// <see cref="MatchRunner"/> exactly as the real game would, must be accepted - no rejection of
-    /// any kind, for either a send or an upgrade.
+    /// any kind, for a send, an upgrade, or a convert (FR-7).
     /// </summary>
     [Fact]
     public void EveryAiDecision_OverAFullHeadlessMatch_ThroughMatchRunner_IsAlwaysAccepted()

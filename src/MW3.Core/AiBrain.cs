@@ -1,8 +1,8 @@
 namespace MW3.Core;
 
 /// <summary>
-/// The AI opponent's brain (D-16, FR-6): four clauses evaluated in priority order - defend,
-/// upgrade, attack, consolidate - the first that produces a command wins. Every send is
+/// The AI opponent's brain (D-16, FR-6, FR-7): five clauses evaluated in priority order - defend,
+/// upgrade, convert, attack, consolidate - the first that produces a command wins. Every send is
 /// <c>floor(garrison / 2)</c> clamped to a minimum of 1, identical to the human's rule, so the AI
 /// can express nothing a human could not. No lookahead beyond one decision and no randomness
 /// (D-15): every clause is a fresh, deterministic read of the match as it stands right now.
@@ -37,6 +37,12 @@ public sealed class AiBrain : IPlayerBrain
         }
 
         decision = TryUpgrade(match, ownBases);
+        if (decision.HasCommand)
+        {
+            return decision;
+        }
+
+        decision = TryConvert(match, ownBases);
         if (decision.HasCommand)
         {
             return decision;
@@ -214,10 +220,77 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// Clause 2: considering own bases in descending garrison order, and for each the bases it
-    /// does not own in ascending distance order, send at the first winnable, untargeted candidate
-    /// and stop. Winnable means <c>floor(sourceGarrison / 2)</c> - unclamped - strictly exceeds the
-    /// target's garrison predicted at arrival.
+    /// Clause 3 (FR-7): with an owned Producer saturated past <see cref="LevelTable.ConversionCost"/>
+    /// and nothing to defend or upgrade, convert the front - the own base closest to any base it does
+    /// not own, the same distance rule <see cref="TryConsolidate"/> uses to find its front - to a
+    /// tower. Skipped when the AI owns fewer than two bases (converting its only base would remove
+    /// its sole source of new units) or when no candidate qualifies (see
+    /// <see cref="IsConvertCandidate"/>: owned, a Producer, not under construction, garrison at or
+    /// above the conversion cost, and no enemy army in flight to it - the same threatened-base guard
+    /// <see cref="IsUpgradeCandidate"/> already uses, since the cost is paid immediately while the
+    /// type change lands 100 ticks later, D-30).
+    /// </summary>
+    private BrainDecision TryConvert(Match match, List<Base> ownBases)
+    {
+        if (ownBases.Count < 2)
+        {
+            return BrainDecision.None;
+        }
+
+        Base? best = null;
+        var bestDistance = double.MaxValue;
+
+        foreach (var candidate in ownBases)
+        {
+            if (!IsConvertCandidate(match, candidate))
+            {
+                continue;
+            }
+
+            var nearestNotOwnedDistance = NearestNotOwnedDistance(match, candidate);
+
+            // ownBases is ascending by id, so a strictly-smaller distance is the only way to
+            // replace the current pick - an equal distance leaves the lower id in place, the same
+            // tie-break TryConsolidate's front search uses.
+            if (nearestNotOwnedDistance < bestDistance)
+            {
+                best = candidate;
+                bestDistance = nearestNotOwnedDistance;
+            }
+        }
+
+        return best is null
+            ? BrainDecision.None
+            : BrainDecision.Converting(new ConvertCommand(Player, best.Id, BaseType.Tower));
+    }
+
+    private bool IsConvertCandidate(Match match, Base candidate)
+    {
+        if (candidate.Type != BaseType.Producer)
+        {
+            return false;
+        }
+
+        if (candidate.Construction is not null)
+        {
+            return false;
+        }
+
+        if (candidate.GarrisonCount < LevelTable.ConversionCost)
+        {
+            return false;
+        }
+
+        return !AnyEnemyArmyInFlightTo(match, candidate.Id);
+    }
+
+    /// <summary>
+    /// Clause 4 (FR-7): considering own bases in descending garrison order, and for each the bases
+    /// it does not own in ascending distance order, among the winnable, untargeted candidates prefer
+    /// the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a refusal:
+    /// the AI still attacks the only winnable target even when it crosses an enemy tower's range.
+    /// Winnable means <c>floor(sourceGarrison / 2)</c> - unclamped, minus the expected tower loss -
+    /// strictly exceeds the target's garrison predicted at arrival.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -251,6 +324,10 @@ public sealed class AiBrain : IPlayerBrain
 
             var unclampedHalf = source.GarrisonCount / 2;
 
+            Base? bestTarget = null;
+            var bestUnitCount = 0;
+            var bestExpectedTowerLoss = int.MaxValue;
+
             foreach (var target in targets)
             {
                 if (AlreadyTargetedByOwnArmy(match, target.Id))
@@ -261,11 +338,20 @@ public sealed class AiBrain : IPlayerBrain
                 var travelTicks = TravelTimeCalculator.ComputeTicks(source.Position, target.Position);
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
+                var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
+                var attackingUnitCount = unclampedHalf - expectedTowerLoss;
 
-                if (unclampedHalf > predictedGarrison)
+                if (attackingUnitCount > predictedGarrison && expectedTowerLoss < bestExpectedTowerLoss)
                 {
-                    return BrainDecision.Send(new SendArmyCommand(Player, source.Id, target.Id, Math.Max(1, unclampedHalf)));
+                    bestTarget = target;
+                    bestUnitCount = unclampedHalf;
+                    bestExpectedTowerLoss = expectedTowerLoss;
                 }
+            }
+
+            if (bestTarget is not null)
+            {
+                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, Math.Max(1, bestUnitCount)));
             }
         }
 
@@ -273,9 +359,34 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// Clause 3: with nothing to defend or win, feed the front - the own base closest to any base
-    /// it does not own - from the largest other own base. Skipped when the AI owns fewer than two
-    /// bases, or when the front already has an AI army in flight to it.
+    /// The sum, over every enemy-owned tower whose range the <paramref name="source"/>-to-
+    /// <paramref name="target"/> segment crosses, of <see cref="TowerThreatEstimator"/>'s estimated
+    /// units lost - never the AI's own towers, since a player's armies fly through their own towers
+    /// untouched (FR-4).
+    /// </summary>
+    private int TotalExpectedTowerLoss(Match match, MapPoint source, MapPoint target)
+    {
+        var total = 0;
+        var allBases = match.Bases;
+
+        for (var i = 0; i < allBases.Count; i++)
+        {
+            var candidate = allBases[i];
+            if (candidate.Type != BaseType.Tower || candidate.Owner is null || candidate.Owner == Player)
+            {
+                continue;
+            }
+
+            total += TowerThreatEstimator.EstimateUnitsLost(source, target, candidate.Position, candidate.Level);
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// Clause 5: with nothing to defend, upgrade, convert, or win, feed the front - the own base
+    /// closest to any base it does not own - from the largest other own base. Skipped when the AI
+    /// owns fewer than two bases, or when the front already has an AI army in flight to it.
     /// </summary>
     private BrainDecision TryConsolidate(Match match, List<Base> ownBases)
     {
