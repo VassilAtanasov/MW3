@@ -88,6 +88,10 @@ public sealed class MatchRunner
                 {
                     _match.Execute(decision.Upgrade);
                 }
+                else if (decision.IsConvert)
+                {
+                    _match.Execute(decision.Convert);
+                }
                 else
                 {
                     _match.Execute(decision.Command);

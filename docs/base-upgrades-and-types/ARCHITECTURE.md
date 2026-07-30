@@ -182,8 +182,11 @@ src/MW3.Core/
   UpgradeCommand.cs        spend units from a base's own garrison to raise its level
   ConvertCommand.cs        producer <-> tower, both directions, reversible (D-23)
   BaseAction.cs            one offerable action + its cost + whether it is affordable
-  MatchRunner.cs           unchanged in shape; routes the two new command types
-  AiBrain.cs               gains a clause for upgrading (FR-6)
+  MatchRunner.cs           unchanged in shape; routes the two new command types, and FR-7's convert
+  AiBrain.cs               gains a clause for upgrading (FR-6), then convert and tower-aware
+                           attack target selection (FR-7)
+  TowerThreatEstimator.cs  FR-7: pure line/circle geometry estimating units an enemy tower would
+                           remove from an army crossing its range, shared by AiBrain's attack clause
 src/MW3.Game/
   MatchScreen.cs           draws level, cap, type, range, army strength; hosts the menu
   BaseActionMenu.cs        layout, drawing, and button hit-testing - decides nothing (D-25)
