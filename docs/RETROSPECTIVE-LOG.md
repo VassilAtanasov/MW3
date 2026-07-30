@@ -171,3 +171,35 @@ standalone). Records outcome and lessons; never gates or reopens a shipped featu
   file" - the exact conflation that caused friction 2 above. Framed as a rule for any future
   `/implement` delegation brief to check the issue's own Verification checklist for new-script
   requirements before writing "no new QA mechanism" into a brief.
+
+## 2026-07-30 — autopilot run (Base upgrades and types: #53) — phase 3 complete
+- Outcome: 1 shipped (#53 FR-7, "The AI opponent builds towers and routes armies around enemy
+  ranges", via PR #55), 0 skipped-for-clarification, 0 circuit breakers tripped, `main` green. This
+  was the last open `feature` issue on phase 3's board (20) - **phase 3 ("Base upgrades and types")
+  is now fully shipped**, FR-1 through FR-7 all merged. Next work per CLAUDE.md's project registry
+  is `/discover`/`/kickoff` on phase 4 ("Sending armies the MW2 way", board 21), whose FR-1 (#54)
+  already has an open issue but has not been through this run.
+- Went well: single review/QA cycle, no rework - `code-reviewer` returned `APPROVE` and
+  `qa-verifier` returned `VERIFIED` on the first pass, with only one non-blocking coverage
+  observation (filed as follow-up #56, not a fix-now finding). The issue's own acceptance criteria
+  were unusually implementation-ready (down to the exact winnability formula and geometry model),
+  which is itself a signal that phase 3's mid-phase MW2 correction (FR-3a/3b/3c) and the accumulated
+  `docs/reference/` material are paying off in kickoff quality.
+- Caused rework: none within the PR - but implementing FR-7 exposed a genuine, previously-invisible
+  interaction between two AI clauses. `TryConvert`'s candidate rule (a flat
+  `garrison >= LevelTable.ConversionCost` threshold) has no cap/level gate the way `TryUpgrade`'s
+  does, so a base that receives a large reinforcement stack well under its level's cap can now
+  legitimately convert to a tower instead of continuing to upgrade - confirmed via a diagnostic run
+  where a level-2 base (cap 40) converted at garrison 41. This broke a pre-existing test
+  (`AiLaddersPastLevelTwo_ReachingLevelThreeOnAtLeastOneBase_OverALongMatch`) that had never been
+  exercised against a scenario where two AI self-investment clauses could compete for the same
+  saturated base. Diagnosed with temporary instrumentation before touching anything (rather than
+  guessing), confirmed as spec-sanctioned rather than a bug, and the test was re-authored to the
+  wider, still-meaningful property ("reaches level 3 or builds a tower") rather than loosened.
+- Follow-ups filed: #56 "FR-7's determinism test doesn't confirm the tower-aware attack branch
+  actually fired" - `code-reviewer`'s one non-blocking finding, a test-coverage gap in
+  `AiTowerRoutingDeterminismTests.cs` (asserts single-call/chunked agreement but not that the
+  tower-loss-aware attack branch specifically executed during the rigged run).
+- Process adjustments applied: none - no recurring friction pattern emerged from a single-feature
+  run; the `TryConvert`/`TryUpgrade` interaction above was investigated and resolved within the PR,
+  not left as a standing risk requiring a CLAUDE.md change.
