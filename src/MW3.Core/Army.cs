@@ -12,7 +12,7 @@ namespace MW3.Core;
 /// </summary>
 public sealed class Army
 {
-    internal Army(int id, Player owner, int sourceBaseId, int targetBaseId, int unitCount, long launchTick, long arrivalTick)
+    internal Army(int id, Player owner, int sourceBaseId, int targetBaseId, int unitCount, long launchTick, long arrivalTick, int sendId, int waveIndex, int waveCount)
     {
         Id = id;
         Owner = owner;
@@ -21,6 +21,9 @@ public sealed class Army
         UnitCount = unitCount;
         LaunchTick = launchTick;
         ArrivalTick = arrivalTick;
+        SendId = sendId;
+        WaveIndex = waveIndex;
+        WaveCount = waveCount;
     }
 
     public int Id { get; }
@@ -41,4 +44,21 @@ public sealed class Army
     public long LaunchTick { get; }
 
     public long ArrivalTick { get; }
+
+    /// <summary>
+    /// The send this army belongs to (FR-3). All waves from a single <see cref="Match.Execute(SendArmyCommand)"/>
+    /// call share one send id, drawn from a <see cref="Match"/>-owned counter separate from the
+    /// army-id counter.
+    /// </summary>
+    public int SendId { get; }
+
+    /// <summary>
+    /// This wave's 1-based index within its send (FR-3). A single-arrival send has <see cref="WaveIndex"/> = 1.
+    /// </summary>
+    public int WaveIndex { get; }
+
+    /// <summary>
+    /// The total number of waves in this send (FR-3). A single-arrival send has <see cref="WaveCount"/> = 1.
+    /// </summary>
+    public int WaveCount { get; }
 }

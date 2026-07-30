@@ -1,4 +1,4 @@
-namespace MW3.Core;
+﻿namespace MW3.Core;
 
 /// <summary>
 /// The match aggregate: players, the hardcoded map, and production. State changes only through
@@ -9,7 +9,7 @@ public sealed class Match
     /// <summary>
     /// 50ms, the only tick duration MW2's five published village production rates land on exactly:
     /// each rate is <c>60 / level</c> ticks, all whole numbers (D-27, <c>docs/reference/MW2-PARITY.md</c>
-    /// §3).
+    /// Â§3).
     /// </summary>
     public const long TickDurationMilliseconds = 50;
 
@@ -134,7 +134,10 @@ public sealed class Match
             command.TargetBaseId,
             command.UnitCount,
             launchTick: ElapsedTicks,
-            arrivalTick: ElapsedTicks + travelTicks));
+            arrivalTick: ElapsedTicks + travelTicks,
+            sendId: 0,
+            waveIndex: 1,
+            waveCount: 1));
 
         return SendArmyOutcome.Accepted;
     }
@@ -697,7 +700,7 @@ public sealed class Match
     /// base that changed hands mid-flight is reinforced or attacked based on who holds it now.
     /// <para>
     /// <b>Superseded by D-29 (FR-3b):</b> an attack no longer resolves as plain 1:1 subtraction.
-    /// Combat is <see cref="CombatResolver"/>'s <c>Bu = (a/d) × Wu</c>, so a defended base can hold
+    /// Combat is <see cref="CombatResolver"/>'s <c>Bu = (a/d) Ã— Wu</c>, so a defended base can hold
     /// against a wave that would have captured it under the old arithmetic. Reinforcement (this
     /// method's same-owner branch) is untouched - defence never applies to a player's own arriving
     /// units.
@@ -735,7 +738,7 @@ public sealed class Match
 
         if (result.Captured)
         {
-            // The retake grace (D-30, FR-3c, MW2-RULES.md §2.5) is decided from the state this base
+            // The retake grace (D-30, FR-3c, MW2-RULES.md Â§2.5) is decided from the state this base
             // carried *before* this capture - read it before overwriting either field below. A true
             // retake is the capturing player equalling the owner this base had immediately before its
             // last change, within the grace window of that change; neutral -> human -> AI within the
@@ -824,3 +827,5 @@ public sealed class Match
         return true;
     }
 }
+
+
