@@ -290,8 +290,10 @@ public sealed class AiBrain : IPlayerBrain
     /// it does not own in ascending distance order, among the winnable, untargeted candidates prefer
     /// the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a refusal:
     /// the AI still attacks the only winnable target even when it crosses an enemy tower's range.
-    /// Winnable means <c>floor(sourceGarrison / 2)</c> - unclamped, minus the expected tower loss -
-    /// strictly exceeds the target's garrison predicted at arrival.
+    /// Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0 or 1
+    /// garrison can never be winnable, unlike the clamped-to-1 size <see cref="SendStrengthCalculator"/>
+    /// computes for the send itself - minus the expected tower loss, strictly exceeds the target's
+    /// garrison predicted at arrival.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -323,10 +325,11 @@ public sealed class AiBrain : IPlayerBrain
                 return byDistance != 0 ? byDistance : a.Id.CompareTo(b.Id);
             });
 
-            var halfGarrison = SendStrengthCalculator.Compute(source.GarrisonCount, SendStrength.Half);
+            // Unclamped: a source with 0 or 1 garrison must stay unwinnable, unlike the clamped-to-1
+            // size SendStrengthCalculator computes for the eventual send.
+            var unclampedHalfGarrison = source.GarrisonCount * (int)SendStrength.Half / 100;
 
             Base? bestTarget = null;
-            var bestUnitCount = 0;
             var bestExpectedTowerLoss = int.MaxValue;
 
             foreach (var target in targets)
@@ -340,19 +343,19 @@ public sealed class AiBrain : IPlayerBrain
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
-                var attackingUnitCount = halfGarrison - expectedTowerLoss;
+                var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
 
                 if (attackingUnitCount > predictedGarrison && expectedTowerLoss < bestExpectedTowerLoss)
                 {
                     bestTarget = target;
-                    bestUnitCount = halfGarrison;
                     bestExpectedTowerLoss = expectedTowerLoss;
                 }
             }
 
             if (bestTarget is not null)
             {
-                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, bestUnitCount));
+                var unitCount = SendStrengthCalculator.Compute(source.GarrisonCount, SendStrength.Half);
+                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, unitCount));
             }
         }
 
