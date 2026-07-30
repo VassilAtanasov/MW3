@@ -127,20 +127,21 @@ public class GarrisonCapTests
         var neutral = match.Bases.First(b => b.Owner is null);
         var period = LevelTable.Village.ProductionPeriodTicks(LevelTable.MinLevel);
 
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
+        // 8 units - the largest send that stays a single wave (FR-3) - throughout this test.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 8)));
         match.Advance(1200); // both bases reach the level-1 cap of 20
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         Assert.Equal(20, neutral.GarrisonCount);
         Assert.Equal(20, humanBase.GarrisonCount);
 
         // Leave the staging base below its cap and partway through a period.
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 15)));
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 8)));
         match.Advance(4);
         Assert.True(neutral.ProductionProgressTicks > 0);
         Assert.True(neutral.GarrisonCount < neutral.GarrisonCap);
 
         // Reinforce it past its cap, and stop the advance exactly on the arrival tick.
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 20)));
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 8)));
         // The earlier drain is still in flight toward the capital, so pick the reinforcement by its
         // target rather than assuming it is the only army on the map.
         var army = match.ArmiesInFlight.Single(a => a.TargetBaseId == neutral.Id);
@@ -150,7 +151,7 @@ public class GarrisonCapTests
         Assert.Equal(0, neutral.ProductionProgressTicks); // zeroed by the arrival itself
 
         // Drain it on that same tick - no Advance has run since the arrival resolved.
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 20)));
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 8)));
         var afterDrain = neutral.GarrisonCount;
         Assert.True(afterDrain < neutral.GarrisonCap);
 
@@ -199,7 +200,8 @@ public class GarrisonCapTests
         // 60-tick production period, so a base still credited from global tick boundaries would
         // produce at tick 120 (51 ticks later) instead of 129.
         match.Advance(35);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
+        // 8 units - the largest send that stays a single wave (FR-3).
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 8)));
 
         var army = Assert.Single(match.ArmiesInFlight);
         match.Advance(army.ArrivalTick - match.ElapsedTicks);

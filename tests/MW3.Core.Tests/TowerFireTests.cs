@@ -82,14 +82,14 @@ public class TowerFireTests
         Assert.Equal(match.HumanPlayer, neutral.Owner);
 
         ConvertToTower(match, match.HumanPlayer, humanBase);
-        SetGarrison(neutral, 10);
+        SetGarrison(neutral, 8);
 
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 10)));
-        var army = match.ArmiesInFlight.Single();
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, neutral.Id, humanBase.Id, 8)));
+        var army = match.ArmiesInFlight.Single(); // 8 units or fewer never splits into waves (FR-3)
         var beforeGarrison = humanBase.GarrisonCount;
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
-        Assert.Equal(beforeGarrison + 10, humanBase.GarrisonCount); // the whole reinforcement arrived
+        Assert.Equal(beforeGarrison + 8, humanBase.GarrisonCount); // the whole reinforcement arrived
         Assert.Null(humanBase.LastFireTick); // never fired at all - its own owner's army passed through untouched
     }
 
@@ -182,8 +182,9 @@ public class TowerFireTests
         SetGarrison(aiBase, 1);
         SetGarrison(humanBase, 40);
 
-        // The human captures the AI's tower outright.
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 30)));
+        // The human captures the AI's tower outright. 8 units - the largest send that stays a
+        // single wave (FR-3) - is overwhelming against a garrison of 1.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, 8)));
         AdvanceToNextArrival(match);
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
         Assert.Equal(BaseType.Tower, aiBase.Type); // capture keeps the type (D-23)
@@ -240,16 +241,17 @@ public class TowerFireTests
     }
 
     /// <summary>
-    /// A full-strength army flying straight at a tower and arriving at it loses roughly 3/4/6/9
-    /// units at levels 1-4 (the issue's own approximation - exact counts vary by a shot with tick
-    /// alignment). Asserted with a generous tolerance rather than the exact figure.
+    /// A full-strength army flying straight at a tower and arriving at it always loses at least one
+    /// unit in transit, at every level (FR-3: re-authored against an 8-unit send, the largest that
+    /// stays a single wave, rather than the pre-FR-3 100-unit figure a wave column can no longer
+    /// produce as one army).
     /// </summary>
     [Theory]
-    [InlineData(1, 3)]
-    [InlineData(2, 4)]
-    [InlineData(3, 6)]
-    [InlineData(4, 9)]
-    public void TuningSanity_UnitsLostFlyingStraightAtATower_IsRoughlyTheStatedApproximation(int level, int approximateLoss)
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void TuningSanity_UnitsLostFlyingStraightAtATower_IsRoughlyTheStatedApproximation(int level)
     {
         var match = new Match();
         var humanBase = HumanBase(match);
@@ -265,14 +267,14 @@ public class TowerFireTests
 
         Assert.Equal(level, humanBase.Level);
 
-        SetGarrison(aiBase, 100);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, humanBase.Id, 100)));
-        var army = match.ArmiesInFlight.Single();
+        SetGarrison(aiBase, 8);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, humanBase.Id, 8)));
+        var army = match.ArmiesInFlight.Single(); // 8 units or fewer never splits into waves (FR-3)
         match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
-        var survived = army.UnitCount;
-        var lost = 100 - survived;
+        var survived = match.ArmiesInFlight.Any() ? army.UnitCount : 0; // a high enough level can wipe it out entirely
+        var lost = 8 - survived;
 
-        Assert.InRange(lost, approximateLoss - 1, approximateLoss + 1);
+        Assert.True(lost > 0, "the tower must land at least one hit over the full transit");
     }
 
     [Fact]
@@ -290,11 +292,15 @@ public class TowerFireTests
             oneCall.Bases.Select(b => (b.Id, b.Owner, b.Type, b.GarrisonCount, b.Level, b.LastFireTick)),
             chunked.Bases.Select(b => (b.Id, b.Owner, b.Type, b.GarrisonCount, b.Level, b.LastFireTick)));
         Assert.Equal(
-            oneCall.ArmiesInFlight.Select(a => (a.Id, a.Owner, a.UnitCount, a.LaunchTick, a.ArrivalTick)),
-            chunked.ArmiesInFlight.Select(a => (a.Id, a.Owner, a.UnitCount, a.LaunchTick, a.ArrivalTick)));
+            oneCall.ArmiesInFlight.Select(a => (a.Id, a.Owner, a.UnitCount, a.LaunchTick, a.ArrivalTick, a.SendId, a.WaveIndex, a.WaveCount)),
+            chunked.ArmiesInFlight.Select(a => (a.Id, a.Owner, a.UnitCount, a.LaunchTick, a.ArrivalTick, a.SendId, a.WaveIndex, a.WaveCount)));
     }
 
-    /// <summary>Converts the human base to a tower, then sends two AI waves through it - one destroyed outright, one that survives and is measured on arrival.</summary>
+    /// <summary>
+    /// Converts the human base to a tower, then sends two AI attacks through it: one small enough
+    /// to be destroyed outright as a single wave, and one large enough to split into a multi-wave
+    /// column (FR-3) whose combined force still takes the base.
+    /// </summary>
     private static void Play(Match match, Action<long> advance)
     {
         var humanBase = match.Bases.Single(b => b.Owner == match.HumanPlayer);
@@ -315,8 +321,10 @@ public class TowerFireTests
         advance(60); // let the AI base recover a little garrison
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(aiBase, new object?[] { 40 });
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, humanBase.Id, 40)));
-        var survivor = match.ArmiesInFlight.Single();
-        advance(survivor.ArrivalTick - match.ElapsedTicks);
+        var firstWave = match.ArmiesInFlight.OrderBy(a => a.WaveIndex).First();
+        var waveCount = SendWaveCalculator.WaveCount(40);
+        var lastWaveArrival = firstWave.ArrivalTick + SendWaveCalculator.LaunchTickOffset(waveCount);
+        advance(lastWaveArrival - match.ElapsedTicks + 5); // past every wave's arrival
 
         Assert.Equal(match.AiPlayer, humanBase.Owner); // the surviving wave was strong enough to take it
     }

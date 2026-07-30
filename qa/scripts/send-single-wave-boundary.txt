@@ -1,0 +1,10 @@
+# Tap Play, then drag from the human base to the nearest neutral with the strength control left at
+# its default 50% - 5 of the starting garrison of 10, comfortably at or under
+# SendWaveCalculator.WaveSizeUnits (8). Dumped mid-flight (well before the ~34-tick arrival), this
+# pins the FR-3 boundary: a send this small never splits, producing exactly one army reading
+# Wave=1/1, bit-identical to pre-FR-3 behaviour.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.350000 0.250000
+30 wait

@@ -576,7 +576,7 @@ internal sealed class MatchScreen : IScreen
         foreach (var army in _match.ArmiesInFlight)
         {
             writer.WriteLine(FormattableString.Invariant(
-                $"Army {army.Id}: Owner={army.Owner.ControllerKind} Source={army.SourceBaseId} Target={army.TargetBaseId} Count={army.UnitCount} Launch={army.LaunchTick} Arrival={army.ArrivalTick}"));
+                $"Army {army.Id}: Owner={army.Owner.ControllerKind} Source={army.SourceBaseId} Target={army.TargetBaseId} Count={army.UnitCount} Launch={army.LaunchTick} Arrival={army.ArrivalTick} Send={army.SendId} Wave={army.WaveIndex}/{army.WaveCount}"));
         }
 
         writer.WriteLine(FormatMenuDumpLine());
