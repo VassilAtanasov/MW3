@@ -892,8 +892,10 @@ public sealed class Match
 
     /// <summary>
     /// A player is eliminated only once irreversibly so: zero owned bases and zero armies still in
-    /// flight. An army in flight might yet recapture a base, so elimination is never declared while
-    /// one remains (FR-7).
+    /// flight or still pending launch. An army in flight might yet recapture a base, so elimination
+    /// is never declared while one remains (FR-7) - and a pending wave (FR-3, D-35) is exactly such
+    /// an army, merely not yet promoted into <see cref="ArmiesInFlight"/>; ignoring it would declare
+    /// a sender eliminated while their own later waves could still turn the match around.
     /// </summary>
     private bool IsEliminated(Player player)
     {
@@ -908,6 +910,14 @@ public sealed class Match
         foreach (var army in _armies)
         {
             if (army.Owner == player)
+            {
+                return false;
+            }
+        }
+
+        foreach (var pendingWave in _pendingWaves)
+        {
+            if (pendingWave.Army.Owner == player)
             {
                 return false;
             }

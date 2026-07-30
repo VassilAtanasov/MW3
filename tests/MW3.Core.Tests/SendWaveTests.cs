@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace MW3.Core.Tests;
 
 /// <summary>
@@ -95,6 +97,40 @@ public class SendWaveTests
 
         match.Advance(1000); // long enough to have launched every wave of a real 20-unit send
         Assert.Empty(match.ArmiesInFlight); // nothing was ever pending to launch
+    }
+
+    [Fact]
+    public void PendingWaveOfTheirs_KeepsAPlayerAlive_EvenWithNoBasesAndNoLaunchedArmiesLeft()
+    {
+        // A real reproduction of this race (a player's last owned base falls at the same moment
+        // their last *launched* army resolves, while a later wave of their own send still waits to
+        // launch) needs two independent events landing on the same tick - not reachable through
+        // ordinary play on the fixed map without contriving both sides' timing. Rigged directly by
+        // reflection instead, the same style used throughout this file and RecaptureGraceTests/
+        // CaptureDemotionTests for states unreachable through ordinary play.
+        var match = new Match();
+        var human = HumanBase(match);
+        var aiBase = AiBase(match);
+
+        // 16 units splits into two waves of 8; wave 1 enters ArmiesInFlight immediately, wave 2 sits
+        // pending until tick 5 (D-35).
+        SetGarrison(human, 16);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, aiBase.Id, 16)));
+        Assert.Single(match.ArmiesInFlight);
+
+        // Simulate wave 1 having already resolved (destroyed in transit, say) by removing it
+        // directly, and simulate the human's only base falling to an unrelated AI attack landing on
+        // the same tick - together, zero owned bases and zero *launched* armies, with wave 2 still
+        // the only thing keeping the human in the match.
+        var armiesField = typeof(Match).GetField("_armies", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var armies = (List<Army>)armiesField.GetValue(match)!;
+        armies.Clear();
+        typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(human, new object?[] { match.AiPlayer });
+
+        var evaluateOutcome = typeof(Match).GetMethod("EvaluateOutcome", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        evaluateOutcome.Invoke(match, null);
+
+        Assert.Equal(MatchOutcome.InProgress, match.Outcome); // wave 2, still pending, keeps the human alive
     }
 
     // --- Pending launch (D-35) ---

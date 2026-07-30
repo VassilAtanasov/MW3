@@ -241,10 +241,14 @@ public class TowerFireTests
     }
 
     /// <summary>
-    /// A full-strength army flying straight at a tower and arriving at it always loses at least one
-    /// unit in transit, at every level (FR-3: re-authored against an 8-unit send, the largest that
-    /// stays a single wave, rather than the pre-FR-3 100-unit figure a wave column can no longer
-    /// produce as one army).
+    /// A full-strength army flying straight at a tower and arriving at it loses approximately
+    /// <c>floor(RangeUnits / ArmySpeedUnitsPerTick / FirePeriodTicks)</c> units - one shot per fire
+    /// period during the time it spends inside range - capped at the wave's own size when that
+    /// figure would exceed it (FR-3: re-authored against an 8-unit send, the largest that stays a
+    /// single wave, rather than the pre-FR-3 100-unit figure a wave column can no longer produce as
+    /// one army; the expected count is now derived from the tower's own tuning constants, exactly
+    /// like <see cref="TenEightUnitWaves_DoLessTotalDamage_ThanOneEightyUnitArrival"/> derives its
+    /// comparison from <see cref="CombatResolver"/>, rather than a hardcoded approximation).
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -267,14 +271,18 @@ public class TowerFireTests
 
         Assert.Equal(level, humanBase.Level);
 
-        SetGarrison(aiBase, 8);
-        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, humanBase.Id, 8)));
+        const int sentUnits = 8; // the largest send that stays a single wave (FR-3)
+        SetGarrison(aiBase, sentUnits);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.AiPlayer, aiBase.Id, humanBase.Id, sentUnits)));
         var army = match.ArmiesInFlight.Single(); // 8 units or fewer never splits into waves (FR-3)
         match.Advance(army.ArrivalTick - match.ElapsedTicks - 1);
         var survived = match.ArmiesInFlight.Any() ? army.UnitCount : 0; // a high enough level can wipe it out entirely
-        var lost = 8 - survived;
+        var lost = sentUnits - survived;
 
-        Assert.True(lost > 0, "the tower must land at least one hit over the full transit");
+        var rangeTicks = LevelTable.Tower.RangeUnits(level) / Match.ArmySpeedUnitsPerTick;
+        var expectedShots = Math.Min(sentUnits, (long)(rangeTicks / LevelTable.Tower.FirePeriodTicks(level)));
+
+        Assert.InRange(lost, expectedShots - 1, expectedShots + 1);
     }
 
     [Fact]
