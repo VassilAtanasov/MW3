@@ -3,8 +3,9 @@ namespace MW3.Core;
 /// <summary>
 /// The AI opponent's brain (D-16, FR-6, FR-7): five clauses evaluated in priority order - defend,
 /// upgrade, convert, attack, consolidate - the first that produces a command wins. Every send is
-/// <c>floor(garrison / 2)</c> clamped to a minimum of 1, identical to the human's rule, so the AI
-/// can express nothing a human could not. No lookahead beyond one decision and no randomness
+/// <see cref="SendStrengthCalculator.Compute"/> at <see cref="SendStrength.Half"/> (FR-1),
+/// identical to the human's rule, so the AI can express nothing a human could not. No lookahead
+/// beyond one decision and no randomness
 /// (D-15): every clause is a fresh, deterministic read of the match as it stands right now.
 /// </summary>
 public sealed class AiBrain : IPlayerBrain
@@ -322,7 +323,7 @@ public sealed class AiBrain : IPlayerBrain
                 return byDistance != 0 ? byDistance : a.Id.CompareTo(b.Id);
             });
 
-            var unclampedHalf = source.GarrisonCount / 2;
+            var halfGarrison = SendStrengthCalculator.Compute(source.GarrisonCount, SendStrength.Half);
 
             Base? bestTarget = null;
             var bestUnitCount = 0;
@@ -339,19 +340,19 @@ public sealed class AiBrain : IPlayerBrain
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
-                var attackingUnitCount = unclampedHalf - expectedTowerLoss;
+                var attackingUnitCount = halfGarrison - expectedTowerLoss;
 
                 if (attackingUnitCount > predictedGarrison && expectedTowerLoss < bestExpectedTowerLoss)
                 {
                     bestTarget = target;
-                    bestUnitCount = unclampedHalf;
+                    bestUnitCount = halfGarrison;
                     bestExpectedTowerLoss = expectedTowerLoss;
                 }
             }
 
             if (bestTarget is not null)
             {
-                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, Math.Max(1, bestUnitCount)));
+                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, bestUnitCount));
             }
         }
 
@@ -516,7 +517,7 @@ public sealed class AiBrain : IPlayerBrain
             .GarrisonCount;
     }
 
-    private static int ClampedSendSize(int garrison) => Math.Max(1, garrison / 2);
+    private static int ClampedSendSize(int garrison) => SendStrengthCalculator.Compute(garrison, SendStrength.Half);
 
     private static bool IsLargerSource(Base candidate, Base? current) =>
         current is null
