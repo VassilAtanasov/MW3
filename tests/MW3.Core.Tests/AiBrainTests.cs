@@ -634,6 +634,30 @@ public class AiBrainTests
     }
 
     /// <summary>
+    /// A source with 0 or 1 garrison must never be winnable, even against an empty target: the
+    /// winnability check uses the unclamped half-garrison (floor, no minimum-1), unlike the size
+    /// <see cref="SendStrengthCalculator"/> computes for the eventual send (FR-1). A source at 1
+    /// garrison unclamps to 0, so <c>0 - expectedTowerLoss</c> can never exceed a non-negative
+    /// predicted garrison - not even the weakest possible target, garrison 0.
+    /// </summary>
+    [Fact]
+    public void TryAttack_Declines_WhenSourceGarrisonIsOneAndTargetIsEmpty()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var emptyNeutral = match.Bases[2];
+
+        SetGarrison(aiBase, 1);
+        SetGarrison(emptyNeutral, 0);
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    /// <summary>
     /// Sets up every other base on the map as unwinnable, leaving neutral4 - a level-1 enemy tower
     /// with garrison 5 - the AI's only viable attack candidate from its own base.
     /// </summary>

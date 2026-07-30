@@ -3,8 +3,9 @@ namespace MW3.Core;
 /// <summary>
 /// The AI opponent's brain (D-16, FR-6, FR-7): five clauses evaluated in priority order - defend,
 /// upgrade, convert, attack, consolidate - the first that produces a command wins. Every send is
-/// <c>floor(garrison / 2)</c> clamped to a minimum of 1, identical to the human's rule, so the AI
-/// can express nothing a human could not. No lookahead beyond one decision and no randomness
+/// <see cref="SendStrengthCalculator.Compute"/> at <see cref="SendStrength.Half"/> (FR-1),
+/// identical to the human's rule, so the AI can express nothing a human could not. No lookahead
+/// beyond one decision and no randomness
 /// (D-15): every clause is a fresh, deterministic read of the match as it stands right now.
 /// </summary>
 public sealed class AiBrain : IPlayerBrain
@@ -289,8 +290,10 @@ public sealed class AiBrain : IPlayerBrain
     /// it does not own in ascending distance order, among the winnable, untargeted candidates prefer
     /// the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a refusal:
     /// the AI still attacks the only winnable target even when it crosses an enemy tower's range.
-    /// Winnable means <c>floor(sourceGarrison / 2)</c> - unclamped, minus the expected tower loss -
-    /// strictly exceeds the target's garrison predicted at arrival.
+    /// Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0 or 1
+    /// garrison can never be winnable, unlike the clamped-to-1 size <see cref="SendStrengthCalculator"/>
+    /// computes for the send itself - minus the expected tower loss, strictly exceeds the target's
+    /// garrison predicted at arrival.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -322,10 +325,11 @@ public sealed class AiBrain : IPlayerBrain
                 return byDistance != 0 ? byDistance : a.Id.CompareTo(b.Id);
             });
 
-            var unclampedHalf = source.GarrisonCount / 2;
+            // Unclamped: a source with 0 or 1 garrison must stay unwinnable, unlike the clamped-to-1
+            // size SendStrengthCalculator computes for the eventual send.
+            var unclampedHalfGarrison = source.GarrisonCount * (int)SendStrength.Half / 100;
 
             Base? bestTarget = null;
-            var bestUnitCount = 0;
             var bestExpectedTowerLoss = int.MaxValue;
 
             foreach (var target in targets)
@@ -339,19 +343,19 @@ public sealed class AiBrain : IPlayerBrain
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
-                var attackingUnitCount = unclampedHalf - expectedTowerLoss;
+                var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
 
                 if (attackingUnitCount > predictedGarrison && expectedTowerLoss < bestExpectedTowerLoss)
                 {
                     bestTarget = target;
-                    bestUnitCount = unclampedHalf;
                     bestExpectedTowerLoss = expectedTowerLoss;
                 }
             }
 
             if (bestTarget is not null)
             {
-                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, Math.Max(1, bestUnitCount)));
+                var unitCount = SendStrengthCalculator.Compute(source.GarrisonCount, SendStrength.Half);
+                return BrainDecision.Send(new SendArmyCommand(Player, source.Id, bestTarget.Id, unitCount));
             }
         }
 
@@ -516,7 +520,7 @@ public sealed class AiBrain : IPlayerBrain
             .GarrisonCount;
     }
 
-    private static int ClampedSendSize(int garrison) => Math.Max(1, garrison / 2);
+    private static int ClampedSendSize(int garrison) => SendStrengthCalculator.Compute(garrison, SendStrength.Half);
 
     private static bool IsLargerSource(Base candidate, Base? current) =>
         current is null
