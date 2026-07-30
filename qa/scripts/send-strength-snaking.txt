@@ -1,0 +1,16 @@
+# Tap Play, select 25%, then repeat the same source-to-target drag three times in quick
+# succession - the tapered snaking column. With the human base's starting garrison of 10, the
+# three quarters compute (per D-32's floor-and-clamp-to-1 calculator) as 2, 2, 1: the column
+# tapers (the last send is strictly smaller than the first) even though the first two ties at the
+# integer floor - there is no time for production to break that tie without letting the earliest
+# army arrive first (its ~34-tick flight time is shorter than one production period).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.033203 0.940972
+15 up 0.033203 0.940972
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000
+30 down 0.120000 0.500000
+35 up 0.350000 0.250000
+40 down 0.120000 0.500000
+45 up 0.350000 0.250000

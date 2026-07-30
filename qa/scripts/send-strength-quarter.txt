@@ -1,0 +1,8 @@
+# Tap Play, select 25% on the strength control, then drag from the human base to the nearest
+# neutral - the send is a quarter of the source garrison rather than half.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.033203 0.940972
+15 up 0.033203 0.940972
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000

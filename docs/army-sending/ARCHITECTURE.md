@@ -46,10 +46,11 @@ This phase adds no package reference, no content-pipeline asset, and no platform
 applies verbatim, including the repo-wide `-m:1` build rule and the `down`/`up` scripted-input
 vocabulary.
 
-This phase is expected to add **one** new script directive — a strength selection, needed because
-`--script` currently has no way to express "before this drag, the strength control reads 25%". The
-exact directive name and syntax are settled at FR-2's kickoff, following `ScriptParser`'s existing
-pattern (`DownDirective`, `BackDirective`) rather than inventing a second parsing mechanism.
+**Correction (FR-2):** no new script directive was added, superseding this section's original
+expectation of one. `ScriptParser` is unchanged — a QA script selects a strength by pressing the
+new `SendStrengthSelector` control with the existing `down`/`up` directives, exactly as it already
+presses an action-menu button. This also exercises the control's real hit-testing and layout, which
+a dedicated directive would have bypassed entirely.
 
 `--dump-state` gains fields at two features, each fixed exactly at that feature's kickoff rather
 than here:
