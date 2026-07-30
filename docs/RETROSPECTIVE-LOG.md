@@ -203,3 +203,32 @@ standalone). Records outcome and lessons; never gates or reopens a shipped featu
 - Process adjustments applied: none - no recurring friction pattern emerged from a single-feature
   run; the `TryConvert`/`TryUpgrade` interaction above was investigated and resolved within the PR,
   not left as a standing risk requiring a CLAUDE.md change.
+
+## 2026-07-30 — autopilot run (Sending armies the MW2 way: #58)
+- Outcome: 1 shipped (#58 FR-2: Send-strength picker on both input heads, plus snaking, via PR #59),
+  0 skipped-for-clarification, 0 circuit breakers tripped, `main` green.
+- Went well: gate passed clean on the first attempt (dotnet format, build -warnaserror, 344 tests
+  including 15 new headless SendStrengthSelectorTests). Every acceptance criterion on the issue was
+  independently confirmed by qa-verifier against the running app on both the desktop head and the
+  physical MI PAD 4 device, rebuilt and reinstalled fresh from the branch per follow-up #28's
+  standing lesson. Only one review cycle was needed - both findings were fixed in a single delta
+  pass without spawning a fresh reviewer.
+- Caused rework: one Minor review finding (a headless test measured distance from a button's
+  rectangle center rather than its nearest point to a base, which doesn't actually prove the "never
+  contests a press with a base" invariant for a non-circular shape) - fixed by clamping the base's
+  position into the rectangle before measuring. No other rework; this was a clean single-pass build.
+- Notable process event: the issue's own acceptance criteria asked for a QA-script demonstration
+  ("three armies with strictly decreasing Count=") that, once actually run against the shipped
+  calculator's real arithmetic, produced a tied pair (2, 2, 1) instead - a genuine conflict between
+  the literal acceptance text and what the (correct, verified) numbers do, discovered only by
+  actually running the script rather than reasoning about it abstractly. Handled per the never-guess
+  rule: recorded as an open question on the issue and in the PR body rather than silently choosing
+  an interpretation, with both code-reviewer and qa-verifier independently confirming the behavior
+  was real and correctly implemented before shipping anyway, since it is a QA-script wording
+  precision question rather than a functional defect blocking every other acceptance criterion.
+- Follow-ups filed: #60 "Decide: is snaking's 2,2,1 count sequence an acceptable demo, or should
+  tuning change?" - carries forward the open question above so it isn't lost once #58 is closed;
+  purely a product/tuning decision, no code proposed.
+- Process adjustments applied: none - a single clean-build run doesn't show a recurring pattern
+  worth a standing rule; the "run the script, don't just reason about the arithmetic" instinct that
+  caught the 2,2,1 tie was applied in the moment rather than needing a new CLAUDE.md rule to enforce.
