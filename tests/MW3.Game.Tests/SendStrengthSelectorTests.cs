@@ -67,7 +67,9 @@ public class SendStrengthSelectorTests
 
     // The control must never contest a press with a base on the real map (FR-2's own acceptance
     // criterion) - checked at both target resolutions, against every real base position, not a
-    // synthetic one (mirrors BaseActionMenuTests.TwoButtons_NeverOverlap's approach).
+    // synthetic one (mirrors BaseActionMenuTests.TwoButtons_NeverOverlap's approach). Measured from
+    // the button rectangle's nearest point to the base, not its center - a corner, not the center,
+    // is what could first come within HitTester's threshold of a base.
     [Theory]
     [InlineData(1280, 720)]
     [InlineData(1808, 1018)]
@@ -78,12 +80,17 @@ public class SendStrengthSelectorTests
 
         for (var i = 0; i < 4; i++)
         {
-            var center = CenterOf(GetButtonRect(i, viewport), viewport);
+            var rect = GetButtonRect(i, viewport);
 
             foreach (var b in match.Bases)
             {
-                var dx = center.X - b.Position.X;
-                var dy = center.Y - b.Position.Y;
+                var basePixelX = b.Position.X * viewport.Width;
+                var basePixelY = b.Position.Y * viewport.Height;
+                var nearestPixelX = Math.Clamp(basePixelX, rect.Left, rect.Right);
+                var nearestPixelY = Math.Clamp(basePixelY, rect.Top, rect.Bottom);
+
+                var dx = (nearestPixelX / viewport.Width) - b.Position.X;
+                var dy = (nearestPixelY / viewport.Height) - b.Position.Y;
                 var distance = Math.Sqrt((dx * dx) + (dy * dy));
 
                 Assert.True(
