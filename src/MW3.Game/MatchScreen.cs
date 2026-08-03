@@ -21,7 +21,29 @@ internal sealed class MatchScreen : IScreen
     private const float _armyRadiusFraction = 0.08f;
     private const float _selectionHighlightScale = 1.35f;
 
+    // FR-4, D-36: the last wave of a multi-wave send draws at half _armyRadiusFraction. At
+    // 1280x720 that puts a tail marker's diameter (2 * 0.04 * 720 = 57.6px) under the horizontal
+    // wave spacing (0.05 map units * 1280px = 64px) - the worst overlap the kickoff measured no
+    // longer overlaps at all on that axis, and is materially reduced (69% -> 37.5%) on the
+    // vertical one. A single-wave send never reaches this - RadiusFraction returns
+    // _armyRadiusFraction unchanged whenever WaveCount <= 1 (D-36's bit-identical requirement).
+    private const float _armyTrailingRadiusFraction = 0.04f;
+
+    // The spine (D-36) is a thin line in the owner's tint connecting in-flight waves of one send,
+    // drawn beneath their markers - thin enough it never reads as a marker itself.
+    private const float _spineThicknessFraction = 0.006f;
+
+    // A tower flashes for a few ticks after it fires (Base.LastFireTick), and a hit army flashes
+    // for a few ticks after its UnitCount is observed to drop (FR-4, D-36) - long enough to survive
+    // several Draw calls at a 50ms tick (docs/army-sending/ARCHITECTURE.md D-17), short enough to
+    // read as an event rather than a standing state. Presentation-only: D-22's tuning table governs
+    // simulation numbers, not these (the same call FR-2's kickoff made for its own constants).
+    private const int _towerFlashDurationTicks = 4;
+    private const int _armyHitFlashDurationTicks = 4;
+    private const float _flashBrightenAmount = 0.6f;
+
     private static readonly Color _selectionHighlightColor = Color.Gold;
+    private static readonly Color _flashBrightenTarget = Color.White;
 
     private readonly Match _match = new();
     private readonly MatchRunner _runner;
@@ -57,9 +79,22 @@ internal sealed class MatchScreen : IScreen
     // this feature is the one that reverses.
     private readonly Dictionary<int, (string Text, int Count)> _armyUnitText = new();
 
+    // FR-4, D-36: the UnitCount an army had the last time Update observed it, and the tick its
+    // count was last seen to drop - populated only in Update (never Draw), so a hit flash is tied
+    // to tick arithmetic rather than frame cadence, and two decrements in quick succession are not
+    // collapsed into one. An army destroyed outright leaves ArmiesInFlight the same tick its count
+    // reaches zero, so its final hit never flashes - the accepted, documented limitation D-36 names.
+    private readonly Dictionary<int, int> _lastArmyUnitCount = new();
+    private readonly Dictionary<int, long> _armyHitTick = new();
+
     // Reused scratch buffer for PruneResolvedArmyText, so pruning stale cache entries allocates
     // nothing beyond its own one-time growth.
     private readonly List<int> _armyIdsToPrune = new();
+
+    // Reused scratch buffers for DrawArmiesInFlight's spine (FR-4, D-36) - rebuilt every Draw call
+    // via WaveColumnPresentation.ComputeSpineSegments, never allocated per frame.
+    private readonly List<Vector2> _armyCenterScratch = new();
+    private readonly List<(int FromIndex, int ToIndex)> _spineSegmentScratch = new();
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
@@ -128,6 +163,7 @@ internal sealed class MatchScreen : IScreen
             if (ticks > 0)
             {
                 _runner.Advance(ticks);
+                RecordArmyHits();
                 PruneResolvedArmyText();
             }
         }
@@ -319,12 +355,33 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
-    /// Drops cached unit-count text for armies no longer in flight, so <see cref="_armyUnitText"/>
-    /// does not grow for the life of a match as armies resolve.
+    /// FR-4, D-36: records, for every army still in flight, the tick its <see cref="Army.UnitCount"/>
+    /// was last observed to drop - called once per tick from <see cref="Update"/>, never from
+    /// <see cref="Draw"/>, so a hit flash is tied to tick arithmetic rather than frame cadence.
+    /// </summary>
+    private void RecordArmyHits()
+    {
+        var armies = _match.ArmiesInFlight;
+        for (var i = 0; i < armies.Count; i++)
+        {
+            var army = armies[i];
+            if (_lastArmyUnitCount.TryGetValue(army.Id, out var previousCount) && army.UnitCount < previousCount)
+            {
+                _armyHitTick[army.Id] = _match.ElapsedTicks;
+            }
+
+            _lastArmyUnitCount[army.Id] = army.UnitCount;
+        }
+    }
+
+    /// <summary>
+    /// Drops cached unit-count text, last-seen-count, and last-hit-tick for armies no longer in
+    /// flight, so <see cref="_armyUnitText"/>, <see cref="_lastArmyUnitCount"/>, and
+    /// <see cref="_armyHitTick"/> do not grow for the life of a match as armies resolve.
     /// </summary>
     private void PruneResolvedArmyText()
     {
-        if (_armyUnitText.Count == 0)
+        if (_armyUnitText.Count == 0 && _lastArmyUnitCount.Count == 0 && _armyHitTick.Count == 0)
         {
             return;
         }
@@ -332,20 +389,12 @@ internal sealed class MatchScreen : IScreen
         var armies = _match.ArmiesInFlight;
         foreach (var id in _armyUnitText.Keys)
         {
-            var stillInFlight = false;
-            for (var i = 0; i < armies.Count; i++)
-            {
-                if (armies[i].Id == id)
-                {
-                    stillInFlight = true;
-                    break;
-                }
-            }
+            AddIfNotStillInFlight(armies, id);
+        }
 
-            if (!stillInFlight)
-            {
-                _armyIdsToPrune.Add(id);
-            }
+        foreach (var id in _lastArmyUnitCount.Keys)
+        {
+            AddIfNotStillInFlight(armies, id);
         }
 
         if (_armyIdsToPrune.Count == 0)
@@ -356,9 +405,29 @@ internal sealed class MatchScreen : IScreen
         foreach (var id in _armyIdsToPrune)
         {
             _armyUnitText.Remove(id);
+            _lastArmyUnitCount.Remove(id);
+            _armyHitTick.Remove(id);
         }
 
         _armyIdsToPrune.Clear();
+    }
+
+    private void AddIfNotStillInFlight(IReadOnlyList<Army> armies, int id)
+    {
+        if (_armyIdsToPrune.Contains(id))
+        {
+            return;
+        }
+
+        for (var i = 0; i < armies.Count; i++)
+        {
+            if (armies[i].Id == id)
+            {
+                return;
+            }
+        }
+
+        _armyIdsToPrune.Add(id);
     }
 
     private static MapPoint ToNormalized(Point pointerPosition, Viewport viewport) =>
@@ -444,7 +513,13 @@ internal sealed class MatchScreen : IScreen
             }
 
             var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
-            spriteBatch.Draw(shapeTexture, destination, GetOwnerColor(b.Owner));
+            var baseFillColor = GetOwnerColor(b.Owner);
+            if (b.Type == BaseType.Tower && WaveColumnPresentation.IsFlashing(_match.ElapsedTicks, b.LastFireTick, _towerFlashDurationTicks))
+            {
+                baseFillColor = BrightenColor(baseFillColor);
+            }
+
+            spriteBatch.Draw(shapeTexture, destination, baseFillColor);
 
             if (_lastGarrisonCount[i] != b.GarrisonCount)
             {
@@ -480,6 +555,8 @@ internal sealed class MatchScreen : IScreen
 
     private static Color DarkenOwnerColor(Color color) => Color.Lerp(color, _ringDarkenTarget, _ringDarkenAmount);
 
+    private static Color BrightenColor(Color color) => Color.Lerp(color, _flashBrightenTarget, _flashBrightenAmount);
+
     /// <summary>
     /// Victory/defeat text over the final board, sized and positioned from the viewport (D-14) - a
     /// small band near the top clears every base's circle and garrison count at both 1280x720 and
@@ -503,19 +580,22 @@ internal sealed class MatchScreen : IScreen
     /// <summary>
     /// Each in-flight army is a filled circle smaller than a base, tinted by owner, positioned by
     /// interpolating source-&gt;target between its launch and arrival ticks - sitting exactly on the
-    /// source at launch and exactly on the target at arrival (FR-5).
+    /// source at launch and exactly on the target at arrival (FR-5). A multi-wave send (FR-4, D-36)
+    /// additionally draws a spine beneath the markers connecting its in-flight waves, and each
+    /// wave's own radius tapers toward the tail so consecutive waves overlap less; a single-wave
+    /// send draws bit-identically to before this feature (WaveCount == 1: no taper, no spine).
     /// </summary>
     private void DrawArmiesInFlight(SpriteBatch spriteBatch, Viewport viewport)
     {
-        if (_font is null || _circleTexture is null)
+        if (_font is null || _circleTexture is null || _buttonTexture is null)
         {
             return;
         }
 
-        var armyRadius = Math.Min(viewport.Width, viewport.Height) * _armyRadiusFraction;
-        var armyDiameter = (int)(armyRadius * 2);
+        var minDimension = Math.Min(viewport.Width, viewport.Height);
         var armies = _match.ArmiesInFlight;
 
+        _armyCenterScratch.Clear();
         for (var i = 0; i < armies.Count; i++)
         {
             var army = armies[i];
@@ -523,6 +603,7 @@ internal sealed class MatchScreen : IScreen
             var target = FindBase(army.TargetBaseId);
             if (source is null || target is null)
             {
+                _armyCenterScratch.Add(Vector2.Zero);
                 continue;
             }
 
@@ -532,10 +613,37 @@ internal sealed class MatchScreen : IScreen
 
             var x = source.Position.X + ((target.Position.X - source.Position.X) * fraction);
             var y = source.Position.Y + ((target.Position.Y - source.Position.Y) * fraction);
-            var center = new Vector2((float)(x * viewport.Width), (float)(y * viewport.Height));
+            _armyCenterScratch.Add(new Vector2((float)(x * viewport.Width), (float)(y * viewport.Height)));
+        }
+
+        WaveColumnPresentation.ComputeSpineSegments(armies, _spineSegmentScratch);
+        var spineThickness = Math.Max(1f, minDimension * _spineThicknessFraction);
+        for (var i = 0; i < _spineSegmentScratch.Count; i++)
+        {
+            var (fromIndex, toIndex) = _spineSegmentScratch[i];
+            DrawSpineSegment(
+                spriteBatch, _armyCenterScratch[fromIndex], _armyCenterScratch[toIndex], spineThickness, GetOwnerColor(armies[fromIndex].Owner));
+        }
+
+        for (var i = 0; i < armies.Count; i++)
+        {
+            var army = armies[i];
+            var center = _armyCenterScratch[i];
+
+            var radiusFraction = WaveColumnPresentation.RadiusFraction(
+                army.WaveIndex, army.WaveCount, _armyRadiusFraction, _armyTrailingRadiusFraction);
+            var armyRadius = minDimension * radiusFraction;
+            var armyDiameter = (int)(armyRadius * 2);
+
+            var color = GetOwnerColor(army.Owner);
+            if (_armyHitTick.TryGetValue(army.Id, out var hitTick)
+                && WaveColumnPresentation.IsFlashing(_match.ElapsedTicks, hitTick, _armyHitFlashDurationTicks))
+            {
+                color = BrightenColor(color);
+            }
 
             var destination = new Rectangle((int)(center.X - armyRadius), (int)(center.Y - armyRadius), armyDiameter, armyDiameter);
-            spriteBatch.Draw(_circleTexture, destination, GetOwnerColor(army.Owner));
+            spriteBatch.Draw(_circleTexture, destination, color);
 
             if (!_armyUnitText.TryGetValue(army.Id, out var cached) || cached.Count != army.UnitCount)
             {
@@ -551,6 +659,30 @@ internal sealed class MatchScreen : IScreen
             var textPosition = new Vector2(center.X - (textSize.X / 2f), center.Y - (textSize.Y / 2f));
             spriteBatch.DrawString(_font, text, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
         }
+    }
+
+    /// <summary>
+    /// Draws a thin line from <paramref name="from"/> to <paramref name="to"/> by stretching and
+    /// rotating the shared 1x1 <see cref="_buttonTexture"/> - the same reused-texture trick the
+    /// range ring and buttons already use, so the spine needs no texture of its own.
+    /// </summary>
+    private void DrawSpineSegment(SpriteBatch spriteBatch, Vector2 from, Vector2 to, float thickness, Color color)
+    {
+        if (_buttonTexture is null)
+        {
+            return;
+        }
+
+        var delta = to - from;
+        var length = delta.Length();
+        if (length <= 0f)
+        {
+            return;
+        }
+
+        var rotation = MathF.Atan2(delta.Y, delta.X);
+        var scale = new Vector2(length, thickness);
+        spriteBatch.Draw(_buttonTexture, from, null, color, rotation, Vector2.Zero, scale, SpriteEffects.None, 0f);
     }
 
     /// <summary>

@@ -1,0 +1,16 @@
+# Tap Play, select 100% on the strength control, then immediately drag from the human base all the
+# way to the AI's base - the longest, purely-horizontal edge on the map, chosen so the wave
+# spacing (0.05 map units - ArmySpeedUnitsPerTick * SendWaveCalculator.WaveIntervalTicks) projects
+# onto its full pixel value along the viewport's width rather than being foreshortened by a
+# diagonal edge (FR-4, D-36). The starting garrison of 10 splits into a two-wave column - 8, then
+# the 2-unit remainder - exactly as send-wave-column.txt's does, but travelling this longer edge
+# keeps both waves clear of the source and target bases at frame 130 (tick 43), so the tapered
+# radii (0.08 for wave 1, 0.04 for wave 2) and the per-wave counts are both legible mid-flight
+# rather than overlapping a base circle.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.033203 0.670139
+15 up 0.033203 0.670139
+20 down 0.120000 0.500000
+25 up 0.880000 0.500000
+130 wait
