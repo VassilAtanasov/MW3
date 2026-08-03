@@ -171,6 +171,54 @@ handler when it builds a `SendArmyCommand`; a small always-visible control sets 
 does today without being touched — this phase's only behavioural change for an untouched script is
 therefore zero, matching the "bit-identical at the boundary" pattern D-33 also follows.
 
+**D-36: a wave column reads legibly by tapering each wave's marker radius and drawing a shared
+spine, not by redesigning what a wave already draws as.** Since D-33 made a wave an ordinary `Army`,
+`DrawArmiesInFlight` already rendered each wave as its own circle with its own count - nothing new
+needed constructing there. The actual gap D-33 named as a cost: waves of one send are visually
+indistinguishable from separate sends, and on this map's geometry they can also overlap each other
+outright. The wave spacing along a path (`ArmySpeedUnitsPerTick × SendWaveCalculator.WaveIntervalTicks`
+= 0.05 normalized units) is fixed regardless of edge length or direction, while a marker's diameter
+(`2 × _armyRadiusFraction (0.08) × min(viewport.Width, viewport.Height)`) is not - at 1280x720 the
+worst case (a purely horizontal edge, where the 0.05-unit spacing projects onto the full
+`viewport.Width` rather than being foreshortened by a diagonal) still leaves consecutive full-size
+markers overlapping by 44%; a purely vertical edge overlaps 69%; the MI Pad 4 at 1808x1018 overlaps
+45%. Considered: one composed shape drawing a single aggregate count for the whole column - rejected,
+because per-wave counts are what actually resolve against a defender (a 4-unit tail wave about to
+bounce needs to read as 4, not be folded into a column total). Considered: staggering markers
+perpendicular to the travel line - rejected, because it would put markers off the line
+`HitTester`/the range test reason about, and FR-4's acceptance explicitly wants the column to read as
+one send *on its path*, not beside it. Considered: index badges alone (small "1", "2", "3" labels)
+with no size change - rejected, because it does nothing about the overlap itself; two same-size
+circles at 44-69% overlap still occlude each other's badge. Chosen instead: `WaveColumnPresentation`
+(pure, headlessly testable, decides and draws nothing - the same division D-25 established for
+`SendStrengthSelector`) computes two things from plain `Army` data - `RadiusFraction`, linear from
+`_armyRadiusFraction` at wave 1 to a new, smaller `_armyTrailingRadiusFraction` (0.04) at the last
+wave (sized so a tail marker's diameter no longer exceeds the 0.05-unit spacing on the worst-case
+1280x720 horizontal edge), and `ComputeSpineSegments`, which groups **by `Army.SendId`, never by
+adjacency** in `ArmiesInFlight` (a second send launched mid-column interleaves with the first, per
+D-35 - pending waves aren't even in the list yet) and returns index pairs for consecutive,
+currently-in-flight waves only. `MatchScreen.DrawArmiesInFlight` draws the resulting spine beneath
+every marker (a rotated, scaled draw of the same reused 1x1 texture the buttons already use - no new
+texture) and each wave's own tapered circle on top, so a count is never obscured by the line beneath
+it. `WaveCount == 1` returns `_armyRadiusFraction` unchanged and produces no spine segment at all -
+an ordinary send draws bit-identically to before this feature, the same boundary-is-zero pattern
+D-33 and D-34 both already follow.
+
+A tower's fire and a hit army are made visible the same way: `WaveColumnPresentation.IsFlashing`
+(pure: `elapsedTicks - eventTick < durationTicks`) drives a short, presentation-only brightening
+(`Color.Lerp` toward white, mirroring `DarkenOwnerColor`'s existing technique in reverse) of a
+tower's fill while `Base.LastFireTick` is recent, and of an army's marker while its `UnitCount` was
+recently observed to drop. The drop is detected in `MatchScreen.Update` (a new `RecordArmyHits`,
+called once per tick alongside the existing `PruneResolvedArmyText`), never in `Draw`, so the flash
+is tied to tick arithmetic rather than frame cadence and two decrements in quick succession are not
+collapsed into one. Rejected: a literal tower-to-army tracer line - `MW3.Core` does not expose which
+army a tower's shot resolved against (only the aggregate `UnitCount` change), and adding that
+exposure is out of scope for a presentation-only feature; the brighten-on-hit flash reads as "a shot
+landed on that wave" without needing the target identity at all. Accepted, documented limitation: an
+army destroyed outright leaves `ArmiesInFlight` the same tick its count reaches zero, so its final,
+fatal hit is never recorded and never flashes - `RecordArmyHits` only ever sees armies still in the
+list.
+
 ## 5. Cross-cutting conventions
 
 Build-mode Ivan applies these without being asked. Phases 2 and 3's conventions all still hold;
