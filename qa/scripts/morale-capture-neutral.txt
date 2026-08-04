@@ -1,0 +1,22 @@
+# Tap Play, select 100% on the strength control, then drag from the human base to the nearest
+# neutral - the same 100% send as send-wave-column.txt, which splits the starting garrison of 10
+# into an 8-unit wave 1 and a 2-unit wave 2 (SendWaveCalculator.WaveSizeUnits = 8).
+#
+# Wave 1 (8 attackers) resolves against the neutral village's level-1 garrison of 5 at 100%
+# defence: MoraleTable/CombatResolver arithmetic (a=100%, d=100%, Wu=8, Bu=5) leaves 3 attacking
+# survivors, so 5 attacking units died. That is +40 (MoraleTable.Village.CaptureGain(level: 1,
+# wasOpponentOwned: false), neutral has no previous owner to charge) against 5 * 10 = 50
+# (MoraleTable.AttackingUnitDestroyedGain per unit) for the deaths - net -10 for the human. Wave 2
+# then reinforces the now-human-owned base with no combat, so it scores nothing. The AI's morale
+# stays at 0 throughout, since it neither captures nor loses anything on this path.
+#
+# Expected dump: Morale: Human=0 HumanLevel=0 Ai=0 AiLevel=0 - the clamp floors the loss exactly
+# at the point ceiling's opposite bound (MoraleTable.PointFloor), which is itself worth pinning:
+# starting from 0, a net -10 event clamps to 0 rather than going negative.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.033203 0.670139
+15 up 0.033203 0.670139
+20 down 0.120000 0.500000
+25 up 0.350000 0.250000
+40 wait
