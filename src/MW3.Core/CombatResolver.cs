@@ -50,6 +50,18 @@ public static class CombatResolver
         ComposePercentages(baseDefencePercent, MoraleContributionPercent, ForgeContributionPercent);
 
     /// <summary>
+    /// Whether <paramref name="attackingUnits"/> would capture a base defended by
+    /// <paramref name="defendingGarrison"/>: <c>attackingUnits × attackerIndex &gt;
+    /// defendingGarrison × defenderIndex</c> - strictly greater, so an exact tie leaves the
+    /// defender holding zero. This is the single source of the capture decision - both
+    /// <see cref="Resolve"/> (actual resolution) and <see cref="AiBrain"/>'s predictions (winnability
+    /// and threat) go through it, so they can never quietly disagree, mirroring how
+    /// <see cref="TravelTimeCalculator"/> is the one source of arrival timing for both.
+    /// </summary>
+    public static bool WouldCapture(int attackerIndex, int defenderIndex, int attackingUnits, int defendingGarrison) =>
+        (long)attackingUnits * attackerIndex > (long)defendingGarrison * defenderIndex;
+
+    /// <summary>
     /// Resolves one arriving wave against a defended garrison. The attacker captures the base iff
     /// <c>waveUnits × attackerIndex &gt; defendingGarrison × defenderIndex</c> - strictly greater, so
     /// an exact tie leaves the defender holding zero.
@@ -59,7 +71,7 @@ public static class CombatResolver
         var attackPower = (long)waveUnits * attackerIndex;
         var defensePower = (long)defendingGarrison * defenderIndex;
 
-        if (attackPower > defensePower)
+        if (WouldCapture(attackerIndex, defenderIndex, waveUnits, defendingGarrison))
         {
             var remaining = (int)((attackPower - defensePower) / defenderIndex);
             return new CombatResult(Captured: true, RemainingGarrison: remaining < 1 ? 1 : remaining);
