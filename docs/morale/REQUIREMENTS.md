@@ -160,6 +160,18 @@ issue #67, which is the contract `/implement`, `code-reviewer` and `qa-verifier`
     from `MoraleTable`/`LevelTable` in the test and a one-line reason each in the PR — never hardcoded
     and never nudged until green. This is the standing rule since FR-3a, and it needs teeth here
     because the honest fix and the dishonest fix look identical from outside.
+  - **Amended 04-08-2026, after follow-up #68 merged as PR #70 mid-kickoff-session.** That PR
+    extracted `CombatResolver.WouldCapture` as the **single shared capture predicate** used by both
+    `Resolve` and `AiBrain`'s two prediction sites, and taught those sites to read the target's real
+    `DefencePercentage`. FR-2 was written before it existed, so issue #67 was patched (while still
+    Todo) with four criteria: `WouldCapture` moves to the basis-point scale with everything else;
+    `AiBrain`'s two sites compose the **morale** term as well as the defence term; a test proves
+    prediction and resolution agree at a non-zero morale level on both sides; and this is the one
+    deliberate `AiBrain` change in the feature, mechanical rather than judgement. **Leaving those
+    sites at morale identity would silently reopen the very resolver/prediction disagreement #68 was
+    filed to close** — the AI would again attack bases it cannot take, this time blind to morale
+    rather than to defence. FR-2's out-of-scope bullet claiming `AiBrain` is untouched was corrected
+    at the same time.
 
 FR-3 (wf: `eeb19c449be6`, issue #69): The player loses morale for standing still, faster the higher
 they have climbed, so turtling costs something. The idle timer per player — 10/9/8/7/6/5 seconds
@@ -205,16 +217,47 @@ is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
     still and watches them drain — no new mechanism, and no waiting for morale to reach a level a
     short script cannot reach (a fully upgraded village is +450 and morale 1 needs 500).
 
-FR-4 (wf: `2e35c45de62c`): The player's units move faster at higher morale, up to +50% at morale 5 —
-the third and last effect in `MW2-RULES.md` §5.1's table, corroborated independently by §3.1's
-"morale contributes at most +50%". `MW3.Core` only.
+FR-4 (wf: `2e35c45de62c`, issue #71): The player's units move faster at higher morale, up to +50% at
+morale 5 — the third and last effect in `MW2-RULES.md` §5.1's table, corroborated independently by
+§3.1's "morale contributes at most +50%". `MW3.Core` only. Kicked off 04-08-2026; the 33 verbatim
+acceptance criteria are on issue #71. The Workflowy item was renamed at kickoff from "locked at
+launch" to **"locked at the send's submission tick"**, because with staggered waves those differ by
+up to 45 ticks and the imprecise name invited exactly the wrong implementation.
   - Settled in discovery 04-08-2026: **speed is locked for the whole send at its submission tick**
     (D-39), not recomputed per wave at each wave's own launch tick and not tracked live in flight.
     Live speed would break precomputed arrival ticks and the `Advance` boundary architecture;
     per-wave-at-launch would let a later wave overtake an earlier one when morale rises mid-column.
-  - Note for kickoff: `TravelTimeCalculator` is shared by `Match` (resolving a send) and `AiBrain`
-    (predicting one before committing to it), precisely so the two cannot disagree. A speed
-    multiplier must be threaded through **both** call paths or the AI's predictions silently desync.
+  - **Confirmed at kickoff: D-39 needs no restructuring.** `Match.Execute` already builds a
+    fully-constructed `Army` for *every* wave up front and parks later ones in
+    `PendingWave(army, launchTick)` with `ArrivalTick` already set (`Match.cs:164`), so travel time is
+    already computed once at submission. The multiplier enters `ComputeTravelTicks` and D-39 falls out
+    for free. The criterion is therefore that it **stays** that way.
+  - **Confirmed at kickoff: `PositionAtTick` needs no change.** It interpolates on
+    `LaunchTick`/`ArrivalTick` (`Match.cs:549-551`), so a shorter span already means faster movement
+    along the path and tower range checks follow automatically.
+  - **Found at kickoff — there are three speed consumers, not one.** `Match.ComputeTravelTicks`;
+    `AiBrain` at lines 99 and 342; and, least obviously, **`TowerThreatEstimator.EstimateUnitsLost`**,
+    which converts chord-length-in-range to ticks via `Match.ArmySpeedUnitsPerTick` directly. Nothing
+    about "morale raises unit speed" suggests a tower-loss estimator depends on it, but missing it
+    makes the AI systematically overestimate its transit losses at high morale and route around towers
+    it could safely cross.
+  - **Emergent and intended: high morale makes towers weaker against you.** Because tower fire is a
+    fixed period and a faster army crosses the range in fewer ticks, +50% speed means roughly a third
+    fewer shots taken. This is not in §5.1's table — it follows from MW3's rate-of-fire tower model,
+    and `MW2-RULES.md` §10 records that MW2 never publishes whether "shooting speed" is rate of fire
+    or projectile velocity. Settled as intended and asserted by test rather than compensated for; the
+    practical consequence is that **morale 5 is stronger than the ladder alone suggests**.
+  - **Consequence for phase 4's D-36, recorded so nobody re-opens it**: wave spacing is
+    `speed × WaveIntervalTicks`, so morale 0's 0.05 normalized units becomes 0.075 at morale 5. D-36
+    computed its marker-overlap arithmetic at morale 0, which is therefore the **worst case** — the
+    shipped taper stays valid and only becomes more legible as morale rises.
+  - Noted at kickoff as an **honest limitation, written into the issue rather than papered over**: a
+    short QA script cannot demonstrate a non-identity multiplier, because morale 1 needs 500 points and
+    a script tops out near 450. Headless tests are the proof (which is what §3 criterion 4 asks for),
+    and the issue explicitly forbids inventing a directive, flag or debug hook to force morale in a
+    script.
+  - **G-1 closes for the rules layer here**, with the drawn meter owed by FR-5 — the same treatment
+    G-2 received when phase 4 FR-3 closed its rules half and left the column to FR-4.
 
 FR-5 (wf: `b0d20abba8ad`): The player can see both players' morale on the match screen, so the
 multiplier deciding their fights is not invisible. Presentation only, `MW3.Game`, reading the state
