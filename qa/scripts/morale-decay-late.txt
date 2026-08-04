@@ -1,0 +1,14 @@
+# Same setup as morale-decay-early.txt (human upgrades to level 2, no send ever issued so
+# LastSendTick stays at the match's start tick), waited further - past the level-0 decay threshold
+# of 200 ticks (MoraleTable.DecayThresholdTicks(0)) by more than one full 20-tick decay period
+# (MoraleTable.DecayPeriodTicks), each costing MoraleTable.DecayPointsPerPeriod(level: 0) = 10
+# points. Human's morale should read strictly lower than morale-decay-early.txt's dump of the same
+# run - the only thing that happened in between is the passage of ticks with no send, which is
+# exactly the scenario FR-3 exists to punish.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.230813 0.303389
+25 up 0.230813 0.303389
+710 wait

@@ -1,0 +1,18 @@
+# FR-3 (paired with morale-decay-late.txt): tap Play, open the human base's action menu, and press
+# Upgrade - no SendArmyCommand is ever issued in this run, so LastSendTick stays at the match's own
+# start tick (0) and the human is idle from the very beginning (D-38). Dump shortly after the
+# 100-tick / 5 s build completes but comfortably before the level-0 decay threshold of 200 ticks
+# (MoraleTable.DecayThresholdTicks(0)), so no decay period has had a chance to run yet.
+#
+# Expected: Human reads exactly MoraleTable.Village.UpgradeGain(toLevel: 2) = 100, the raw upgrade
+# gain with nothing subtracted. Ai reads 0 - it neither captures, loses, nor upgrades anything on
+# this path. Compare against morale-decay-late.txt's later dump of the same setup: same commands,
+# waited much further with no send in between, showing Human strictly lower - the bleed, with
+# nothing else happening in between to explain the drop.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.230813 0.303389
+25 up 0.230813 0.303389
+460 wait

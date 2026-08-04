@@ -66,7 +66,13 @@ public class MoraleAccrualTests
         SetMoralePoints(match.HumanMorale, 100); // headroom so the net -10 swing does not clamp at the floor
 
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 10)));
-        match.Advance(1000); // past every wave's arrival, including the reinforcing second wave
+
+        // Past wave 1's arrival, then past wave 2's (FR-3: advancing a flat 1000 ticks instead would
+        // run this player's idle timer well past the level-0 decay threshold of 200 ticks since their
+        // last, and only, send - decay is not what this test is about, so stop right after both waves
+        // land rather than accounting for it).
+        AdvanceToNextArrival(match);
+        AdvanceToNextArrival(match);
 
         Assert.Equal(match.HumanPlayer, neutral.Owner);
         var expectedGain = MoraleTable.CaptureGain(BaseType.Producer, LevelTable.MinLevel, wasOpponentOwned: false);
@@ -256,7 +262,13 @@ public class MoraleAccrualTests
         match.Advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel));
 
         Assert.Equal(2, humanBase.Level);
-        Assert.Equal(200, match.HumanMorale.Points); // tower to level 2 = +200
+
+        // FR-3: this player never issues a SendArmyCommand, so LastSendTick stays at the match's
+        // start tick (0, D-38) and they are idle the whole way. The conversion (100 ticks) plus this
+        // upgrade (100 ticks) sums to exactly 200 - the level-0 decay threshold - so the first decay
+        // period lands on the very same boundary as the +200 upgrade gain, right after it.
+        var expected = MoraleTable.UpgradeGain(BaseType.Tower, 2) - MoraleTable.DecayPointsPerPeriod(MoraleTable.MinLevel);
+        Assert.Equal(expected, match.HumanMorale.Points);
     }
 
     [Fact]
