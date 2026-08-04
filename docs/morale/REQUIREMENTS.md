@@ -112,16 +112,54 @@ which is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
     leaving 3 survivors, so 5 units died attacking — `+40` for the capture against `−50` for the
     deaths, **net −10**. That is MW2's design (morale rewards not-losing), not a bug.
 
-FR-2 (wf: `f7b795f0a982`): The developer can have morale feed the combat formula's attack and
-defence indices, so a high-morale defender is genuinely hard to dislodge. `CombatResolver`'s
+FR-2 (wf: `f7b795f0a982`, issue #67): The developer can have morale feed the combat formula's attack
+and defence indices, so a high-morale defender is genuinely hard to dislodge. `CombatResolver`'s
 `MoraleContributionPercent` stops being a fixed 100 and becomes the real index for each side, read
-from FR-1's state. Closes most of parity **G-7** — after this, G-7 stays open on the forge term
-alone (**G-6**). `MW3.Core` only.
+from FR-1's state — the **attack** column for the arriving army's owner, the **defence** column for
+the base's owner. Closes most of parity **G-7** — after this, G-7 stays open on the forge term
+alone (**G-6**). `MW3.Core` only. Kicked off 04-08-2026; the 38 verbatim acceptance criteria are on
+issue #67, which is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
   - Settled in discovery 04-08-2026: **multipliers compose multiplicatively** (D-40), settling
     `MW2-RULES.md` §4.3's `[?]`. `ComposePercentages` already multiplies and its own comment
     disclaims answering the question; this feature makes the answer real and must correct that
     comment, because a defender now carries two non-identity terms (building defence *and* morale
     defence) for the first time.
+  - Settled at kickoff: **composed indices move to basis points (1/10000)**, not percent. Percent
+    scale floors a common case — a level-2 village (110%) defended at morale 1 (125%) is 137.5,
+    truncated to 137, a ~0.4% bias toward the attacker that can flip a knife-edge capture. At
+    1/10000 scale, and with the forge term still at identity, the two-term product is **exact with
+    no division loss at all**; only a future third non-identity term floors, and then at 1/10000
+    grain. Doing this now with two terms is materially cheaper than after G-6 adds a third. Cost:
+    `CombatResolver.Resolve`'s index parameters change scale, so `CombatResolverTests`' literal-index
+    cases and `SendWaveTests`' `Compose*` calls are mechanically re-authored.
+  - Settled at kickoff: **the attacker's index is read live, at arrival** — the sender's morale when
+    the wave lands, not when the send was issued. Matches MW2 treating morale as a live global
+    multiplier applied in combat (`MW2-RULES.md` §4.2) and needs no per-army stored state, so `Army`'s
+    shape is unchanged. **This is a deliberate asymmetry with FR-4**, which locks speed at the
+    submission tick: D-39 locks speed only because precomputed arrival ticks force it, not as a
+    general principle. The issue says "do not harmonise them" in as many words, because a
+    conscientious implementer would otherwise read the difference as an oversight.
+  - Settled at kickoff: **a neutral defender composes at identity.** Neutral is `Owner is null`
+    (D-11) and has no morale, so a neutral base defends with its own defence percentage and a 100%
+    morale term. Called out explicitly because a null-owner morale lookup is exactly the kind of
+    thing that throws or silently returns a wrong default.
+  - Settled at kickoff: **the `Morale:` dump line gains four appended fields** carrying the ladder
+    percentages (`HumanAtk`, `HumanDef`, `AiAtk`, `AiDef`), with FR-1's four unchanged in name, order
+    and meaning. They carry whole-number ladder percentages rather than the composed basis-point
+    index, because the composed value is per-*base* (it folds in that base's own defence) while this
+    line is per-*player*; a verifier derives any composed index from the ladder percentage plus the
+    base's existing `Level=` and `Type=`. This exists because morale realistically sits at level 0
+    through a short script — a fully upgraded village is +450 and morale 1 needs 500 — so without it
+    the feature's effect would not be scriptable at all.
+  - Noted at kickoff as the **load-bearing correctness risk**: the attack and defence columns must not
+    be interchangeable. Swapping them still resolves combat, still produces plausible numbers, and
+    still crashes nothing — while inverting the system's entire point from rewarding defence to
+    rewarding attack. A criterion exists whose only job is to fail if they are exchanged.
+  - Noted at kickoff: FR-1 made captures score, so **any full-match test that captures and then fights
+    again legitimately changes behaviour here**. Those are re-authored with expected values derived
+    from `MoraleTable`/`LevelTable` in the test and a one-line reason each in the PR — never hardcoded
+    and never nudged until green. This is the standing rule since FR-3a, and it needs teeth here
+    because the honest fix and the dishonest fix look identical from outside.
 
 FR-3 (wf: `eeb19c449be6`): The player loses morale for standing still, faster the higher they have
 climbed, so turtling costs something. The idle timer per player — 10/9/8/7/6/5 seconds before decay
