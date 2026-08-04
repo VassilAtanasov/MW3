@@ -71,24 +71,46 @@ Observable outcomes, not features:
 Acceptance conditions are intentionally empty here — `/kickoff <feature>` settles them with the
 user and writes them into both the Workflowy note and the GitHub issue.
 
-FR-1 (wf: `c99d42cbc681`): The developer can have each player carry a morale score that moves on
-every event MW2 says it moves on, so that later features have a real multiplier to read. Per-player
-points and the 0–5 sun level; every gain and loss wired — ±10 per **attacking** unit destroyed
-(including by tower fire), the capture tables by building type and level and by
+FR-1 (wf: `c99d42cbc681`, issue #66): The developer can have each player carry a morale score that
+moves on every event MW2 says it moves on, so that later features have a real multiplier to read.
+Per-player points and the 0–5 sun level; every gain and loss wired — ±10 per **attacking** unit
+destroyed (including by tower fire), the capture tables by building type and level and by
 neutral-versus-opponent, and the upgrade tables. `MW3.Core` owns the state (D-37); the one
-presentation edit is a `Morale=` field on `--dump-state`, which `MatchScreen` writes because Core
+presentation edit is a `Morale:` line on `--dump-state`, which `MatchScreen` writes because Core
 never formats output. This feature moves the number and nothing reads it — every *effect* belongs to
-FR-2, FR-3 and FR-4.
-  - **For kickoff to settle**: MW2's gain table indexes village upgrades as "to level 1 / 2 / 3 / 4"
-    (+50/+100/+150/+200) and tower upgrades likewise (+100/+200/+300/+400), but MW3 has only three
-    reachable village upgrade steps (1→2, 2→3, 3→4, per `LevelTable.Village.MaxUpgradableLevel = 4`
-    and `UpgradeCost` being defined for levels 1–3) and three tower steps. The recommended mapping is
-    **by resulting level** — an upgrade landing on level 2 pays the table's "level 2" row — leaving
-    the "level 1" row unreachable, since no upgrade ever produces a level-1 building. Settle it
-    explicitly rather than letting an implementer guess.
-  - **For kickoff to settle**: whether a capture awards morale for the level held **at the moment of
-    capture** (recommended — it is what you took) or after phase 3's capture demotion has applied.
-    MW2 does not say.
+FR-2, FR-3 and FR-4. Kicked off 04-08-2026; the 43 verbatim acceptance criteria are on issue #66,
+which is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
+  - Settled at kickoff: **upgrade rows map by resulting level.** A village reaching level 2 pays
+    +100, level 3 pays +150, level 4 pays +200; a tower reaching level 2 pays +200, level 3 pays
+    +300, level 4 pays +400. MW2's gain table indexes upgrades as "to level 1 / 2 / 3 / 4" but MW3
+    has only three reachable steps per ladder (`LevelTable.Village.MaxUpgradableLevel = 4` with
+    `UpgradeCost` defined for levels 1–3), so the table's "level 1" row is **unreachable** — recorded
+    as unreachable rather than hidden, since no upgrade ever produces a level-1 building.
+  - Settled at kickoff: **a capture reads the level held before phase 3's demotion applies** — it is
+    what you took. `ResolveArrival` already demotes after its capture branch, so this is a
+    read-ordering requirement rather than a restructuring one.
+  - Settled at kickoff: **upgrade morale lands at construction completion, not at command
+    acceptance.** Phase 3 FR-3c gave upgrades a build time, so the building is not that level until
+    it finishes; a base captured mid-build discards the construction and therefore awards **nobody**
+    the upgrade morale. A completed **conversion** awards nothing — MW2's gain table has no
+    conversion row.
+  - Settled at kickoff: **a retake inside the recapture grace awards morale normally.** The grace
+    skips demotion only; each retake still burns units, so the theoretical capture/recapture farm is
+    largely self-limiting and does not justify a special case MW2 never describes.
+  - Settled at kickoff: **no parity gap closes on this feature.** `MW2-PARITY.md`'s G-1 stays open
+    until FR-2, FR-3 and FR-4 have all merged — a score nothing reads is not yet morale. Written as
+    an explicit criterion because an implementer following the usual "update the parity row" habit
+    would otherwise close it three features early.
+  - Noted at kickoff, as the feature's **most likely defect**: the attacker's dead count is `Wu` on
+    a failed attack but `Wu − remaining` on a successful capture, where `remaining` is
+    `CombatResolver`'s surviving-attacker figure. "All `Wu` died" over-penalises every capture and is
+    invisible against a table nobody checks by eye, so both cases are pinned by test with different
+    numbers.
+  - Worked example recorded at kickoff, because it is counterintuitive and makes a good scripted
+    check: on this map **capturing a neutral is morale-negative**. A 100% send of the human's opening
+    10 units splits into waves of 8 and 2; wave 1 beats the neutral's 5-unit garrison at 100% defence
+    leaving 3 survivors, so 5 units died attacking — `+40` for the capture against `−50` for the
+    deaths, **net −10**. That is MW2's design (morale rewards not-losing), not a bug.
 
 FR-2 (wf: `f7b795f0a982`): The developer can have morale feed the combat formula's attack and
 defence indices, so a high-morale defender is genuinely hard to dislodge. `CombatResolver`'s

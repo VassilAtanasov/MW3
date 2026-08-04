@@ -267,8 +267,8 @@ These run without a human gate and never block or reopen a feature:
 - **Phase 5, "Morale" (`docs/morale/`), discovered 04-08-2026 — the active project.** Closes parity
   **G-1** and **G-7**'s morale term, leaving G-7 open on the forge term alone. Six features in
   dependency order: the score and its gain/loss tables, the combat indices, inactivity decay, unit
-  speed, the drawn meter, and an AI that plays for morale. **No board yet — `/kickoff` creates it on
-  the first feature** and records the IDs in the registry row above. Morale is the first simulation
+  speed, the drawn meter, and an AI that plays for morale. Board **22**, created 04-08-2026 at FR-1's
+  kickoff; **FR-1 is issue #66** (Todo) and the remaining five have no issue yet. Morale is the first simulation
   state that is per-player and global rather than per-building or per-army, which drives **D-37**
   (it lives in `Match`, not on the `Player` identity record — S-9). Three decisions were settled
   with the user in discovery and are binding, not build-mode calls: multipliers compose
@@ -321,7 +321,7 @@ These run without a human gate and never block or reopen a feature:
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Morale | `3401ecb1c7a5` | `docs/morale/` | _(none yet — `/kickoff` creates it)_ | — | — |
+| Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -372,7 +372,7 @@ Phase 5 features, in dependency order (`/kickoff` one at a time), discovered 04-
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` |
+| 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` (issue #66) |
 | 2 | Morale feeds the combat formula's attack and defence indices | `f7b795f0a982` |
 | 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` |
 | 4 | Morale raises unit speed, locked at launch | `2e35c45de62c` |
