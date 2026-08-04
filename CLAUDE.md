@@ -81,7 +81,8 @@ both the outline and the zoomed view, with no error anywhere. Measured on this r
 (27-07-2026): 194, 247, and 5340 chars render; 6886, 7579, 7993, and 9422 chars do not. The
 boundary is between 5340 and 6886.
 
-Consequence for `/kickoff`, which Ivan 1.3.0 does not know about: **the note is the settled summary
+Consequence for `/kickoff`, which the Ivan plugin does not know about at any version shipped so far
+(re-checked against 1.6.0 on 04-08-2026): **the note is the settled summary
 and the issue is the contract**, not two copies of one text. Write the full verbatim acceptance
 criteria into the GitHub issue — that is what `/implement`, `code-reviewer`, and `qa-verifier`
 read — and write a condensed note (target ≤ 4 KB, hard ceiling 5 KB) carrying the Goal, a grouped
@@ -95,7 +96,8 @@ go. Never delete, move, or complete a Workflowy node.
 
 ## GitHub access (every skill, no exceptions)
 
-**There is no `gh` CLI on this machine.** Ivan 1.3.0's default is `gh`; this project substitutes:
+**There is no `gh` CLI on this machine.** Every Ivan version shipped so far defaults to `gh`
+(re-checked against 1.6.0 on 04-08-2026); this project substitutes:
 
 - **Issues, PRs, labels, repo reads** — the `github` MCP server tools.
 - **Branches, commits, pushes** — plain `git`.
@@ -239,30 +241,31 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Base upgrades and types** (`docs/base-upgrades-and-types/`), discovered
-  28-07-2026. Phases 1 and 2 are both complete — phase 1's FR-4 APK artifact shipped as issue #21,
-  and the whole Core gameplay loop backlog (#8, #9, #13, #14, #20, #24, #25) is merged. Phase 3's
-  board is **20**; FR-1 (#30), FR-2 (#32), FR-3 (#34), FR-3a (#38), FR-3b (#39), FR-3c (#40), and
-  FR-4 (#36) are all merged (FR-4 merged 29-07-2026 as PR #45). There are no open `feature`-labelled
-  issues right now. FR-5 and FR-6 were re-discovered on 29-07-2026 against the merged correction —
-  FR-5's slice held unchanged, and FR-6 ("upgrades, converts, respects caps") was split: FR-6 is now
-  economy-only (upgrade, respect caps) and a new **FR-7** takes building/converting towers and
-  routing around enemy ranges, since that is a materially different kind of reasoning and the
-  bundle risked an oversized PR. Next work is `/kickoff` on FR-5, in dependency order, then FR-6,
-  then FR-7.
-- **Phase 4, "Sending armies the MW2 way" (`docs/army-sending/`), discovered 30-07-2026.** Closes
-  parity **G-2** (waves) and **G-3** (send-strength picker), the two highest-leverage gaps left
-  after morale and the one phase 3 explicitly deferred as "its own phase". Four features in
-  dependency order: send strength as an explicit percentage in the core rules, the picker plus
-  snaking on both input heads, a send splitting into successive 8-unit waves in the core rules, and
-  the wave column drawn on screen. The key design finding is that a wave is an ordinary `Army` with
-  a staggered launch tick rather than a redesigned aggregate, so tower fire, combat, capture, and
-  the recapture grace need no change to handle it — see `docs/army-sending/ARCHITECTURE.md` D-33.
-  The wave interval itself is left as a tuning value for FR-3's `/kickoff`, since MW2 never
-  publishes it (only that an out-of-scope passive skill, "row density", shortens it — folded into
-  `docs/reference/MW2-RULES.md` §3.3/§10 and `MW2-ITEMS-AND-PROGRESSION.md` §2 the same day). No
-  board yet — `/kickoff` creates it on the first feature. Phase 3's FR-5/FR-6/FR-7 above are
-  unaffected and still the nearer-term backlog; this phase is discovered and ready, not yet started.
+- Active project: **none right now** — every discovered feature in phases 1–4 is merged, and the
+  next step is `/discover` on a phase 5, not `/kickoff`. (Corrected 04-08-2026; this bullet had
+  gone stale, still naming phase 3 active with FR-5/FR-6/FR-7 as "next work" months after they
+  shipped.) Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
+  shipped as #21. **Phase 2** (Core gameplay loop, board 19) complete — #8, #9, #13, #14, #20, #24,
+  #25. **Phase 3** (Base upgrades and types, board 20) complete — FR-1 #30, FR-2 #32, FR-3 #34,
+  FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
+  FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
+  board 21) complete — see the next bullet. The only open issues are `follow-up`-labelled and so
+  are never auto-built: **#56** (FR-7's determinism test doesn't confirm the tower-aware attack
+  branch actually fired) and **#60** (is snaking's 2,2,1 count sequence an acceptable demo, or
+  should tuning change?).
+- **Phase 4, "Sending armies the MW2 way" (`docs/army-sending/`) — complete.** Discovered
+  30-07-2026, board **21**, all four features merged: FR-1 #54 (PR #57), FR-2 #58 (PR #59),
+  FR-3 #61 (PR #62), FR-4 #63 (PR #64, merged 31-07-2026). It closed parity **G-2** (waves — rules
+  by FR-3, visual by FR-4) and **G-3** (send-strength picker), the two highest-leverage gaps left
+  after morale and the one phase 3 explicitly deferred as "its own phase". Three findings bind
+  later phases: a wave is an ordinary `Army` with a staggered launch tick rather than a redesigned
+  aggregate, so tower fire, combat, capture, and the recapture grace needed no change
+  (`docs/army-sending/ARCHITECTURE.md` D-33), with **D-35** settling that unlaunched waves wait in a
+  private pending list inside `Match`; the wave interval is **MW3's own number**, 5 ticks / 250 ms,
+  derived in `docs/army-sending/REQUIREMENTS.md` §4 "Tuning values" because MW2 publishes none (only
+  that the out-of-scope passive skill "row density" shortens it, parity **G-20**); and **D-36**
+  records that consecutive waves overlap on screen at every viewport size, solved by tapering the
+  marker radius plus a shared spine rather than by compositing the column into one shape.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -286,7 +289,10 @@ These run without a human gate and never block or reopen a feature:
   Requires `C:\Program Files (x86)\Android\android-sdk\platform-tools` on `PATH`.
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
   **full** node id. Reads accept either.
-- Ivan plugin version: **1.3.0** (re-adopted 26-07-2026).
+- Ivan plugin version: **1.6.0** (the installed plugin, verified 04-08-2026; this line had gone
+  stale at 1.3.0). Both project-local substitutions below still apply unchanged at 1.6.0 — the
+  skills still emit `gh` commands and still assume a Workflowy note can hold a full feature
+  contract, so **GitHub access** and the note-size rule above continue to override them.
 
 ### Projects
 
@@ -324,25 +330,25 @@ Phase 3 features, in dependency order (`/kickoff` one at a time):
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Garrison caps, base levels, and the upgrade command in the core rules | `4ec5d7b58f7c` (issue #30) |
-| 2 | Tap an owned base to open an action menu offering upgrade | `bea15b8431a8` |
+| 1 | Garrison caps, base levels, and the upgrade command in the core rules | `4ec5d7b58f7c` (issue #30, merged) |
+| 2 | Tap an owned base to open an action menu offering upgrade | `bea15b8431a8` (issue #32, merged) |
 | 3 | Tower base type: conversion between producer and tower in the core rules | `ace16ed72ce6` (issue #34, merged) |
-| 3a | Realign the level ladder, caps, costs, and tick rate onto MW2's numbers | `f5f3320ec408` |
-| 3b | Levels buy defence and combat becomes MW2's attack-over-defence ratio | `f585a0868ecc` |
-| 3c | Build time for upgrades and conversions, and the one-second recapture grace | `a4c8cacb426a` |
-| 4 | Towers shoot enemy armies passing within range, in the core rules | `b7427e502078` (issue #36) |
-| 5 | The action menu gains convert, and towers, ranges, and transit losses drawn | `b6e8bc28daa9` |
-| 6 | The AI opponent upgrades its own bases and respects garrison caps | `7eea0544b808` |
-| 7 | The AI opponent builds towers and routes armies around enemy ranges | `8804e5cd75c4` |
+| 3a | Realign the level ladder, caps, costs, and tick rate onto MW2's numbers | `f5f3320ec408` (issue #38, merged) |
+| 3b | Levels buy defence and combat becomes MW2's attack-over-defence ratio | `f585a0868ecc` (issue #39, merged) |
+| 3c | Build time for upgrades and conversions, and the one-second recapture grace | `a4c8cacb426a` (issue #40, merged) |
+| 4 | Towers shoot enemy armies passing within range, in the core rules | `b7427e502078` (issue #36, merged) |
+| 5 | The action menu gains convert, and towers, ranges, and transit losses drawn | `b6e8bc28daa9` (issue #48, merged) |
+| 6 | The AI opponent upgrades its own bases and respects garrison caps | `7eea0544b808` (issue #49, merged) |
+| 7 | The AI opponent builds towers and routes armies around enemy ranges | `8804e5cd75c4` (issue #55, merged) |
 
 Phase 4 features, in dependency order (`/kickoff` one at a time), discovered 30-07-2026:
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Send strength as an explicit percentage command in the core rules | `fa6d69f05f9d` |
-| 2 | Send-strength picker on both input heads, plus snaking | `4d4a9bac3f90` |
-| 3 | A send arrives as successive waves in the core rules | `ed9c0ead836c` |
-| 4 | Waves and the send column drawn distinctly from a single-arrival army | `a3e0351a6c4b` |
+| 1 | Send strength as an explicit percentage command in the core rules | `fa6d69f05f9d` (issue #54, merged) |
+| 2 | Send-strength picker on both input heads, plus snaking | `4d4a9bac3f90` (issue #58, merged) |
+| 3 | A send arrives as successive waves in the core rules | `ed9c0ead836c` (issue #61, merged) |
+| 4 | Waves and the send column drawn distinctly from a single-arrival army | `a3e0351a6c4b` (issue #63, merged) |
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it
