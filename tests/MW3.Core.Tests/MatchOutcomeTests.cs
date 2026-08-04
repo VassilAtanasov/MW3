@@ -176,7 +176,7 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void Outcome_NeutralBasesNeverAffectIt_FiveOwnedByHumanOneUnownedIsVictory()
+    public void Outcome_NeutralBasesNeverAffectIt_HumanEliminatesAiWithBasesStillNeutral()
     {
         var match = new Match();
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));

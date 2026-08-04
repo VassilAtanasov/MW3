@@ -1,3 +1,8 @@
+# KNOWN STALE (FR-2, #67): MatchOutcomeTests' winning sequence was re-derived against the
+# now-morale-aware combat formula and no longer matches the sequence below tick-for-tick. This
+# script's drags/timings were not re-derived alongside it, so it is not proven to still reach
+# HumanVictory - treat any run of this script as unverified until it is re-derived or removed.
+#
 # Tap Play, then drive the same fixed, hand-authored command sequence proven against the live AI
 # in MatchOutcomeTests (MW3.Core.Tests). Run with no --time-scale (or --time-scale 1): at 50ms per
 # tick the per-frame tick rate at any faster integer time-scale (the old script used 25) only ever
