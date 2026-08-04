@@ -1,0 +1,24 @@
+# Same setup as army-shrinking-late.txt (human converts base 0 to a tower), waited further so the
+# tower has finished destroying at least one AI army that flew within its range - the same
+# mechanism army-shrinking-early.txt/army-shrinking-late.txt already prove for garrison count, now
+# read off the Morale: line instead. Run with --time-scale 10 (see convert-pending.txt for why).
+#
+# Every unit the tower destroys is +10 to Human (MoraleTable.AttackingUnitDestroyedGain, the
+# tower's owner) and -10 to Ai (MoraleTable.AttackingUnitDiedLoss, the army's owner) - opposite
+# directions from the same shot. Cross-check against the dump's Army lines: an army present earlier
+# in the run (e.g. army-shrinking-early.txt's Army 30) either shows a lower Count= or has vanished
+# outright (destroyed and removed from ArmiesInFlight, per FR-1's tower-fire criterion); the number
+# of units it lost, times 10, is the swing this script exists to make visible - Human's Morale
+# should read strictly positive, and if Ai has not separately banked points elsewhere in the same
+# run (a capture, an upgrade), the two sides move by matching magnitudes in opposite directions.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.176563 0.281944
+25 up 0.176563 0.281944
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075000 0.281944
+335 up 0.075000 0.281944
+700 wait

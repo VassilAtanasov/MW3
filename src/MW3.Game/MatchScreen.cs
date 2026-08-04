@@ -696,6 +696,8 @@ internal sealed class MatchScreen : IScreen
         using var writer = new StreamWriter(path);
         writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_match.ElapsedTicks}"));
         writer.WriteLine(FormattableString.Invariant($"Outcome: {_match.Outcome}"));
+        writer.WriteLine(FormattableString.Invariant(
+            $"Morale: Human={_match.HumanMorale.Points} HumanLevel={_match.HumanMorale.Level} Ai={_match.AiMorale.Points} AiLevel={_match.AiMorale.Level}"));
 
         foreach (var b in _match.Bases)
         {

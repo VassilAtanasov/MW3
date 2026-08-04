@@ -23,6 +23,8 @@ public sealed class Match
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
     private readonly List<PendingWave> _pendingWaves = new();
+    private readonly MoraleState _humanMorale = new();
+    private readonly MoraleState _aiMorale = new();
     private int _nextArmyId;
     private int _nextSendId;
 
@@ -49,6 +51,12 @@ public sealed class Match
     public Player HumanPlayer { get; }
 
     public Player AiPlayer { get; }
+
+    /// <summary>The human player's morale (D-37). Read-only outside this class - only <see cref="Match"/> mutates it.</summary>
+    public MoraleState HumanMorale => _humanMorale;
+
+    /// <summary>The AI player's morale (D-37). Read-only outside this class - only <see cref="Match"/> mutates it.</summary>
+    public MoraleState AiMorale => _aiMorale;
 
     /// <summary>
     /// Ticks the match has advanced through so far. Read-only like all of <see cref="Match"/>'s
@@ -164,6 +172,10 @@ public sealed class Match
                 _pendingWaves.Add(new PendingWave(army, launchTick));
             }
         }
+
+        // Only an accepted send updates the sender's last-send tick (FR-3 reads this; this feature
+        // only maintains it) - a rejected command never reaches here at all.
+        MoraleOf(command.IssuingPlayer).LastSendTick = submissionTick;
 
         return SendArmyOutcome.Accepted;
     }
@@ -476,7 +488,7 @@ public sealed class Match
         for (var i = 0; i < _bases.Count; i++)
         {
             var tower = _bases[i];
-            if (tower.Type != BaseType.Tower || tower.Owner is null)
+            if (tower.Type != BaseType.Tower || tower.Owner is not Player towerOwner)
             {
                 continue;
             }
@@ -494,7 +506,7 @@ public sealed class Match
             for (var j = 0; j < _armies.Count; j++)
             {
                 var army = _armies[j];
-                if (army.Owner == tower.Owner)
+                if (army.Owner == towerOwner)
                 {
                     continue;
                 }
@@ -522,6 +534,12 @@ public sealed class Match
 
             tower.LastFireTick = tick;
             nearest.UnitCount--;
+
+            // Tower fire destroys an attacking unit on identical terms to arrival combat (D-41):
+            // the shot attacker may or may not survive the army outright, but the +10/-10 swing is
+            // per shot either way.
+            AwardMorale(towerOwner, MoraleTable.AttackingUnitDestroyedGain);
+            AwardMorale(nearest.Owner, -MoraleTable.AttackingUnitDiedLoss);
 
             if (nearest.UnitCount <= 0)
             {
@@ -706,6 +724,15 @@ public sealed class Match
             {
                 case PendingUpgrade upgrade:
                     b.Level = upgrade.TargetLevel;
+
+                    // Lands at construction completion, not command acceptance (FR-1): a base
+                    // captured mid-build already discarded its Construction on capture, so this
+                    // case can only run for the owner who is still holding the base now.
+                    if (b.Owner is Player owner)
+                    {
+                        AwardMorale(owner, MoraleTable.UpgradeGain(b.Type, upgrade.TargetLevel));
+                    }
+
                     break;
                 case PendingConversion conversion:
                     b.Type = conversion.TargetType;
@@ -821,12 +848,33 @@ public sealed class Match
             return;
         }
 
+        // Read before any mutation below (FR-1): the defender at combat time, for both the
+        // attacking-unit-death swing and (on capture) who is charged the capture-loss table.
+        var defenderOwnerAtCombat = target.Owner;
+
         var attackerIndex = CombatResolver.ComposeAttackerIndex();
         var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage);
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, army.UnitCount, target.GarrisonCount);
 
+        // Only attacking units generate morale, in both directions (D-41): Wu died on a failed
+        // attack, Wu - remaining died on a successful capture (remaining becomes the new garrison).
+        // The defender's own dead garrison (Bu) is worth nothing to either side.
+        var attackerDeadCount = result.Captured ? army.UnitCount - result.RemainingGarrison : army.UnitCount;
+        var deathSwing = attackerDeadCount > 0 ? attackerDeadCount * MoraleTable.AttackingUnitDestroyedGain : 0;
+
+        // Netted per player rather than applied as two separate clamped writes (D-38): a capture and
+        // its attacking-unit losses land on the same event, and clamping each delta independently
+        // would let whichever one is applied first swallow the other at the ceiling or the floor.
+        var capturerDelta = -deathSwing;
+        var defenderDelta = deathSwing;
+
         if (result.Captured)
         {
+            // The level and type this base held before capture-demotion applies (FR-1) - read here,
+            // before either changes below.
+            var levelAtCapture = target.Level;
+            var typeAtCapture = target.Type;
+
             // The retake grace (D-30, FR-3c, MW2-RULES.md §2.5) is decided from the state this base
             // carried *before* this capture - read it before overwriting either field below. A true
             // retake is the capturing player equalling the owner this base had immediately before its
@@ -862,11 +910,48 @@ public sealed class Match
             }
 
             target.ProductionProgressTicks = 0;
+
+            // Capture morale (FR-1): the capturer always scores - neutral scores less than an
+            // opponent's base, but scores. Neutral has no previous owner, so nobody is charged the
+            // loss table; an opponent's previous owner is (D-41, MW2-RULES.md §5.2, §5.3). Folded
+            // into capturerDelta/defenderDelta rather than written immediately - see the netting
+            // comment above.
+            var wasOpponentOwned = defenderOwnerAtCombat is not null;
+            capturerDelta += MoraleTable.CaptureGain(typeAtCapture, levelAtCapture, wasOpponentOwned);
+            if (defenderOwnerAtCombat is Player previousOwner)
+            {
+                defenderDelta -= MoraleTable.CaptureLoss(typeAtCapture, levelAtCapture);
+            }
         }
         else
         {
             target.GarrisonCount = result.RemainingGarrison;
         }
+
+        // A single clamped write per player for this whole combat event (D-38) - see the netting
+        // comment above capturerDelta/defenderDelta's declaration.
+        if (capturerDelta != 0)
+        {
+            AwardMorale(army.Owner, capturerDelta);
+        }
+
+        if (defenderOwnerAtCombat is Player defender && defenderDelta != 0)
+        {
+            AwardMorale(defender, defenderDelta);
+        }
+    }
+
+    private MoraleState MoraleOf(Player player) => player == HumanPlayer ? _humanMorale : _aiMorale;
+
+    /// <summary>
+    /// Applies a morale delta (positive or negative) to <paramref name="player"/>'s
+    /// <see cref="MoraleState.Points"/>, clamped through <see cref="MoraleTable.ClampPoints"/>
+    /// (D-38). The single mutation point every award/deduct site in this class goes through.
+    /// </summary>
+    private void AwardMorale(Player player, int delta)
+    {
+        var state = MoraleOf(player);
+        state.Points = MoraleTable.ClampPoints(state.Points + delta);
     }
 
     private static long ComputeTravelTicks(MapPoint from, MapPoint to) => TravelTimeCalculator.ComputeTicks(from, to);
