@@ -292,8 +292,9 @@ public sealed class AiBrain : IPlayerBrain
     /// the AI still attacks the only winnable target even when it crosses an enemy tower's range.
     /// Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0 or 1
     /// garrison can never be winnable, unlike the clamped-to-1 size <see cref="SendStrengthCalculator"/>
-    /// computes for the send itself - minus the expected tower loss, strictly exceeds the target's
-    /// garrison predicted at arrival.
+    /// computes for the send itself - minus the expected tower loss, would capture the target's
+    /// garrison predicted at arrival (<see cref="CombatResolver.WouldCapture"/>, weighing the
+    /// target's own <see cref="Base.DefencePercentage"/>), not merely outnumber it.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -344,8 +345,10 @@ public sealed class AiBrain : IPlayerBrain
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
                 var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
+                var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage);
 
-                if (attackingUnitCount > predictedGarrison && expectedTowerLoss < bestExpectedTowerLoss)
+                if (CombatResolver.WouldCapture(CombatResolver.ComposeAttackerIndex(), defenderIndex, attackingUnitCount, predictedGarrison)
+                    && expectedTowerLoss < bestExpectedTowerLoss)
                 {
                     bestTarget = target;
                     bestExpectedTowerLoss = expectedTowerLoss;
@@ -451,8 +454,10 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// True when the enemy armies already in flight to <paramref name="candidate"/> total at
-    /// least its garrison predicted at the earliest of their arrival ticks.
+    /// True when the enemy armies already in flight to <paramref name="candidate"/> would capture
+    /// it (<see cref="CombatResolver.WouldCapture"/>, weighing the candidate's own
+    /// <see cref="Base.DefencePercentage"/>) at its garrison predicted at the earliest of their
+    /// arrival ticks.
     /// </summary>
     private bool TryGetThreatenedEarliestArrival(Match match, Base candidate, long currentTick, out long earliestArrival)
     {
@@ -483,7 +488,8 @@ public sealed class AiBrain : IPlayerBrain
         }
 
         var predictedGarrison = PredictGarrison(candidate, currentTick, earliestArrival);
-        return enemyUnitTotal >= predictedGarrison;
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(candidate.DefencePercentage);
+        return CombatResolver.WouldCapture(CombatResolver.ComposeAttackerIndex(), defenderIndex, enemyUnitTotal, predictedGarrison);
     }
 
     private bool AlreadyTargetedByOwnArmy(Match match, int baseId)

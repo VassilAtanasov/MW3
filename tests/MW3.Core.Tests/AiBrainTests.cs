@@ -578,16 +578,17 @@ public class AiBrainTests
         // TowerThreatEstimator). neutral5 sits far outside any tower's range on this map (ranges are
         // deliberately kept below the map's minimum base-to-base distance), so attacking it costs
         // nothing. Both start with the same garrison (5), so both are equally winnable ignoring
-        // tower losses.
+        // tower losses - weighing a level-1 tower's own 140% defence (#68), not 100%.
         SetOwner(neutral4, human);
         SetType(neutral4, BaseType.Tower);
         SetLevel(neutral4, LevelTable.MinLevel);
         SetGarrison(neutral4, 5);
 
-        // Large enough that unclampedHalf (9) still exceeds predictedGarrison (5) even after the
-        // estimated 3-unit tower loss - both targets stay genuinely winnable, so this proves a
-        // preference, not a refusal.
-        SetGarrison(aiBase, 18);
+        // Large enough that unclampedHalf (11), minus the estimated 3-unit tower loss, still exceeds
+        // neutral4's 700 (5 garrison x 140% defence) threshold (8 x 100 = 800), and neutral5 - no
+        // loss on that path - is winnable many times over (11 x 100 = 1100 vs 5 x 100 = 500). Both
+        // targets stay genuinely winnable, so this proves a preference, not a refusal.
+        SetGarrison(aiBase, 22);
 
         var brain = new AiBrain(ai);
         var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
@@ -606,7 +607,9 @@ public class AiBrainTests
         var neutral4 = match.Bases[4];
 
         MakeOnlyNeutral4Viable(match, human, neutral4);
-        SetGarrison(aiBase, 18); // unclampedHalf 9, minus the ~3-unit estimated loss, still > 5
+        // unclampedHalf 11, minus the ~3-unit estimated loss, is 8: 8 x 100 = 800 > neutral4's
+        // 5 garrison x 140% (a level-1 tower's own defence, #68) = 700.
+        SetGarrison(aiBase, 22);
 
         var brain = new AiBrain(ai);
         var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
@@ -625,12 +628,66 @@ public class AiBrainTests
         var neutral4 = match.Bases[4];
 
         MakeOnlyNeutral4Viable(match, human, neutral4);
-        SetGarrison(aiBase, 14); // unclampedHalf 7, minus the ~3-unit estimated loss, no longer > 5
+        // unclampedHalf 10, minus the ~3-unit estimated loss, is 7: 7 x 100 = 700 is an exact tie
+        // with neutral4's 5 garrison x 140% defence (#68), and a tie does not capture (CombatResolver).
+        SetGarrison(aiBase, 20);
 
         var brain = new AiBrain(ai);
         var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
 
         Assert.False(decision.HasCommand);
+    }
+
+    /// <summary>
+    /// #68's own worked example: a level-3 village (120% defence) holding 12 units is not winnable
+    /// with 13 attacking units (13 × 100 = 1300 ≤ 12 × 120 = 1440), even though 13 raw units
+    /// outnumber its 12 - the old comparison would have attacked and lost all 13 for nothing.
+    /// </summary>
+    [Fact]
+    public void TryAttack_Declines_WhenDefencePercentageMakesA13UnitAttackUnwinnableAgainstA12UnitLevel3Village()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral4 = match.Bases[4];
+
+        MakeOnlyOneTargetViable(match, neutral4);
+        SetLevel(neutral4, 3);
+        SetGarrison(neutral4, 12);
+
+        SetGarrison(aiBase, 26); // unclampedHalf = floor(26 * 50 / 100) = 13, no tower loss on this map
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    /// <summary>
+    /// The mirror of the test above: 15 attacking units against the same 120%-defended, 12-unit
+    /// village succeed (15 × 100 = 1500 &gt; 12 × 120 = 1440), proving the fix suppresses only the
+    /// genuinely unwinnable attack rather than every attack on a higher-level village.
+    /// </summary>
+    [Fact]
+    public void TryAttack_Accepts_WhenDefencePercentageStillMakesA15UnitAttackWinnableAgainstA12UnitLevel3Village()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral4 = match.Bases[4];
+
+        MakeOnlyOneTargetViable(match, neutral4);
+        SetLevel(neutral4, 3);
+        SetGarrison(neutral4, 12);
+
+        SetGarrison(aiBase, 30); // unclampedHalf = floor(30 * 50 / 100) = 15
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral4.Id, decision.Command.TargetBaseId);
+        Assert.Equal(15, decision.Command.UnitCount);
     }
 
     /// <summary>
@@ -669,6 +726,19 @@ public class AiBrainTests
         SetGarrison(neutral4, 5);
 
         foreach (var other in match.Bases.Where(b => b.Id != neutral4.Id && b.Owner != match.AiPlayer))
+        {
+            SetGarrison(other, 1000); // unwinnable regardless of unclampedHalf
+        }
+    }
+
+    /// <summary>
+    /// Sets every other non-owned base's garrison sky-high so <paramref name="target"/> - left a
+    /// neutral village at its default level - is the AI's only viable attack candidate, without
+    /// otherwise touching its type, level, or garrison (the caller sets those to fit its scenario).
+    /// </summary>
+    private static void MakeOnlyOneTargetViable(Match match, Base target)
+    {
+        foreach (var other in match.Bases.Where(b => b.Id != target.Id && b.Owner != match.AiPlayer))
         {
             SetGarrison(other, 1000); // unwinnable regardless of unclampedHalf
         }
@@ -755,6 +825,31 @@ public class AiBrainTests
         // yield nothing rather than issue a command Match.Execute would reject.
         var brain = new AiBrain(ai);
         var decision = InvokeClause("TryConsolidate", brain, match, OwnBases(match, ai));
+
+        Assert.False(decision.HasCommand);
+    }
+
+    /// <summary>
+    /// #68: the threat check now weighs the candidate's own <see cref="Base.DefencePercentage"/>
+    /// rather than comparing raw unit counts. A level-3 base (120% defence) holding 12 units is not
+    /// threatened by a 13-unit attack (13 × 100 = 1300 ≤ 12 × 120 = 1440) even though 13 raw units
+    /// outnumber its 12 - the old comparison would have flagged this as threatened.
+    /// </summary>
+    [Fact]
+    public void TryDefend_NotThreatened_WhenTheDefencePercentageWouldHoldDespiteRawOutnumbering()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var humanBase = match.Bases.Single(b => b.Owner == human);
+
+        SetLevel(aiBase, 3);
+        SetGarrison(aiBase, 12);
+        match.Execute(new SendArmyCommand(human, humanBase.Id, aiBase.Id, 13));
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryDefend", brain, match, OwnBases(match, ai));
 
         Assert.False(decision.HasCommand);
     }
