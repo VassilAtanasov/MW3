@@ -268,8 +268,9 @@ These run without a human gate and never block or reopen a feature:
   **G-1** and **G-7**'s morale term, leaving G-7 open on the forge term alone. Six features in
   dependency order: the score and its gain/loss tables, the combat indices, inactivity decay, unit
   speed, the drawn meter, and an AI that plays for morale. Board **22**, created 04-08-2026 at FR-1's
-  kickoff; **FR-1 is issue #66 and FR-2 is issue #67** (both Todo), and the remaining four have no
-  issue yet. Morale is the first simulation
+  kickoff; **FR-1 is #66, FR-2 is #67, FR-3 is #69** (all Todo), and FR-4, FR-5 and FR-6 have no
+  issue yet. Follow-up **#68** (`AiBrain`'s winnability and threat checks ignore building defence
+  percentages — a pre-existing phase-3 gap, not a phase-5 one) is filed but off the board. Morale is the first simulation
   state that is per-player and global rather than per-building or per-army, which drives **D-37**
   (it lives in `Match`, not on the `Player` identity record — S-9). Three decisions were settled
   with the user in discovery and are binding, not build-mode calls: multipliers compose
@@ -375,7 +376,7 @@ Phase 5 features, in dependency order (`/kickoff` one at a time), discovered 04-
 |---|---|---|
 | 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` (issue #66) |
 | 2 | Morale feeds the combat formula's attack and defence indices | `f7b795f0a982` (issue #67) |
-| 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` |
+| 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` (issue #69) |
 | 4 | Morale raises unit speed, locked at launch | `2e35c45de62c` |
 | 5 | The morale meter drawn for both players | `b0d20abba8ad` |
 | 6 | The AI opponent plays for morale and against decay | `1713e24400b9` |

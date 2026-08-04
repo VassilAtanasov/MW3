@@ -161,16 +161,49 @@ issue #67, which is the contract `/implement`, `code-reviewer` and `qa-verifier`
     and never nudged until green. This is the standing rule since FR-3a, and it needs teeth here
     because the honest fix and the dishonest fix look identical from outside.
 
-FR-3 (wf: `eeb19c449be6`): The player loses morale for standing still, faster the higher they have
-climbed, so turtling costs something. The idle timer per player — 10/9/8/7/6/5 seconds before decay
-starts and −10/−20/−25/−50/−100/−200 points per second, both accelerating with morale. `MW3.Core`
-only.
+FR-3 (wf: `eeb19c449be6`, issue #69): The player loses morale for standing still, faster the higher
+they have climbed, so turtling costs something. The idle timer per player — 10/9/8/7/6/5 seconds
+before decay starts and −10/−20/−25/−50/−100/−200 points per second, both accelerating with morale.
+`MW3.Core` only. Kicked off 04-08-2026; the 33 verbatim acceptance criteria are on issue #69, which
+is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
   - Settled in discovery 04-08-2026: **only issuing a send resets the idle timer.** Upgrading and
     converting do not, because they are exactly the turtling behaviour this rule exists to punish.
     MW2 says only that morale bleeds "if you stop playing" (`MW2-RULES.md` §5.4) — this is MW3's own
     definition of playing. See "Tuning values" below.
   - Settled in discovery 04-08-2026: decay applies in **whole points on a fixed 20-tick period**
     (D-38), never fractionally per tick, keeping D-24's integer-tick arithmetic intact.
+  - Settled at kickoff: **gaining morale does not reset the idle timer either.** A defender whose
+    tower is killing attackers gains +10 per kill and **still decays**; kills, captures and completed
+    upgrades all leave `lastSendTick` alone. This is the purest form of the anti-turtle rule already
+    chosen — sitting behind towers is exactly the play decay exists to punish — and it keeps decay a
+    pure function of send history. Rejected: resetting on any morale event (softer, but needs a
+    `lastActivityTick` distinct from `lastSendTick` and guts the rule where turtling is most
+    attractive) and resetting on kills only (closest to intuition, most complex, and MW3's invention
+    on top of a rule that says only "if you stop playing").
+  - Settled at kickoff: **only an *accepted* send resets the timer, at the submission tick.** A
+    rejected `SendArmyCommand` leaves it untouched — otherwise invalid commands become a way to farm
+    activity — and a staggered wave's later launch tick (phase 4 D-35) is not the reset point, since
+    the action happened at `Execute`.
+  - Settled at kickoff: **decay is evaluated after tower fire and arrivals**, so a wave landing on the
+    same tick has already scored and decay applies to the post-combat total. It changes no ownership
+    and no outcome, so its position relative to `EvaluateOutcome` is immaterial — but it is fixed and
+    documented rather than incidental.
+  - **The design property to protect**: decay needs **no new mutable state**. It is a pure function of
+    `(lastSendTick, points, currentTick)`, because the threshold is re-checked against the *current*
+    level every period, so nothing has to remember that a decay run is in progress. A criterion
+    forbids a decay-run flag, an accumulated remainder, and a next-decay-tick cache explicitly — such
+    a field works correctly in a single `Advance` call and then diverges under chunking, which is the
+    exact failure D-12 exists to prevent and the hardest kind to notice.
+  - **The trap, recorded because the reference never states it**: thresholds *lengthen* as morale
+    falls (100 ticks at morale 5 up to 200 at morale 0), so a level drop looks like it should pause a
+    decay run when the new threshold exceeds the accumulated idle time. It never does, because idle
+    time outgrows the threshold — but that is a load-bearing accident rather than a stated rule, so a
+    test walks a full run from 8 000 points to 0 and asserts every consecutive period decayed with no
+    gap.
+  - Noted at kickoff: **an upgrade grants points without resetting the timer, which is what makes
+    decay scriptable at all.** The QA script banks ~100 points from a completed upgrade, then sits
+    still and watches them drain — no new mechanism, and no waiting for morale to reach a level a
+    short script cannot reach (a fully upgraded village is +450 and morale 1 needs 500).
 
 FR-4 (wf: `2e35c45de62c`): The player's units move faster at higher morale, up to +50% at morale 5 —
 the third and last effect in `MW2-RULES.md` §5.1's table, corroborated independently by §3.1's
