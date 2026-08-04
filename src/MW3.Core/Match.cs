@@ -20,6 +20,15 @@ public sealed class Match
     /// </summary>
     public const double ArmySpeedUnitsPerTick = 0.01;
 
+    /// <summary>
+    /// <see cref="ArmySpeedUnitsPerTick"/> scaled by <paramref name="moraleLevel"/>'s unit-speed
+    /// percentage (FR-4, <see cref="MoraleTable.UnitSpeedPercentage"/>) - the single shared helper
+    /// every speed consumer goes through, so no call site multiplies the base constant inline
+    /// (D-22). At morale 0 this is bit-identical to <see cref="ArmySpeedUnitsPerTick"/>.
+    /// </summary>
+    public static double EffectiveArmySpeedUnitsPerTick(int moraleLevel) =>
+        ArmySpeedUnitsPerTick * MoraleTable.UnitSpeedPercentage(moraleLevel) / 100.0;
+
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
     private readonly List<PendingWave> _pendingWaves = new();
@@ -137,7 +146,10 @@ public sealed class Match
 
         source.GarrisonCount -= command.UnitCount;
 
-        var travelTicks = ComputeTravelTicks(source.Position, target.Position);
+        // Speed is read once, here, from the sender's morale at the submission tick, and baked into
+        // every wave's precomputed ArrivalTick below - never re-read live or per-wave (D-39).
+        var speed = EffectiveArmySpeedUnitsPerTick(MoraleOf(command.IssuingPlayer).Level);
+        var travelTicks = ComputeTravelTicks(source.Position, target.Position, speed);
         var sendId = _nextSendId++;
         var waveCount = SendWaveCalculator.WaveCount(command.UnitCount);
         var submissionTick = ElapsedTicks;
@@ -1068,7 +1080,8 @@ public sealed class Match
         state.Points = MoraleTable.ClampPoints(state.Points + delta);
     }
 
-    private static long ComputeTravelTicks(MapPoint from, MapPoint to) => TravelTimeCalculator.ComputeTicks(from, to);
+    private static long ComputeTravelTicks(MapPoint from, MapPoint to, double speedUnitsPerTick) =>
+        TravelTimeCalculator.ComputeTicks(from, to, speedUnitsPerTick);
 
     /// <summary>
     /// Decides <see cref="Outcome"/> from the current elimination state, evaluated once per tick

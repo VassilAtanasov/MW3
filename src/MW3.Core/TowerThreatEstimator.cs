@@ -12,13 +12,14 @@ internal static class TowerThreatEstimator
     /// <summary>
     /// The chord of <paramref name="from"/>-<paramref name="to"/> that falls within
     /// <paramref name="towerLevel"/>'s range circle around <paramref name="towerPosition"/>,
-    /// converted to ticks via <see cref="Match.ArmySpeedUnitsPerTick"/> and divided by the tower's
+    /// converted to ticks via <paramref name="speedUnitsPerTick"/> (FR-4, the crossing army's own
+    /// effective speed - a faster army spends fewer ticks in range) and divided by the tower's
     /// <see cref="LevelTable.Tower.FirePeriodTicks(int)"/> at that level, floored - one unit lost per
-    /// shot, mirroring <c>Match.EvaluateTowerFireAtTick</c>'s own damage model (FR-4) so the estimate
-    /// and the simulation agree in kind. Zero when the segment never enters range, including a
+    /// shot, mirroring <c>Match.EvaluateTowerFireAtTick</c>'s own damage model so the estimate and
+    /// the simulation agree in kind. Zero when the segment never enters range, including a
     /// zero-length segment exactly on the boundary.
     /// </summary>
-    internal static int EstimateUnitsLost(MapPoint from, MapPoint to, MapPoint towerPosition, int towerLevel)
+    internal static int EstimateUnitsLost(MapPoint from, MapPoint to, MapPoint towerPosition, int towerLevel, double speedUnitsPerTick)
     {
         var chordLength = ChordLengthWithinRange(from, to, towerPosition, LevelTable.Tower.RangeUnits(towerLevel));
         if (chordLength <= 0.0)
@@ -26,7 +27,7 @@ internal static class TowerThreatEstimator
             return 0;
         }
 
-        var ticksInRange = chordLength / Match.ArmySpeedUnitsPerTick;
+        var ticksInRange = chordLength / speedUnitsPerTick;
         var firePeriod = LevelTable.Tower.FirePeriodTicks(towerLevel);
         return (int)Math.Floor(ticksInRange / firePeriod);
     }

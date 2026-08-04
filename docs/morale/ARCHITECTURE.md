@@ -172,6 +172,17 @@ attacking units in transit, so the tower's owner gains and the army's owner lose
 same terms. That is a real interaction between this phase and phase 3's towers, and it should be
 tested rather than discovered.
 
+**FR-4 confirmed two things rather than discovering surprises.** First, D-39 needed no
+restructuring: `Match.Execute(SendArmyCommand)` already built a fully-constructed `Army` for every
+wave up front, with `ArrivalTick` computed once at submission and parked waves 2..N in
+`PendingWave(army, launchTick)` — the shared-speed lock fell out of reading the sender's morale once
+before that loop, rather than requiring any change to the loop's shape. Second, **wave spacing widens
+with morale**: a wave's on-screen gap is `speed × WaveIntervalTicks`, so morale 0's 0.05 normalized
+units becomes 0.075 at morale 5 (150% speed). Phase 4's **D-36** computed its marker-overlap
+arithmetic at morale 0, which is therefore the *worst case* for overlap — the shipped taper stays
+valid at every morale level and only becomes more legible as speed rises. Recorded here so a later
+reader does not re-open D-36 thinking morale broke it.
+
 ## 5. Cross-cutting conventions
 
 Rules build mode must follow, beyond the standing ones in `docs/CONVENTIONS.md`:

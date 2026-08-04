@@ -192,7 +192,7 @@ public class SendArmyTests
         // exercised by calling the private computation directly with a near-zero distance.
         var method = typeof(Match).GetMethod("ComputeTravelTicks", BindingFlags.NonPublic | BindingFlags.Static)!;
 
-        var ticks = (long)method.Invoke(null, new object[] { new MapPoint(0.5, 0.5), new MapPoint(0.5, 0.5) })!;
+        var ticks = (long)method.Invoke(null, new object[] { new MapPoint(0.5, 0.5), new MapPoint(0.5, 0.5), Match.ArmySpeedUnitsPerTick })!;
 
         Assert.Equal(1, ticks);
     }
