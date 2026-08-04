@@ -302,6 +302,14 @@ public class SendWaveTests
         SetGarrison(aiBase, 1_000_000); // far above the level-5 cap: never captured, never produces (so nothing but combat moves this number)
         SetGarrison(human, 80);
 
+        // FR-2: captured before the send fights, since the column's own combat will move both
+        // players' morale as it goes (the defender gains from every attacking unit destroyed,
+        // D-41) - the fair "same 80 units, one arrival instead of many" comparison below holds
+        // every other condition equal, including the morale each side carried at the moment the
+        // send was issued, not whatever it drifted to after several waves of combat.
+        var startingAttackerMoralePercent = MoraleTable.AttackPercentage(match.HumanMorale.Level);
+        var startingDefenderMoralePercent = MoraleTable.DefencePercentage(match.AiMorale.Level);
+
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, aiBase.Id, 80)));
         var waveCount = SendWaveCalculator.WaveCount(80);
         Assert.Equal(10, waveCount);
@@ -315,8 +323,8 @@ public class SendWaveTests
 
         var columnDamage = before - aiBase.GarrisonCount;
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex();
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(LevelTable.Village.DefencePercentage(5));
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(startingAttackerMoralePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(LevelTable.Village.DefencePercentage(5), startingDefenderMoralePercent);
         var singleArrivalResult = CombatResolver.Resolve(attackerIndex, defenderIndex, 80, 1_000_000);
         var singleArrivalDamage = 1_000_000 - singleArrivalResult.RemainingGarrison;
 

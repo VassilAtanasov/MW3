@@ -13,15 +13,17 @@ namespace MW3.Core;
 /// never the decision - rounds, and it floors with a minimum of 1 so a base that changes hands is
 /// never left at zero.
 /// </para>
+/// <para>
+/// Indices are expressed in <b>basis points</b> (1/10000 - FR-2), not percent: identity is
+/// <c>10000</c>, not <c>100</c>. Percent scale floors a common case - a level-2 village (110%)
+/// defended at morale 1 (125%) is 137.5, truncated to 137, a bias toward the attacker that can flip
+/// a knife-edge capture. At basis-point scale, and with the forge term still at identity, the
+/// two-term product is exact with no division loss at all; only a future third non-identity term
+/// (G-6) floors, and then at 1/10000 grain rather than 1%.
+/// </para>
 /// </summary>
 public static class CombatResolver
 {
-    /// <summary>
-    /// Morale's contribution to an attack or defence index, fixed at identity until parity gap G-1
-    /// supplies a real value. A percentage, not a delta - 100 multiplies through as "no change".
-    /// </summary>
-    public const int MoraleContributionPercent = 100;
-
     /// <summary>
     /// A forge's contribution to an attack or defence index, fixed at identity until parity gap G-6
     /// supplies a real value.
@@ -36,18 +38,22 @@ public static class CombatResolver
     public const int BaselineAttackPercent = 100;
 
     /// <summary>
-    /// The attacker's total attack index <c>a</c>: the uniform baseline composed with morale and
-    /// forge, both fixed at identity this phase.
+    /// The attacker's total attack index <c>a</c>, in basis points (1/10000): the uniform baseline
+    /// composed with <paramref name="moraleAttackPercent"/> - the arriving army's owner's live
+    /// morale attack percentage (<see cref="MoraleTable.AttackPercentage"/>), 100 for a morale-0
+    /// owner - and forge, forge fixed at identity until G-6.
     /// </summary>
-    public static int ComposeAttackerIndex() =>
-        ComposePercentages(BaselineAttackPercent, MoraleContributionPercent, ForgeContributionPercent);
+    public static int ComposeAttackerIndex(int moraleAttackPercent) =>
+        ComposePercentages(BaselineAttackPercent, moraleAttackPercent, ForgeContributionPercent);
 
     /// <summary>
-    /// The defender's total protection index <c>d</c>: the base's own defence percentage composed
-    /// with morale and forge, both fixed at identity this phase.
+    /// The defender's total protection index <c>d</c>, in basis points (1/10000): the base's own
+    /// defence percentage composed with <paramref name="moraleDefencePercent"/> - the base owner's
+    /// morale defence percentage (<see cref="MoraleTable.DefencePercentage"/>), 100 for a neutral
+    /// base, which has no morale (D-11) - and forge, forge fixed at identity until G-6.
     /// </summary>
-    public static int ComposeDefenderIndex(int baseDefencePercent) =>
-        ComposePercentages(baseDefencePercent, MoraleContributionPercent, ForgeContributionPercent);
+    public static int ComposeDefenderIndex(int baseDefencePercent, int moraleDefencePercent) =>
+        ComposePercentages(baseDefencePercent, moraleDefencePercent, ForgeContributionPercent);
 
     /// <summary>
     /// Whether <paramref name="attackingUnits"/> would capture a base defended by
@@ -56,7 +62,8 @@ public static class CombatResolver
     /// defender holding zero. This is the single source of the capture decision - both
     /// <see cref="Resolve"/> (actual resolution) and <see cref="AiBrain"/>'s predictions (winnability
     /// and threat) go through it, so they can never quietly disagree, mirroring how
-    /// <see cref="TravelTimeCalculator"/> is the one source of arrival timing for both.
+    /// <see cref="TravelTimeCalculator"/> is the one source of arrival timing for both. Indices are
+    /// basis points, the same scale <see cref="Resolve"/> takes.
     /// </summary>
     public static bool WouldCapture(int attackerIndex, int defenderIndex, int attackingUnits, int defendingGarrison) =>
         (long)attackingUnits * attackerIndex > (long)defendingGarrison * defenderIndex;
@@ -64,7 +71,7 @@ public static class CombatResolver
     /// <summary>
     /// Resolves one arriving wave against a defended garrison. The attacker captures the base iff
     /// <c>waveUnits × attackerIndex &gt; defendingGarrison × defenderIndex</c> - strictly greater, so
-    /// an exact tie leaves the defender holding zero.
+    /// an exact tie leaves the defender holding zero. Indices are basis points (1/10000).
     /// </summary>
     public static CombatResult Resolve(int attackerIndex, int defenderIndex, int waveUnits, int defendingGarrison)
     {
@@ -81,11 +88,15 @@ public static class CombatResolver
         return new CombatResult(Captured: false, RemainingGarrison: held < 0 ? 0 : held);
     }
 
-    // Composing three percentages that are each "100 = no change" this phase. Safe regardless of
-    // whether a future multi-term case (G-1, G-6 both live) turns out to stack multiplicatively or
-    // additively (MW2-RULES.md §4.3, [?]): with at most one non-identity term, multiplying by 100
-    // for every other term changes nothing, so this composition does not itself answer the stacking
-    // question - it only reduces correctly while the question stays unobserved.
+    // Composes three percentages into a basis-point (1/10000) index. D-40 settles this
+    // multiplicatively - MW2-RULES.md §4.3 flags stacking as [?] ("the sources say only that the
+    // terms combine"), but the reference's own worked example multiplies, and this is the codebase's
+    // shipped composition; MW2-PARITY.md records this as MW3's assumption, not a parity claim, so a
+    // future observation of additive stacking in MW2 reopens the gap. Dividing once by 100 (not
+    // 100*100) lands identity (100, 100, 100) on exactly 10000, and - since the forge term stays at
+    // identity this phase - the two-term product basePercent*moralePercent is exact with no
+    // remainder discarded; only a future non-identity forge term (G-6) can floor, and then at
+    // 1/10000 grain.
     private static int ComposePercentages(int basePercent, int moralePercent, int forgePercent) =>
-        (int)((long)basePercent * moralePercent * forgePercent / (100 * 100));
+        (int)((long)basePercent * moralePercent * forgePercent / 100);
 }

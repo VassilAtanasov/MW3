@@ -852,8 +852,16 @@ public sealed class Match
         // attacking-unit-death swing and (on capture) who is charged the capture-loss table.
         var defenderOwnerAtCombat = target.Owner;
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex();
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage);
+        // The attacker's index is read live, at arrival (FR-2) - the sender's morale at the moment
+        // the wave lands, not when the send was issued. No index is stored on Army. A neutral
+        // defender (Owner is null, D-11) has no morale and composes at identity.
+        var attackerMoralePercent = MoraleTable.AttackPercentage(MoraleOf(army.Owner).Level);
+        var defenderMoralePercent = defenderOwnerAtCombat is Player defenderOwnerForIndex
+            ? MoraleTable.DefencePercentage(MoraleOf(defenderOwnerForIndex).Level)
+            : 100;
+
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, defenderMoralePercent);
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, army.UnitCount, target.GarrisonCount);
 
         // Only attacking units generate morale, in both directions (D-41): Wu died on a failed
@@ -940,6 +948,15 @@ public sealed class Match
             AwardMorale(defender, defenderDelta);
         }
     }
+
+    /// <summary>
+    /// <paramref name="player"/>'s live <see cref="MoraleState"/> (FR-2) - the same lookup
+    /// <see cref="ResolveArrival"/> uses internally, exposed so <see cref="AiBrain"/>'s predictions
+    /// can compose the identical morale term <see cref="CombatResolver.Resolve"/> will actually use, keeping the
+    /// two from disagreeing (mirrors why <see cref="TravelTimeCalculator"/> is the one source of
+    /// arrival timing for both).
+    /// </summary>
+    public MoraleState MoraleFor(Player player) => MoraleOf(player);
 
     private MoraleState MoraleOf(Player player) => player == HumanPlayer ? _humanMorale : _aiMorale;
 

@@ -48,11 +48,24 @@ public class ConvertDeterminismTests
         advance(LevelTable.UpgradeBuildDurationTicks(LevelTable.MinLevel)); // the tower's own 100-tick build: level 2
         Assert.Equal(2, aiBase.Level);
 
-        // The human base has sat at its level-1 cap of 20 for a long while by this point in the
-        // script - send the whole garrison, comfortably enough to take a level-2 tower (170%
-        // defence) however small a garrison the AI's own spending has left it holding.
+        // FR-2: every upgrade above has been banking morale for both sides (neither yet reaching
+        // morale level 1's 500-point threshold), and the tower defends at MW2's Bu = (a/d) x Wu
+        // with waves capped at SendWaveCalculator.WaveSizeUnits (8) - a single wave of 8 can never
+        // clear a 170%-defended garrison outright, so the assault must run over several waves, and
+        // each failed wave feeds the defender +10 morale per attacking unit destroyed (D-41). A
+        // second human upgrade (to level 3, cap 60) is needed so the assault carries enough waves
+        // to finish the capture before the defender's climbing morale (still under threshold
+        // throughout, given the numbers below) makes it unwinnable within the whole send.
+        Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
+        advance(LevelTable.UpgradeBuildDurationTicks(2)); // the 200-tick build completes: level 3
+        Assert.Equal(3, humanBase.Level);
+        advance(1200); // refill toward the level-3 cap of 60
+
+        // The human base send its whole garrison (level-3 cap of 60, comfortably above the level-1
+        // cap of 20 the original single-upgrade script relied on) - enough waves survive the
+        // tower's climbing morale defence to finish the capture.
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, aiBase.Id, humanBase.GarrisonCount)));
-        advance(400); // long enough for the send to land and the capture to resolve
+        advance(400); // long enough for every wave to land and the capture to resolve
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner); // the capture really happened
         advance(250);

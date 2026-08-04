@@ -7,50 +7,55 @@ public class MatchOutcomeTests
     // A fixed sequence of human commands - discovered offline against the live AiBrain, then
     // hardcoded as data here (not a reactive strategy computed at runtime, which the AI heuristic
     // already covers and which a "brain for the human" is explicitly out of scope for) - proves
-    // victory is actually attainable, not merely representable in the type system. Every count is
-    // floor(source garrison / 2) at the moment of the send - identical to what a real drag produces
-    // (MatchScreen.HandleDrag) - so this same sequence also backs qa/scripts/victory.txt. Reused by
-    // every test below that needs a match to actually reach a decided outcome.
+    // victory is actually attainable, not merely representable in the type system. Reused by every
+    // test below that needs a match to actually reach a decided outcome.
     //
-    // Re-derived for #38: the tick rate halved (50ms) and the whole village ladder retuned to MW2's
-    // published numbers (level-1 period 60 ticks, cap 20), so every count and timing tuned around
-    // FR-3a's ladder no longer applied. The winning shape now sweeps the near flank first (bases 2
-    // and 4), then the far flank (3 and 5), reinforcing the capital (base 1) along the way, and
-    // finishes with two grinding strikes against the AI's own capped capital (base 2, formerly
-    // AI-owned after a mid-game exchange) once nothing else on the board is winnable outright -
-    // repeated waves whittle down a capped defender no single strike can beat alone.
-    private static readonly (long Tick, int Source, int Target, int Count)[] _winningSequence =
+    // Re-derived for FR-2 (issue #67): morale now feeds live into every combat index (both
+    // Match.ResolveArrival and AiBrain's predictions), which made the old sequence's exact captures
+    // diverge partway through - a wave that used to succeed can now fail once a defender has banked
+    // enough attacking-unit-destroyed morale (D-41) to cross a ladder threshold, cascading into
+    // "SourceNotOwnedByIssuer" many steps later as base ownership no longer matches what the fixed
+    // tuples assumed. Discovered fresh against the live morale-aware rules: one early upgrade of the
+    // human's capital (base 0) funds the capture force, which then takes a nearby neutral (base 4)
+    // and, over several reinforcing waves, the AI's sole base (base 1, the map's only AiStart slot),
+    // reaching HumanVictory the instant the AI is eliminated (bases 2/3/5 are never touched and stay
+    // neutral - Outcome_NeutralBasesNeverAffectIt below is the standing proof that this is a
+    // legitimate win, not a partial one).
+    private static readonly (long Tick, int SourceOrBase, int Target, int Count)[] _winningSendSequence =
     {
-        (120, 0, 2, 6),
-        (160, 0, 4, 3),
-        (220, 0, 2, 2),
-        (440, 0, 1, 3),
-        (600, 2, 1, 3),
-        (680, 0, 2, 3),
-        (780, 0, 1, 3),
-        (860, 0, 1, 2),
-        (960, 2, 1, 3),
-        (1080, 0, 2, 3),
-        (1260, 1, 4, 3),
-        (1380, 0, 4, 4),
-        (1480, 1, 4, 3),
-        (1600, 0, 4, 3),
-        (1720, 1, 4, 3),
-        (1800, 0, 4, 4),
-        (1920, 1, 4, 4),
-        (2280, 0, 3, 6),
-        (2360, 1, 3, 5),
-        (2440, 4, 5, 6),
-        (2500, 0, 3, 4),
-        (2500, 1, 2, 4),
-        (2560, 4, 2, 4),
-        (2580, 0, 5, 3),
+        (154, 0, 4, 4),
+        (213, 0, 4, 3),
+        (272, 0, 4, 3),
+        (331, 0, 4, 2),
+        (390, 0, 4, 2),
+        (440, 0, 1, 2),
+        (516, 0, 1, 2),
+        (600, 0, 4, 3),
+        (640, 0, 1, 2),
+        (659, 0, 4, 1),
+        (718, 0, 4, 1),
+        (750, 0, 1, 2),
+        (777, 0, 4, 1),
+        (840, 0, 4, 2),
+        (899, 0, 4, 1),
+        (958, 0, 4, 2),
     };
 
-    /// <summary>Submits every command in <see cref="_winningSequence"/>, at its exact tick, through <paramref name="runner"/>.</summary>
+    // The one upgrade the sequence issues, at tick 1, on the human's capital (base 0) - funds the
+    // level-2 cap the capture force above needs.
+    private const long _winningUpgradeTick = 1;
+    private const int _winningUpgradeBaseId = 0;
+
+    /// <summary>
+    /// Submits the upgrade and every send in <see cref="_winningSendSequence"/>, at its exact tick,
+    /// through <paramref name="runner"/>.
+    /// </summary>
     private static void SubmitWinningSequence(Match match, MatchRunner runner)
     {
-        foreach (var (tick, source, target, count) in _winningSequence)
+        runner.Advance(_winningUpgradeTick - match.ElapsedTicks);
+        Assert.Equal(UpgradeOutcome.Accepted, runner.Execute(new UpgradeCommand(match.HumanPlayer, _winningUpgradeBaseId)));
+
+        foreach (var (tick, source, target, count) in _winningSendSequence)
         {
             runner.Advance(tick - match.ElapsedTicks);
             var outcome = runner.Execute(new SendArmyCommand(match.HumanPlayer, source, target, count));
@@ -115,7 +120,11 @@ public class MatchOutcomeTests
         runner.Advance(3000 - match.ElapsedTicks);
 
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
-        Assert.All(match.Bases, b => Assert.Equal(match.HumanPlayer, b.Owner));
+        // The sequence (re-derived for FR-2) wins by eliminating the AI's sole base rather than by
+        // sweeping the whole map - Outcome_NeutralBasesNeverAffectIt below is the standing proof
+        // that this is a legitimate win. The AI-owned-nothing invariant is what victory actually
+        // means (EvaluateOutcome), so assert that rather than every base being human-owned.
+        Assert.DoesNotContain(match.Bases, b => b.Owner == match.AiPlayer);
     }
 
     [Fact]
@@ -167,7 +176,7 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void Outcome_NeutralBasesNeverAffectIt_FiveOwnedByHumanOneUnownedIsVictory()
+    public void Outcome_NeutralBasesNeverAffectIt_HumanEliminatesAiWithBasesStillNeutral()
     {
         var match = new Match();
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
@@ -176,11 +185,14 @@ public class MatchOutcomeTests
         runner.Advance(3000 - match.ElapsedTicks);
 
         Assert.Equal(MatchOutcome.HumanVictory, match.Outcome);
-        Assert.All(match.Bases, b => Assert.Equal(match.HumanPlayer, b.Owner));
+        // The sequence (re-derived for FR-2) leaves several bases neutral - itself already the
+        // proof this test's name promises: neutral bases never affect the outcome, only the AI's
+        // elimination does.
+        Assert.DoesNotContain(match.Bases, b => b.Owner == match.AiPlayer);
+        Assert.Contains(match.Bases, b => b.Owner is null);
 
-        // The sequence happens to sweep every base, but the rule under test doesn't depend on
-        // that: re-derive the same guarantee from a match where one base is deliberately left
-        // neutral, by evaluating the outcome directly once the AI alone is eliminated.
+        // Re-derive the same guarantee from a match where one base is deliberately left neutral, by
+        // evaluating the outcome directly once the AI alone is eliminated.
         var partial = new Match();
         var evaluateOutcome = typeof(Match).GetMethod("EvaluateOutcome", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var ownerSetter = typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!;
