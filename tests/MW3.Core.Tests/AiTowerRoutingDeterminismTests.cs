@@ -41,7 +41,7 @@ public class AiTowerRoutingDeterminismTests
         public BrainDecision Decide(Match match)
         {
             var decision = _inner.Decide(match);
-            if (decision.HasCommand && !decision.IsUpgrade && !decision.IsConvert)
+            if (decision.IsSend)
             {
                 SentCommands.Add(decision.Command);
             }
@@ -74,17 +74,24 @@ public class AiTowerRoutingDeterminismTests
         advance(34); // below the 40-tick decision interval: no AI decision fires before the rig below
         Assert.Equal(ai, neutral5.Owner);
 
+        // Level pinned to MaxUpgradableLevel so aiBase can never be an upgrade candidate (only a
+        // convert one); garrison just above ConversionCost (30), not its garrison cap, so the
+        // leftover after paying the cost (2) is too small to ever outcompete neutral5 below for
+        // TryAttack's descending-by-garrison source order - see #56: an oversized leftover here
+        // previously let aiBase win every attack with a margin many times the ~3-unit tower loss,
+        // which meant the run never actually exercised a decision the loss estimate was pivotal to.
         SetLevel(aiBase, LevelTable.MaxUpgradableLevel(BaseType.Producer));
-        SetGarrison(aiBase, LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MaxUpgradableLevel(BaseType.Producer))!.Value);
+        SetGarrison(aiBase, 32);
 
         SetOwner(neutral4, human);
         SetType(neutral4, BaseType.Tower);
         SetLevel(neutral4, LevelTable.MinLevel);
         SetGarrison(neutral4, 5);
 
-        // unclampedHalf 9, minus the ~3-unit estimated tower loss, still > neutral4's 5 - winnable -
-        // and below the level-1 producer cap of 20, so it stays an attack-only source (never an
-        // upgrade or convert candidate).
+        // unclampedHalf 9, minus the ~3-unit estimated tower loss, still > neutral4's 5 - the same
+        // margin AiBrainTests.TryAttack_OnlyViableTargetBehindATower_IsStillAttacked_... pins down
+        // directly - and below the level-1 producer cap of 20, so it stays an attack-only source
+        // (never an upgrade or convert candidate).
         SetGarrison(neutral5, 18);
         SetGarrison(match.Bases[0], 1000); // human home base: unwinnable regardless of unclampedHalf
         SetGarrison(neutral2, 1000);

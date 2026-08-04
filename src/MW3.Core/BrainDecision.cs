@@ -64,6 +64,9 @@ public readonly record struct BrainDecision
     /// <summary>Whether this decision carries a send, upgrade, or convert command.</summary>
     public bool HasCommand => _kind != Kind.None;
 
+    /// <summary>Whether the carried command is a <see cref="SendArmyCommand"/> rather than an upgrade or convert.</summary>
+    public bool IsSend => _kind == Kind.Send;
+
     /// <summary>Whether the carried command is an <see cref="UpgradeCommand"/> rather than a send or convert.</summary>
     public bool IsUpgrade => _kind == Kind.Upgrade;
 
