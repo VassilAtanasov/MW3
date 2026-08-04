@@ -241,10 +241,8 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **none right now** — every discovered feature in phases 1–4 is merged, and the
-  next step is `/discover` on a phase 5, not `/kickoff`. (Corrected 04-08-2026; this bullet had
-  gone stale, still naming phase 3 active with FR-5/FR-6/FR-7 as "next work" months after they
-  shipped.) Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
+- Active project: **Morale** (`docs/morale/`, wf `3401ecb1c7a5`), discovered 04-08-2026 — see its
+  own bullet below. Phases 1–4 are all complete and merged. Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
   shipped as #21. **Phase 2** (Core gameplay loop, board 19) complete — #8, #9, #13, #14, #20, #24,
   #25. **Phase 3** (Base upgrades and types, board 20) complete — FR-1 #30, FR-2 #32, FR-3 #34,
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
@@ -266,6 +264,25 @@ These run without a human gate and never block or reopen a feature:
   that the out-of-scope passive skill "row density" shortens it, parity **G-20**); and **D-36**
   records that consecutive waves overlap on screen at every viewport size, solved by tapering the
   marker radius plus a shared spine rather than by compositing the column into one shape.
+- **Phase 5, "Morale" (`docs/morale/`), discovered 04-08-2026 — the active project.** Closes parity
+  **G-1** and **G-7**'s morale term, leaving G-7 open on the forge term alone. Six features in
+  dependency order: the score and its gain/loss tables, the combat indices, inactivity decay, unit
+  speed, the drawn meter, and an AI that plays for morale. **No board yet — `/kickoff` creates it on
+  the first feature** and records the IDs in the registry row above. Morale is the first simulation
+  state that is per-player and global rather than per-building or per-army, which drives **D-37**
+  (it lives in `Match`, not on the `Player` identity record — S-9). Three decisions were settled
+  with the user in discovery and are binding, not build-mode calls: multipliers compose
+  **multiplicatively** (**D-40**, settling `MW2-RULES.md` §4.3's `[?]`, which first *matters* at
+  FR-2 when a defender carries two non-identity terms); **only a send resets the inactivity timer**,
+  since upgrading and converting are the turtling the rule exists to punish; and a send's unit speed
+  is **locked for the whole send at its submission tick** (**D-39**) — live speed would break
+  precomputed arrival ticks, and per-wave-at-launch would let a later wave overtake an earlier one.
+  Also **D-38** (points clamp to `[0, 8000]` and decay applies in whole points on a 20-tick period,
+  self-slowing as you fall) and **D-41** (only *attacking* units generate morale, so the attacker's
+  dead count is `Wu` on a failed attack but `Wu − remaining` on a successful one — easy to get wrong
+  and invisible against a table nobody checks by eye). Energy (**G-5**), heroes (**G-4**) and Rush
+  Mode (**G-16**) were deliberately held back to a phase 6: energy has no sink until abilities
+  exist, so shipping it here would mean a number that accumulates and is spent on nothing.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -304,6 +321,7 @@ These run without a human gate and never block or reopen a feature:
 | Core gameplay loop | `fb2cdf9f2907` | `docs/core-gameplay-loop/` | 19 | `PVT_kwHOANIl2M4Beh4g` | Status `PVTSSF_lAHOANIl2M4Beh4gzhY7XUw` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Morale | `3401ecb1c7a5` | `docs/morale/` | _(none yet — `/kickoff` creates it)_ | — | — |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -349,6 +367,17 @@ Phase 4 features, in dependency order (`/kickoff` one at a time), discovered 30-
 | 2 | Send-strength picker on both input heads, plus snaking | `4d4a9bac3f90` (issue #58, merged) |
 | 3 | A send arrives as successive waves in the core rules | `ed9c0ead836c` (issue #61, merged) |
 | 4 | Waves and the send column drawn distinctly from a single-arrival army | `a3e0351a6c4b` (issue #63, merged) |
+
+Phase 5 features, in dependency order (`/kickoff` one at a time), discovered 04-08-2026:
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` |
+| 2 | Morale feeds the combat formula's attack and defence indices | `f7b795f0a982` |
+| 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` |
+| 4 | Morale raises unit speed, locked at launch | `2e35c45de62c` |
+| 5 | The morale meter drawn for both players | `b0d20abba8ad` |
+| 6 | The AI opponent plays for morale and against decay | `1713e24400b9` |
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it
