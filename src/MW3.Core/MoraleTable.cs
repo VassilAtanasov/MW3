@@ -32,6 +32,13 @@ public static class MoraleTable
     /// <summary>Morale points lost for one of your own units dying while attacking (MW2-RULES.md §5.3).</summary>
     public const int AttackingUnitDiedLoss = 10;
 
+    /// <summary>
+    /// The inactivity decay period (FR-3, D-38): whole points are lost on this tick boundary, never
+    /// fractionally per tick. 20 ticks is exactly one second at the 50 ms tick rate (D-27), since the
+    /// published decay rates are per-second (<c>docs/morale/REQUIREMENTS.md</c> §4).
+    /// </summary>
+    public const int DecayPeriodTicks = 20;
+
     // Points required to reach each level, indexed by level (index 0 = level 0 = no threshold).
     // MW2-RULES.md §5.1, [T].
     private static readonly int[] _pointThresholds = { 0, 500, 1000, 2000, 4000, 8000 };
@@ -40,6 +47,12 @@ public static class MoraleTable
     private static readonly int[] _defencePercentages = { 100, 125, 150, 175, 200, 225 };
     private static readonly int[] _attackPercentages = { 100, 105, 110, 115, 120, 125 };
     private static readonly int[] _unitSpeedPercentages = { 100, 110, 120, 130, 140, 150 };
+
+    // Idle ticks before decay starts, indexed by level (FR-3, MW2-RULES.md §5.4, [T]).
+    private static readonly int[] _decayThresholdTicks = { 200, 180, 160, 140, 120, 100 };
+
+    // Points lost per decay period, indexed by level (FR-3, MW2-RULES.md §5.4, [T]).
+    private static readonly int[] _decayPointsPerPeriod = { 10, 20, 25, 50, 100, 200 };
 
     /// <summary>Clamps <paramref name="points"/> to <c>[<see cref="PointFloor"/>, <see cref="PointCeiling"/>]</c> (D-38).</summary>
     public static int ClampPoints(int points) => Math.Clamp(points, PointFloor, PointCeiling);
@@ -73,6 +86,19 @@ public static class MoraleTable
 
     /// <summary>The unit speed percentage morale contributes at <paramref name="level"/> (read by FR-4).</summary>
     public static int UnitSpeedPercentage(int level) => _unitSpeedPercentages[IndexOfLevel(level)];
+
+    /// <summary>
+    /// Idle ticks (since the player's last accepted send) required before decay starts at
+    /// <paramref name="level"/> - re-read from the level a player is at on every decay period, so the
+    /// bleed self-slows as it drops them (FR-3, D-38).
+    /// </summary>
+    public static int DecayThresholdTicks(int level) => _decayThresholdTicks[IndexOfLevel(level)];
+
+    /// <summary>
+    /// Morale points lost on one decay period at <paramref name="level"/> (FR-3, D-38), applied whole
+    /// rather than fractionally per tick.
+    /// </summary>
+    public static int DecayPointsPerPeriod(int level) => _decayPointsPerPeriod[IndexOfLevel(level)];
 
     /// <summary>
     /// Morale awarded to the capturer of a base of <paramref name="type"/> at <paramref name="level"/>

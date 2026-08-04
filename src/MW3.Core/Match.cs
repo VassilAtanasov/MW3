@@ -457,6 +457,11 @@ public sealed class Match
             {
                 return;
             }
+
+            // Decay (FR-3) is ordered after tower fire and arrivals, and only runs while the match is
+            // still in progress - nothing decays once Outcome leaves InProgress (phase 2 FR-7's
+            // freeze), including on the very tick that decides it.
+            EvaluateDecayAtTick(ElapsedTicks);
         }
     }
 
@@ -600,6 +605,7 @@ public sealed class Match
         var earliest = EarliestArrivalTickUpTo(upperBound);
         var completionTick = EarliestConstructionCompletionTickUpTo(upperBound);
         var waveLaunchTick = EarliestPendingWaveLaunchTickUpTo(upperBound);
+        var decayTick = EarliestDecayTickUpTo(upperBound);
 
         if (completionTick is long c && (earliest is null || c < earliest))
         {
@@ -609,6 +615,11 @@ public sealed class Match
         if (waveLaunchTick is long w && (earliest is null || w < earliest))
         {
             earliest = w;
+        }
+
+        if (decayTick is long d && (earliest is null || d < earliest))
+        {
+            earliest = d;
         }
 
         return earliest;
@@ -668,6 +679,92 @@ public sealed class Match
         }
 
         return earliest;
+    }
+
+    /// <summary>
+    /// The earliest tick at or before <paramref name="upperBound"/> on which either player's own
+    /// decay cadence lands a period boundary (FR-3): a positive multiple of
+    /// <see cref="MoraleTable.DecayPeriodTicks"/> ticks after that player's own last accepted send.
+    /// Each player's cadence is independent, so this is the minimum of the two. Whether decay actually
+    /// applies at that tick (the player may not yet be past their idle threshold) is decided by
+    /// <see cref="EvaluateDecayAtTick"/>, not here - this only decides where <see cref="Advance"/>
+    /// must stop to check.
+    /// </summary>
+    private long? EarliestDecayTickUpTo(long upperBound)
+    {
+        var humanTick = EarliestDecayTickForPlayerUpTo(_humanMorale, upperBound);
+        var aiTick = EarliestDecayTickForPlayerUpTo(_aiMorale, upperBound);
+
+        if (humanTick is null)
+        {
+            return aiTick;
+        }
+
+        if (aiTick is null)
+        {
+            return humanTick;
+        }
+
+        return Math.Min(humanTick.Value, aiTick.Value);
+    }
+
+    /// <summary>
+    /// The earliest positive multiple of <see cref="MoraleTable.DecayPeriodTicks"/> after
+    /// <paramref name="state"/>'s own last accepted send that is strictly after
+    /// <see cref="ElapsedTicks"/> and at or before <paramref name="upperBound"/>, or null if none
+    /// exists yet. A null <see cref="MoraleState.LastSendTick"/> is treated as the match's start tick
+    /// (0) - a player who never sends is idle from the beginning, without needing a separate field to
+    /// say so. No cursor is stored: <see cref="ElapsedTicks"/> (already-standing state) is enough to
+    /// re-derive the next boundary on every call, which is what keeps decay free of the "next-decay-
+    /// tick cache" this feature explicitly forbids (D-38).
+    /// </summary>
+    private long? EarliestDecayTickForPlayerUpTo(MoraleState state, long upperBound)
+    {
+        var lastSend = state.LastSendTick ?? 0;
+        var sinceLastSend = ElapsedTicks - lastSend;
+        var periodsElapsed = sinceLastSend / MoraleTable.DecayPeriodTicks;
+        var nextBoundary = lastSend + ((periodsElapsed + 1) * MoraleTable.DecayPeriodTicks);
+
+        return nextBoundary <= upperBound ? nextBoundary : null;
+    }
+
+    /// <summary>
+    /// Applies inactivity decay for both players at <paramref name="tick"/> (FR-3), evaluated after
+    /// tower fire and arrivals so a wave landing on this tick has already scored and decay applies to
+    /// the post-combat total (D-38). A no-op for a player not yet past their own idle threshold, or
+    /// already at <see cref="MoraleTable.PointFloor"/>.
+    /// </summary>
+    private void EvaluateDecayAtTick(long tick)
+    {
+        EvaluateDecayForPlayerAtTick(HumanPlayer, _humanMorale, tick);
+        EvaluateDecayForPlayerAtTick(AiPlayer, _aiMorale, tick);
+    }
+
+    /// <summary>
+    /// Decays one player's morale at <paramref name="tick"/> iff it is one of their own period
+    /// boundaries and they have been idle at least their current level's threshold - both re-read from
+    /// the level <paramref name="state"/> is at right now, so the bleed self-slows as it drops them
+    /// (FR-3, D-38). The AI decays on identical terms to the human (S-8) - nothing here branches on
+    /// <see cref="PlayerControllerKind"/>.
+    /// </summary>
+    private void EvaluateDecayForPlayerAtTick(Player player, MoraleState state, long tick)
+    {
+        var lastSend = state.LastSendTick ?? 0;
+        var idleTicks = tick - lastSend;
+        if (idleTicks <= 0 || idleTicks % MoraleTable.DecayPeriodTicks != 0)
+        {
+            // Not this player's own period boundary - the tick was reached for the other player's
+            // cadence, or for an unrelated arrival/completion/wave-launch boundary.
+            return;
+        }
+
+        var level = state.Level;
+        if (idleTicks < MoraleTable.DecayThresholdTicks(level))
+        {
+            return;
+        }
+
+        AwardMorale(player, -MoraleTable.DecayPointsPerPeriod(level));
     }
 
     /// <summary>
