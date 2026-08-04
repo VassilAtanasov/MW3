@@ -91,10 +91,14 @@ public class MoraleAccrualTests
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
         // The human-to-aiBase flight is 76 ticks; a level-1 producer's 60-tick production period
-        // fires once en route, growing the garrison from 1 to 2 before combat. attacker index 100,
-        // defender index 100 (level 1): remaining = (5*100 - 2*100)/100 = 3, 2 units died attacking.
-        Assert.Equal(100 - 20, match.HumanMorale.Points); // +100 capture (opponent, level 1 village) - 20 (2 died attacking)
-        Assert.Equal(500 + 20 - 50, match.AiMorale.Points); // +20 (destroyed two attacking units) - 50 (lost a level-1 village)
+        // fires once en route, growing the garrison from 1 to 2 before combat. FR-2: the defender
+        // (AI) is already at morale level 1 (500 points, the SetMoralePoints headroom above), so its
+        // defence index composes 100% (level-1 village) x 125% (morale) = 12500 basis points, not
+        // identity - attacker index stays 10000 (human at morale 0). remaining = (5*10000 -
+        // 2*12500)/12500 = 2, so 3 units died attacking (5 - 2), not 2.
+        var deathSwing = 3 * MoraleTable.AttackingUnitDestroyedGain;
+        Assert.Equal(MoraleTable.CaptureGain(BaseType.Producer, LevelTable.MinLevel, wasOpponentOwned: true) - deathSwing, match.HumanMorale.Points); // +100 capture (opponent, level 1 village) - 30 (3 died attacking)
+        Assert.Equal(500 + deathSwing - MoraleTable.CaptureLoss(BaseType.Producer, LevelTable.MinLevel), match.AiMorale.Points); // +30 (destroyed three attacking units) - 50 (lost a level-1 village)
     }
 
     /// <summary>
@@ -190,10 +194,13 @@ public class MoraleAccrualTests
 
         Assert.Equal(match.HumanPlayer, aiBase.Owner);
         // The human-to-aiBase flight is 76 ticks; a level-1 producer's 60-tick production period
-        // fires once en route, growing the garrison from 1 to 2 before combat. remaining =
-        // (5*100 - 2*100)/100 = 3 survivors -> 2 died attacking, not all 5.
-        Assert.Equal(3, aiBase.GarrisonCount);
-        var deathSwing = 2 * MoraleTable.AttackingUnitDestroyedGain;
+        // fires once en route, growing the garrison from 1 to 2 before combat. FR-2: the defender
+        // (AI) is already at morale level 1 (500 points, set above), so its defence index composes
+        // 100% (level-1 village) x 125% (morale) = 12500 basis points, not identity - attacker
+        // index stays 10000 (human at morale 0). remaining = (5*10000 - 2*12500)/12500 = 2
+        // survivors -> 3 died attacking (5 - 2), not all 5 and not the pre-FR-2 figure of 2.
+        Assert.Equal(2, aiBase.GarrisonCount);
+        var deathSwing = 3 * MoraleTable.AttackingUnitDestroyedGain;
         Assert.Equal(MoraleTable.CaptureGain(BaseType.Producer, LevelTable.MinLevel, wasOpponentOwned: true) - deathSwing, match.HumanMorale.Points);
     }
 

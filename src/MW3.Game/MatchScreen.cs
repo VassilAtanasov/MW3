@@ -697,7 +697,7 @@ internal sealed class MatchScreen : IScreen
         writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_match.ElapsedTicks}"));
         writer.WriteLine(FormattableString.Invariant($"Outcome: {_match.Outcome}"));
         writer.WriteLine(FormattableString.Invariant(
-            $"Morale: Human={_match.HumanMorale.Points} HumanLevel={_match.HumanMorale.Level} Ai={_match.AiMorale.Points} AiLevel={_match.AiMorale.Level}"));
+            $"Morale: Human={_match.HumanMorale.Points} HumanLevel={_match.HumanMorale.Level} HumanAtk={MoraleTable.AttackPercentage(_match.HumanMorale.Level)} HumanDef={MoraleTable.DefencePercentage(_match.HumanMorale.Level)} Ai={_match.AiMorale.Points} AiLevel={_match.AiMorale.Level} AiAtk={MoraleTable.AttackPercentage(_match.AiMorale.Level)} AiDef={MoraleTable.DefencePercentage(_match.AiMorale.Level)}"));
 
         foreach (var b in _match.Bases)
         {

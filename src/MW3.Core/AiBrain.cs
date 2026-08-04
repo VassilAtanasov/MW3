@@ -345,9 +345,19 @@ public sealed class AiBrain : IPlayerBrain
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
                 var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
-                var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage);
 
-                if (CombatResolver.WouldCapture(CombatResolver.ComposeAttackerIndex(), defenderIndex, attackingUnitCount, predictedGarrison)
+                // Mechanical, not judgement (FR-2): feeding the same live morale indices Resolve
+                // would use into the shared WouldCapture predicate, so this prediction cannot
+                // silently disagree with what actually happens - the disagreement #68 was filed to
+                // close. The AI gains no new understanding of morale here (that is FR-6).
+                var attackerMoralePercent = MoraleTable.AttackPercentage(match.MoraleFor(Player).Level);
+                var defenderMoralePercent = target.Owner is Player targetOwner
+                    ? MoraleTable.DefencePercentage(match.MoraleFor(targetOwner).Level)
+                    : 100;
+                var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
+                var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, defenderMoralePercent);
+
+                if (CombatResolver.WouldCapture(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison)
                     && expectedTowerLoss < bestExpectedTowerLoss)
                 {
                     bestTarget = target;
@@ -464,6 +474,7 @@ public sealed class AiBrain : IPlayerBrain
         earliestArrival = long.MaxValue;
         var enemyUnitTotal = 0;
         var threatened = false;
+        Player? attacker = null;
 
         var armies = match.ArmiesInFlight;
         for (var i = 0; i < armies.Count; i++)
@@ -475,6 +486,7 @@ public sealed class AiBrain : IPlayerBrain
             }
 
             threatened = true;
+            attacker = army.Owner;
             enemyUnitTotal += army.UnitCount;
             if (army.ArrivalTick < earliestArrival)
             {
@@ -488,8 +500,17 @@ public sealed class AiBrain : IPlayerBrain
         }
 
         var predictedGarrison = PredictGarrison(candidate, currentTick, earliestArrival);
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(candidate.DefencePercentage);
-        return CombatResolver.WouldCapture(CombatResolver.ComposeAttackerIndex(), defenderIndex, enemyUnitTotal, predictedGarrison);
+
+        // Mechanical, not judgement (FR-2): the same shared WouldCapture predicate Resolve uses,
+        // fed the attacker's (the threatening enemy's) and this base's own owner's live morale
+        // indices, so the threat prediction cannot silently disagree with what actually happens.
+        var attackerMoralePercent = MoraleTable.AttackPercentage(match.MoraleFor(attacker!).Level); // attacker is set whenever threatened is true, checked above
+        var defenderMoralePercent = candidate.Owner is Player candidateOwner
+            ? MoraleTable.DefencePercentage(match.MoraleFor(candidateOwner).Level)
+            : 100;
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(candidate.DefencePercentage, defenderMoralePercent);
+        return CombatResolver.WouldCapture(attackerIndex, defenderIndex, enemyUnitTotal, predictedGarrison);
     }
 
     private bool AlreadyTargetedByOwnArmy(Match match, int baseId)
