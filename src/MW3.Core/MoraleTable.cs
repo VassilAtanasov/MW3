@@ -109,6 +109,12 @@ public static class MoraleTable
     {
         BaseType.Producer => Village.CaptureGain(level, wasOpponentOwned),
         BaseType.Tower => Tower.CaptureGain(level, wasOpponentOwned),
+
+        // Pinned at 0 pending phase 6 FR-4, which adds MW2-RULES.md §5.2/§5.3's forge capture rows -
+        // mirrors CombatResolver.ForgeContributionPercent's identity pin since phase 3 FR-3b. A forge
+        // must still be capturable in FR-1 (its type and single tier survive capture unchanged); it
+        // simply scores no morale for doing so until FR-4 populates the table.
+        BaseType.Forge => 0,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -121,6 +127,9 @@ public static class MoraleTable
     {
         BaseType.Producer => Village.CaptureLoss(level),
         BaseType.Tower => Tower.CaptureLoss(level),
+
+        // Pinned at 0 pending phase 6 FR-4 - see the matching comment on CaptureGain above.
+        BaseType.Forge => 0,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 

@@ -597,7 +597,7 @@ public sealed class AiBrain : IPlayerBrain
     /// </summary>
     private static int PredictGarrison(Base b, long currentTick, long futureTick)
     {
-        if (b.Owner is null || b.Type == BaseType.Tower)
+        if (b.Owner is null || b.Type != BaseType.Producer)
         {
             return b.GarrisonCount;
         }

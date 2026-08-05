@@ -1,6 +1,6 @@
 namespace MW3.Core;
 
-internal enum MapSlotKind
+public enum MapSlotKind
 {
     HumanStart,
     AiStart,

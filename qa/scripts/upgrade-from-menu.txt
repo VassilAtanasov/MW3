@@ -1,8 +1,9 @@
 # Tap Play, open the human base's action menu, then press and release its Upgrade button -
-# submits the upgrade and dismisses the menu.
+# submits the upgrade and dismisses the menu. Button coordinate re-authored for the three-button
+# menu (Upgrade, Convert:Tower, Convert:Forge) once BaseType gained Forge (phase 6 FR-1, D-48).
 0 down 0.500000 0.591667
 5 up 0.500000 0.591667
 10 down 0.120000 0.500000
 15 up 0.120000 0.500000
-20 down 0.230813 0.303389
-25 up 0.230813 0.303389
+20 down 0.328906 0.416667
+25 up 0.328906 0.416667

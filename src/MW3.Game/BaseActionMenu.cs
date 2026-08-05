@@ -19,14 +19,17 @@ internal sealed class BaseActionMenu
     private const float _viewportMarginFraction = 0.015f;
     private const float _headerHeightFraction = 0.06f;
 
-    // The total angle the arc spreads two buttons across, and the half-spread used to centre it on
-    // the anchor (90 degrees, straight up). At the previous 50-degree spread, two buttons of
-    // _buttonWidthFraction width sat only ~146px apart at _arcRadiusFraction's radius - narrower
-    // than the ~173px button itself, so they always overlapped regardless of viewport clamping.
-    // Widened when Convert joined Upgrade on the arc (FR-5) so two buttons' chord distance clears
-    // the button width with room to spare, at every anchor position, not only near an edge.
-    private const float _arcSpreadDegrees = 70f;
-    private const float _arcHalfSpreadDegrees = _arcSpreadDegrees / 2f;
+    // The angular step between adjacent buttons on the arc (90 degrees, straight up, is the centre).
+    // At the previous fixed 50-degree *total* spread, two buttons of _buttonWidthFraction width sat
+    // only ~146px apart at _arcRadiusFraction's radius - narrower than the ~173px button itself, so
+    // they always overlapped regardless of viewport clamping. Widened to 70 degrees when Convert
+    // joined Upgrade on the arc (FR-5) so two buttons' chord distance clears the button width with
+    // room to spare, at every anchor position, not only near an edge. Kept as a fixed *step* rather
+    // than a fixed total spread when the third button joined (D-48, phase 6 FR-1): a fixed total
+    // spread divided across N-1 gaps shrinks the adjacent spacing as buttons are added, which is what
+    // made three buttons overlap even though two never did - stepping by degree keeps every adjacent
+    // pair exactly as far apart as the original two-button layout, regardless of button count.
+    private const float _arcStepDegrees = 70f;
 
     private static readonly Color _affordableColor = Color.DarkGoldenrod;
     private static readonly Color _greyedColor = Color.DimGray;
@@ -246,7 +249,8 @@ internal sealed class BaseActionMenu
         var arcRadius = minDimension * _arcRadiusFraction;
 
         var count = Math.Max(1, _actions.Count);
-        var angleDegrees = count == 1 ? 90.0 : 90.0 - _arcHalfSpreadDegrees + (_arcSpreadDegrees * index / (count - 1));
+        var totalSpreadDegrees = _arcStepDegrees * (count - 1);
+        var angleDegrees = count == 1 ? 90.0 : 90.0 - (totalSpreadDegrees / 2.0) + (_arcStepDegrees * index);
         var angleRadians = angleDegrees * Math.PI / 180.0;
 
         var anchorPixel = new Vector2((float)(anchorPosition.X * viewport.Width), (float)(anchorPosition.Y * viewport.Height));

@@ -14,18 +14,24 @@ public class AvailableActionsTests
 
         var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
 
-        Assert.Equal(2, actions.Count);
+        Assert.Equal(3, actions.Count);
         var upgrade = actions[0];
         Assert.Equal(BaseActionKind.Upgrade, upgrade.Kind);
         Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), upgrade.Cost);
         Assert.Equal(BaseActionAvailability.Affordable, upgrade.Availability);
 
-        var convert = actions[1];
-        Assert.Equal(BaseActionKind.Convert, convert.Kind);
-        Assert.Equal(LevelTable.ConversionCost, convert.Cost);
-        Assert.Equal(BaseType.Tower, convert.ConvertTargetType);
+        var convertToTower = actions[1];
+        Assert.Equal(BaseActionKind.Convert, convertToTower.Kind);
+        Assert.Equal(LevelTable.ConversionCost, convertToTower.Cost);
+        Assert.Equal(BaseType.Tower, convertToTower.ConvertTargetType);
         // Starting garrison (10) is below the 30-unit conversion cost.
-        Assert.Equal(BaseActionAvailability.GarrisonBelowCost, convert.Availability);
+        Assert.Equal(BaseActionAvailability.GarrisonBelowCost, convertToTower.Availability);
+
+        var convertToForge = actions[2];
+        Assert.Equal(BaseActionKind.Convert, convertToForge.Kind);
+        Assert.Equal(LevelTable.ConversionCost, convertToForge.Cost);
+        Assert.Equal(BaseType.Forge, convertToForge.ConvertTargetType);
+        Assert.Equal(BaseActionAvailability.GarrisonBelowCost, convertToForge.Availability);
     }
 
     [Fact]
@@ -39,7 +45,7 @@ public class AvailableActionsTests
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, humanBase.Id, neutral.Id, 6)));
 
         var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
-        Assert.Equal(2, actions.Count);
+        Assert.Equal(3, actions.Count);
         var upgrade = actions[0];
         Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), upgrade.Cost);
         Assert.Equal(BaseActionAvailability.GarrisonBelowCost, upgrade.Availability);
@@ -63,7 +69,7 @@ public class AvailableActionsTests
         Assert.Equal(LevelTable.MaxUpgradableLevel(BaseType.Producer), humanBase.Level);
 
         var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
-        Assert.Equal(2, actions.Count);
+        Assert.Equal(3, actions.Count);
         var upgrade = actions[0];
         Assert.Equal(0, upgrade.Cost);
         Assert.Equal(BaseActionAvailability.AlreadyAtMaxLevel, upgrade.Availability);
@@ -84,7 +90,7 @@ public class AvailableActionsTests
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
 
         var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
-        Assert.Equal(2, actions.Count);
+        Assert.Equal(3, actions.Count);
         var upgrade = actions[0];
         Assert.Equal(LevelTable.UpgradeCost(BaseType.Producer, LevelTable.MinLevel), upgrade.Cost); // still reads the current (unchanged) level
         Assert.Equal(BaseActionAvailability.UnderConstruction, upgrade.Availability);
@@ -92,6 +98,8 @@ public class AvailableActionsTests
         var convert = actions[1];
         Assert.Equal(BaseActionAvailability.UnderConstruction, convert.Availability);
         Assert.Equal(BaseType.Tower, convert.ConvertTargetType);
+        Assert.Equal(BaseActionAvailability.UnderConstruction, actions[2].Availability);
+        Assert.Equal(BaseType.Forge, actions[2].ConvertTargetType);
 
         // Completing leaves the base at level 2 with 6 units (10 - 5 cost + 1 produced during the
         // build at the still-current level-1 rate) - below level 2's 10-unit cost, so the menu
@@ -152,14 +160,16 @@ public class AvailableActionsTests
     }
 
     [Fact]
-    public void Convert_TargetType_IsOppositeOfCurrentType()
+    public void Convert_TargetTypes_AreEveryOtherBaseTypeInDeclarationOrder()
     {
         var match = new Match();
         var humanBase = HumanBase(match);
 
         Assert.Equal(BaseType.Producer, humanBase.Type);
-        var convert = match.AvailableActions(match.HumanPlayer, humanBase.Id)[1];
-        Assert.Equal(BaseType.Tower, convert.ConvertTargetType);
+        var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
+        Assert.Equal(3, actions.Count);
+        Assert.Equal(BaseType.Tower, actions[1].ConvertTargetType);
+        Assert.Equal(BaseType.Forge, actions[2].ConvertTargetType);
     }
 
     [Fact]
@@ -173,5 +183,21 @@ public class AvailableActionsTests
 
         var convert = match.AvailableActions(match.HumanPlayer, humanBase.Id)[1];
         Assert.Equal(LevelTable.ConversionCost, convert.Cost);
+    }
+
+    [Fact]
+    public void AlwaysExactlyThreeActionsForAnOwnedBase_UpgradePlusOneConvertPerOtherType()
+    {
+        var match = new Match();
+        var humanBase = HumanBase(match);
+
+        var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
+
+        Assert.Equal(3, actions.Count);
+        Assert.Equal(BaseActionKind.Upgrade, actions[0].Kind);
+        Assert.Equal(BaseActionKind.Convert, actions[1].Kind);
+        Assert.Equal(BaseActionKind.Convert, actions[2].Kind);
+        var convertTargets = actions.Skip(1).Select(a => a.ConvertTargetType).ToArray();
+        Assert.Equal(new BaseType?[] { BaseType.Tower, BaseType.Forge }, convertTargets);
     }
 }

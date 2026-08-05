@@ -1,0 +1,18 @@
+# Tap Play, upgrade the human base to level 2 (cap rises to 40, production speeds up), wait for
+# production to clear the 30-unit conversion cost, press Convert: Forge (the third button, D-48) -
+# deducts 30 immediately and starts the 100-tick / 5 s build - then advance well past completion and
+# confirm through --dump-state that the base is a forge with no garrison cap whose garrison does not
+# grow (phase 6 FR-1). Run with --time-scale 10 (see convert-pending.txt for why).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.328906 0.416667
+25 up 0.328906 0.416667
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075781 0.416667
+335 up 0.075781 0.416667
+360 wait
+370 down 0.120000 0.500000
+375 up 0.120000 0.500000
