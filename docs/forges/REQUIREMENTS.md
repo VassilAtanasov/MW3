@@ -92,6 +92,27 @@ this, no rule about a *neutral* forge is testable, because `MapLayout` is `inter
 hardcoded array and `Match` has no injection point. Build time and the one-second recapture grace
 reuse phase 3 FR-3c unchanged.
 
+**Settled at kickoff 05-08-2026 — issue [#82](https://github.com/VassilAtanasov/MW3/issues/82),
+which carries the verbatim acceptance criteria.** Beyond the tuning-table entries above, four things
+were decided that build mode must not re-open:
+
+1. **`LevelTable.GarrisonCap(Forge, 1)` returns null**, following the tower precedent — see the §4
+   row, which this kickoff corrected.
+2. **`Match.AvailableActions` returns `Upgrade` plus one `Convert` action per `BaseType` other than
+   the base's own**, in `BaseType` declaration order — always exactly three actions for an owned
+   base (**D-48**). This is what deletes D-43's toggle rather than extending it, and it moves the
+   menu to three buttons in *this* feature: eight existing menu QA scripts are re-authored for the
+   new geometry, and `--dump-state`'s `Menu:` line replaces its single
+   `Convert=/ConvertCost=/ConvertTo=` triple with one `Convert:<TargetType>=<Availability>@<cost>`
+   token per action. FR-5 still owns per-type labels, the forge glyph, and the forge count.
+3. **`MapSlot`, `MapSlotKind` and `MapLayout` become public** (D-44, amended). A public `Match`
+   constructor cannot take an internal parameter type, and `MW3.Core` has no `InternalsVisibleTo`,
+   so the seam forces the surface. This is directionally right for G-18 and does not introduce a
+   second map.
+4. **Two guards that ask "is this a tower?" actually mean "does this produce?"** — `Match.cs:877`
+   and `AiBrain.cs:600` — and both invert to "is this a producer?" rather than growing a third
+   special case. The tower *fire* guards are untouched here; FR-2 owns those.
+
 FR-2 (wf: `65f7360af81d`): The player can fight over a forge that already exists on the map, so that
 the multiplier is a contested objective rather than a private conversion decision. Grows the shipped
 layout from six bases to eight: one **neutral forge** and one **neutral tower**, both on the centre
@@ -169,9 +190,9 @@ records them as MW3's rather than as parity claims:
 
 | Constant | Value | Source and derivation |
 |---|---|---|
-| Forge conversion price | **10 units**, the existing convert price | MW2 prices *all* conversions identically at 30 (§2.1) and MW3 scaled that to 10 at phase 3 FR-3. The forge inherits the single existing price rather than introducing a second one — MW2 gives no basis for pricing forge conversion differently from tower conversion |
+| Forge conversion price | **30 units**, the existing `LevelTable.ConversionCost` | MW2 prices *all* conversions identically at 30 (§2.1) and MW3 kept that literal at phase 3 FR-3a's realignment. The forge inherits the single existing price rather than introducing a second one — MW2 gives no basis for pricing forge conversion differently from tower conversion. **Corrected at FR-1's kickoff (05-08-2026):** this row previously read "10 units", which never matched the code — `LevelTable.cs:33` has always been 30, and `convert-pending.txt`, `convert-completed.txt` and `greyed-convert-does-nothing.txt` all say so. The row's reasoning was right; only its number was wrong |
 | A forge's own building defence | **100%** | Not published (**G-22** territory: MW2 states building defence only as percentages of unstated bases). Set to level-1 village defence, i.e. no bonus. A forge trades *local* defence for a *global* multiplier, which is what keeps the neutral forge genuinely contestable and stops a forge doubling as a fortress. It also keeps `LevelTable`'s forge arm a single value rather than a fabricated ladder |
-| A forge's garrison cap | **the level-1 producer cap** | One tier means one cap. Inherits phase 3 FR-3a's existing level-1 value rather than inventing a number |
+| A forge's garrison cap | **none** — `LevelTable.GarrisonCap(Forge, 1)` returns null | **Settled at FR-1's kickoff (05-08-2026), replacing this row's earlier "the level-1 producer cap".** `GarrisonCap` is documented as a *production* ceiling, not a storage limit (D-21), and the tower arm returns null precisely because a tower never produces. A forge never produces either, so a cap could never bind: a value of 20 would only surface as a drawn denominator that nothing can ever move toward. Following the tower precedent also keeps the "every reader handles the empty case explicitly" contract intact rather than adding a second kind of meaningless cap |
 | Neutral forge and tower positions | **(0.50, 0.20)** and **(0.50, 0.80)** | Both on the centre line, so each is exactly equidistant from the human start (0.12, 0.50) and the AI start (0.88, 0.50) — the mirror symmetry about `x = 0.5` that `MapLayout`'s comment records as the reason neither side starts with a positional advantage. Two off-axis slots could not preserve that |
 | Neutral forge and tower starting garrison | **10** | Double an ordinary neutral's 5. These are prizes, not expansion room; a 5-unit prize would be taken in the opening seconds by whoever sends first, which would make the objective a race rather than a contest |
 | Neutral tower level | **1** | The weakest tower, and this matters more now that it fires (D-47). Its range and fire period come from `LevelTable.Tower` at level 1 — no new number. A pre-built level-4 tower on the centre line would shoot both players hard from tick 0 and dominate the map on capture; level 1 makes it a hazard and a foothold. Its capture morale value (+80 neutral, +200 opponent's) is already tabled by phase 5 |

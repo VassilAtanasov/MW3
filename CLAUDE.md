@@ -274,12 +274,13 @@ These run without a human gate and never block or reopen a feature:
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
   board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
-  bullet. The only open issues are `follow-up`-labelled and so are never auto-built: **#56** (FR-7's
-  determinism test doesn't confirm the tower-aware attack branch actually fired), **#60** (is
-  snaking's 2,2,1 count sequence an acceptable demo, or should tuning change?), **#76**
-  (`qa/scripts/victory.txt` no longer reaches `HumanVictory`, stale since phase 5 FR-2 changed the
-  combat formula), and **#81** (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a
-  regression test).
+  bullet. Apart from phase 6's own **#82** (FR-1), every open issue is `follow-up`-labelled and so is
+  never auto-built. Open as of 05-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
+  `HumanVictory`, stale since phase 5 FR-2 changed the combat formula) and **#81**
+  (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test). Two more were
+  filed earlier in the phase sequence and have since been closed: **#56** (FR-7's determinism test
+  doesn't confirm the tower-aware attack branch actually fired) and **#60** (is snaking's 2,2,1
+  count sequence an acceptable demo, or should tuning change?).
 - **Phase 4, "Sending armies the MW2 way" (`docs/army-sending/`) — complete.** Discovered
   30-07-2026, board **21**, all four features merged: FR-1 #54 (PR #57), FR-2 #58 (PR #59),
   FR-3 #61 (PR #62), FR-4 #63 (PR #64, merged 31-07-2026). It closed parity **G-2** (waves — rules
@@ -320,9 +321,11 @@ These run without a human gate and never block or reopen a feature:
   Mode (**G-16**) were deliberately held back to a phase 6: energy has no sink until abilities
   exist, so shipping it here would mean a number that accumulates and is spent on nothing.
 - **Phase 6, "Forges" (`docs/forges/`, wf `3900095949a7`) — the active project.** Discovered
-  05-08-2026. Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
+  05-08-2026; board **23**, created at FR-1's kickoff the same day, with FR-1 as issue **#82**.
+  Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
   since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
-  features; no board or issues yet. Three things were settled with the user in discovery and are
+  features on board **23**; FR-1 is issue **#82**, the rest are not yet kicked off. Three things
+  were settled with the user in discovery and are
   binding, not build-mode calls. **Forges are optional** and the zero-forge baseline must stay
   bit-identical on the six original bases, which is what protects phases 2–5's tests and
   `qa/scripts/` budgets. **The map grows from six bases to eight** with a contested neutral forge and
@@ -385,7 +388,7 @@ These run without a human gate and never block or reopen a feature:
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Forges | `3900095949a7` | `docs/forges/` | — | — | filled by `/kickoff` |
+| Forges | `3900095949a7` | `docs/forges/` | 23 | `PVT_kwHOANIl2M4BfdZf` | Status `PVTSSF_lAHOANIl2M4BfdZfzhZwJAo` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
@@ -448,7 +451,7 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` |
+| 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` (issue #82) |
 | 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` |
 | 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` |
 | 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` |

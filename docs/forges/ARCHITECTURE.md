@@ -135,6 +135,15 @@ touching the shipped map, and is a real step toward **G-18**. It does **not** in
 shipped map, a map file format, or map selection — those stay out of scope (§6). `MapSlot` gains a
 `BaseType` and, for a pre-placed tower, a level.
 
+**Amended at FR-1's kickoff (05-08-2026): the seam forces `MapSlot`, `MapSlotKind` and `MapLayout`
+to become public.** A public `Match` constructor cannot take a parameter of a less accessible type,
+and `MW3.Core` carries no `InternalsVisibleTo` (only `MW3.Game` does, for `MW3.Game.Tests`). The
+alternative considered and rejected was an internal layout-taking constructor plus `MW3.Core`'s
+first internals grant to `MW3.Core.Tests`: it keeps the public surface smaller today, but G-18 would
+have to reopen the decision the moment a head needs to choose a map, and the grant would be a new
+precedent in the layer with the strictest boundary rules. Three public types no head uses yet is the
+cheaper price. `MapLayout.Slots` itself is unchanged by FR-1 — six level-1 producer slots.
+
 **D-45: a player's forge count is derived from the board on read, never stored.** The count is a pure
 function of the bases a player owns, so storing it would duplicate truth and create a desync class —
 exactly the failure mode follow-up #68 found when `AiBrain`'s predictions and `CombatResolver`
@@ -191,6 +200,37 @@ Three consequences the implementer must not rediscover:
   centre of the map from the opening seconds. It does not threaten the zero-forge baseline
   guarantee — that is scoped to the six original bases — but it makes FR-2 a behavioural feature
   needing its own QA scenario, not a layout edit.
+
+**D-48: `AvailableActions` returns one convert action per *other* type, and the third menu button
+lands in FR-1.** Settled with the user at FR-1's kickoff, 05-08-2026. D-43 says the toggle is deleted
+rather than extended but does not say what replaces it, and with three types "the convert action" is
+no longer a single thing. `Match.AvailableActions(player, baseId)` therefore returns one `Upgrade`
+action followed by one `Convert` action per `BaseType` other than the base's own, in `BaseType`
+declaration order (`Producer`, `Tower`, `Forge`) — always exactly three actions for an owned base,
+each convert action carrying its own `ConvertTargetType`, `Cost` and `Availability`. Declaration
+order rather than any dynamic ordering, so the sequence is stable and a QA script can key on a button
+index across features.
+
+The alternative — leave `AvailableActions` offering a single convert target through FR-1 and widen it
+at FR-5 — was rejected: it keeps a two-valued assumption alive in the exact call site D-43 names, and
+FR-5 would then be paying FR-1's debt on top of its own drawing work.
+
+The cost is real and belongs to FR-1, not FR-5. `BaseActionMenu` loops over `_actions` generically
+and reads `BaseAction.ConvertTargetType` per action (D-25), so it renders a third button with no
+type-specific knowledge — but the geometry shifts, so **eight** committed menu QA scripts are
+re-authored against the new layout (`convert-pending`, `convert-completed`,
+`greyed-convert-does-nothing`, `upgrade-from-menu`, `open-action-menu`,
+`menu-clamped-on-top-row-base`, `dismiss-menu-on-empty-space`, `drag-suppressed-while-menu-open`),
+and `--dump-state`'s `Menu:` line — which indexes `Actions[0]`/`Actions[1]` and emits one convert
+triple — changes shape. `Upgrade=` and `Cost=` keep their names and meaning; the
+`Convert=/ConvertCost=/ConvertTo=` triple becomes one `Convert:<TargetType>=<Availability>@<cost>`
+token per convert action, in `AvailableActions` order. `Building=` gains `ConvertToForge@<tick>` by
+rendering the target type by name, which leaves the existing `ConvertToTower@<tick>` and
+`ConvertToProducer@<tick>` spellings byte-identical and costs those scripts nothing. This is a change
+to a field's *format*, not a new field, a new directive, or a new flag (§2a).
+
+What stays with FR-5: per-type button labels (both convert buttons read `Convert: 30` after FR-1),
+the forge's own glyph (a forge draws as a producer's circle after FR-1), and the forge count.
 
 ## 5. Cross-cutting conventions
 
