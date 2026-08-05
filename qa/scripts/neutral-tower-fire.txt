@@ -1,0 +1,21 @@
+# Phase 6 FR-2 (issue #86): the shipped map's neutral tower (id 7, at (0.50, 0.80)) fires from
+# tick 0 with no player-built tower anywhere on the board (D-47). Tap Play, then drag a send from
+# the human base straight to base 3 (0.35, 0.75) - a bottom-flank neutral whose position (0.158
+# from the tower) sits inside even the tower's weakest level-1 range (0.20), so the last stretch of
+# the flight is spent under fire. The default send strength is Half (SendStrengthSelector), so this
+# launches half the human's starting garrison of 10 - 5 units - at a target defended by its own
+# garrison of 5.
+#
+# Same mechanism army-shrinking-early.txt/army-shrinking-late.txt already prove for a player-built
+# tower, here for the neutral one: the tower removes exactly one unit per
+# LevelTable.Tower.FirePeriodTicks(1) = 6 ticks spent in range, so the arriving wave lands short of
+# the 5 it launched with. Cross-checked against the dump's Army lines while still in flight (an
+# intermediate dump shows a lower Count= than the launch value) and, once resolved, against
+# Base 3's own Garrison= and the Morale: line - the tower's kill charges Human
+# (MoraleTable.AttackingUnitDiedLoss) and awards nobody (D-47), so Ai's morale stays 0 for the whole
+# run.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.350000 0.750000
+100 wait

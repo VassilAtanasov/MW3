@@ -11,11 +11,11 @@ public class MatchTests
     }
 
     [Fact]
-    public void Constructor_CreatesExactlySixBasesAtTheAgreedPositions()
+    public void Constructor_CreatesExactlyEightBasesAtTheAgreedPositions()
     {
         var match = new Match();
 
-        Assert.Equal(6, match.Bases.Count);
+        Assert.Equal(8, match.Bases.Count);
 
         var positions = match.Bases.Select(b => (b.Position.X, b.Position.Y)).ToArray();
         Assert.Contains((0.12, 0.50), positions);
@@ -24,6 +24,8 @@ public class MatchTests
         Assert.Contains((0.35, 0.75), positions);
         Assert.Contains((0.65, 0.25), positions);
         Assert.Contains((0.65, 0.75), positions);
+        Assert.Contains((0.50, 0.20), positions);
+        Assert.Contains((0.50, 0.80), positions);
     }
 
     [Fact]
@@ -50,19 +52,25 @@ public class MatchTests
         }
     }
 
+    // Re-authored at phase 6 FR-2: the layout gains two more neutrals - the neutral forge and
+    // neutral tower (ids 6, 7) - each starting at garrison 10, double an ordinary neutral's 5
+    // (REQUIREMENTS.md §4 "Tuning values"). The four original flank neutrals are unchanged.
     [Fact]
-    public void Constructor_HumanAndAiBasesAreOwnedWithGarrisonTen_NeutralsAreOwnerlessWithGarrisonFive()
+    public void Constructor_HumanAndAiBasesAreOwnedWithGarrisonTen_OriginalNeutralsAreOwnerlessWithGarrisonFive_NewNeutralsWithGarrisonTen()
     {
         var match = new Match();
 
         var humanBase = Assert.Single(match.Bases, b => b.Owner == match.HumanPlayer);
         var aiBase = Assert.Single(match.Bases, b => b.Owner == match.AiPlayer);
-        var neutralBases = match.Bases.Where(b => b.Owner is null).ToArray();
+        var originalNeutrals = match.Bases.Where(b => b.Owner is null && b.Type == BaseType.Producer).ToArray();
+        var newNeutrals = match.Bases.Where(b => b.Owner is null && b.Type != BaseType.Producer).ToArray();
 
         Assert.Equal(10, humanBase.GarrisonCount);
         Assert.Equal(10, aiBase.GarrisonCount);
-        Assert.Equal(4, neutralBases.Length);
-        Assert.All(neutralBases, b => Assert.Equal(5, b.GarrisonCount));
+        Assert.Equal(4, originalNeutrals.Length);
+        Assert.All(originalNeutrals, b => Assert.Equal(5, b.GarrisonCount));
+        Assert.Equal(2, newNeutrals.Length);
+        Assert.All(newNeutrals, b => Assert.Equal(10, b.GarrisonCount));
     }
 
     [Fact]
@@ -107,14 +115,20 @@ public class MatchTests
     }
 
     [Fact]
+    // Re-authored at phase 6 FR-2: the neutral forge and neutral tower (ids 6, 7) start at garrison
+    // 10, not 5, so this is split by type rather than asserted as one blanket 5 across every
+    // neutral base.
     public void Advance_NeutralBases_NeverProduceEvenAfterOneThousandTicks()
     {
         var match = new Match();
 
         match.Advance(1000);
 
-        var neutralBases = match.Bases.Where(b => b.Owner is null);
-        Assert.All(neutralBases, b => Assert.Equal(5, b.GarrisonCount));
+        var originalNeutrals = match.Bases.Where(b => b.Owner is null && b.Type == BaseType.Producer);
+        Assert.All(originalNeutrals, b => Assert.Equal(5, b.GarrisonCount));
+
+        var newNeutrals = match.Bases.Where(b => b.Owner is null && b.Type != BaseType.Producer);
+        Assert.All(newNeutrals, b => Assert.Equal(10, b.GarrisonCount));
     }
 
     [Fact]

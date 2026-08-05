@@ -1,0 +1,22 @@
+# Phase 6 FR-2 (issue #86): the human captures the shipped map's neutral forge (id 6, at
+# (0.50, 0.20)) in real play, closing the gap FR-4's own QA script had to leave unverified (no
+# forge existed on the shipped map before this feature). Tap Play, wait one production period (60
+# ticks at the level-1 village rate) so the human capital's garrison grows from its starting 10 to
+# 11, select Full (100%) on the strength control, then drag straight to the forge.
+#
+# The forge never produces (phase 6 FR-1) and stays at its starting garrison of 10, defended at
+# identity (100%, no morale, no forge bonus of its own). 11 attackers against a defender index equal
+# to the attacker's own: 11 x 10000 > 10 x 10000 captures, remaining = (110000 - 100000) / 10000 = 1
+# - Base 6's dump should read Owner=Human Garrison=1 Type=Forge. Capturing a neutral forge awards
+# MoraleTable.CaptureGain(Forge, level 1, wasOpponentOwned: false) = 200 and charges nobody
+# (there is no previous owner); netted against the attacker's own dead-unit swing (D-41: 11 - 1 = 10
+# died, 10 x MoraleTable.AttackingUnitDestroyedGain = 100 points), the dump's Morale: line should
+# read Human=100 (200 - 100), Ai=0.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+60 wait
+65 down 0.033203 0.670139
+70 up 0.033203 0.670139
+75 down 0.120000 0.500000
+80 up 0.500000 0.200000
+150 wait

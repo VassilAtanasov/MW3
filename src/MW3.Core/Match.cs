@@ -513,12 +513,17 @@ public sealed class Match
         }
     }
 
-    /// <summary>Whether any base is both a <see cref="BaseType.Tower"/> and owned - the only condition under which anything can fire.</summary>
+    /// <summary>
+    /// Whether any base is a <see cref="BaseType.Tower"/> - the only condition under which anything
+    /// can fire. No longer tests ownership (D-47, FR-2): a neutral tower fires from tick 0 on the
+    /// shipped layout, so this guard stops being a real optimisation there and is only ever true for
+    /// a layout that places no tower at all.
+    /// </summary>
     private bool HasAnyOwnedTower()
     {
         foreach (var b in _bases)
         {
-            if (b.Type == BaseType.Tower && b.Owner is not null)
+            if (b.Type == BaseType.Tower)
             {
                 return true;
             }
@@ -528,23 +533,29 @@ public sealed class Match
     }
 
     /// <summary>
-    /// Fires every owned tower that is ready on <paramref name="tick"/> (FR-4): each tracks its own
-    /// <see cref="Base.LastFireTick"/> and is ready when that is null or at least its level's fire
-    /// period has elapsed. A ready tower hits the closest enemy army within its range - ties broken
-    /// by the lowest army id - removing exactly one unit from it; an army whose strength reaches
-    /// zero is destroyed on the spot, never arriving. A garrison of zero does not stop a tower from
-    /// firing (FR-3: a garrison is not ammunition), and a tower never fires at its own owner's armies.
-    /// Allocates nothing: plain indexed loops over both lists, no LINQ (docs/CONVENTIONS.md).
+    /// Fires every tower that is ready on <paramref name="tick"/> (FR-4), owned or not (D-47, FR-2):
+    /// each tracks its own <see cref="Base.LastFireTick"/> and is ready when that is null or at least
+    /// its level's fire period has elapsed. A ready tower hits the closest army with a non-null owner
+    /// within its range - ties broken by the lowest army id - removing exactly one unit from it; an
+    /// army whose strength reaches zero is destroyed on the spot, never arriving. A garrison of zero
+    /// does not stop a tower from firing (FR-3: a garrison is not ammunition). A tower never fires at
+    /// its own owner's armies, and never at an army whose owner is null - no such army can exist in
+    /// MW3 today (neutral bases never send), so that guard cannot yet be reached from a script; it is
+    /// written ahead of its trigger so a later phase that gives neutrals a send does not silently
+    /// acquire the wrong behaviour. Allocates nothing: plain indexed loops over both lists, no LINQ
+    /// (docs/CONVENTIONS.md).
     /// </summary>
     private void EvaluateTowerFireAtTick(long tick)
     {
         for (var i = 0; i < _bases.Count; i++)
         {
             var tower = _bases[i];
-            if (tower.Type != BaseType.Tower || tower.Owner is not Player towerOwner)
+            if (tower.Type != BaseType.Tower)
             {
                 continue;
             }
+
+            var towerOwner = tower.Owner;
 
             var period = LevelTable.Tower.FirePeriodTicks(tower.Level);
             if (tower.LastFireTick is long lastFire && tick - lastFire < period)
@@ -559,7 +570,7 @@ public sealed class Match
             for (var j = 0; j < _armies.Count; j++)
             {
                 var army = _armies[j];
-                if (army.Owner == towerOwner)
+                if (army.Owner is null || army.Owner == towerOwner)
                 {
                     continue;
                 }
@@ -590,8 +601,13 @@ public sealed class Match
 
             // Tower fire destroys an attacking unit on identical terms to arrival combat (D-41):
             // the shot attacker may or may not survive the army outright, but the +10/-10 swing is
-            // per shot either way.
-            AwardMorale(towerOwner, MoraleTable.AttackingUnitDestroyedGain);
+            // per shot either way. An unowned tower has nobody to award (D-47): the victim still
+            // pays, but AwardMorale is skipped at the call site rather than given a null player.
+            if (towerOwner is not null)
+            {
+                AwardMorale(towerOwner, MoraleTable.AttackingUnitDestroyedGain);
+            }
+
             AwardMorale(nearest.Owner, -MoraleTable.AttackingUnitDiedLoss);
 
             if (nearest.UnitCount <= 0)
