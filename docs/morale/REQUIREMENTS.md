@@ -261,7 +261,17 @@ up to 45 ticks and the imprecise name invited exactly the wrong implementation.
 
 FR-5 (wf: `b0d20abba8ad`): The player can see both players' morale on the match screen, so the
 multiplier deciding their fights is not invisible. Presentation only, `MW3.Game`, reading the state
-FR-1 shipped. Adds no rule and no `MW3.Core` change.
+FR-1 shipped. Adds no rule and no `MW3.Core` change. Kicked off 05-08-2026; the acceptance criteria
+are on its GitHub issue, which is the contract `/implement`, `code-reviewer` and `qa-verifier` read.
+  - Settled at kickoff: **whole-level display only** — five fixed sun indicators, filled count equal
+    to the integer morale level (0-5). Half-sun/partial-progress fill is left out of scope per §6;
+    no rule reads fractional progress.
+  - Settled at kickoff: **human meter anchors bottom-left, AI meter anchors top-right**, using the
+    existing per-player owner colors (`RoyalBlue` human / `Firebrick` AI) `MatchScreen` already
+    applies elsewhere, and the existing circle texture — no new content-pipeline asset.
+  - Settled at kickoff: **read live every frame from `Match`'s `MoraleState`**, not cached at screen
+    entry, so decay and gains are visible without any new dump field — `--dump-state`'s existing
+    `Morale:` line is the verification anchor for a screenshot taken on the same tick.
 
 FR-6 (wf: `1713e24400b9`): The AI opponent weighs morale when choosing to attack — a failed attack
 feeds the defender +10 per unit and costs the attacker −10 per unit — and keeps sending rather than
