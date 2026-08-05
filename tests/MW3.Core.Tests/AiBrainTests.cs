@@ -747,6 +747,99 @@ public class AiBrainTests
     private static void SetOwner(Base b, Player? owner) =>
         typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { owner });
 
+    // --- Clause 4: attack, morale tiebreak (FR-6) ---
+
+    /// <summary>
+    /// AC2/AC4: two winnable, tied-distance, zero-tower-loss targets - one still neutral (village
+    /// <see cref="MoraleTable"/> neutral capture gain 40), the other opponent-owned at the same type,
+    /// level, and garrison (opponent capture gain 100) - are otherwise identical, so
+    /// <see cref="TotalExpectedTowerLoss"/> and the predicted attacker deaths are equal for both.
+    /// FR-6's tiebreak must then prefer the higher predicted net morale swing: the opponent-owned
+    /// target, deterministically (D-15).
+    /// </summary>
+    [Fact]
+    public void TryAttack_AmongTwoEquallyWinnableTiedTowerLossTargets_PrefersTheHigherMoraleSwing()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral4 = match.Bases[4]; // tied distance with neutral5 from aiBase
+        var neutral5 = match.Bases[5];
+
+        SetGarrison(neutral4, 5); // stays neutral: CaptureGain(Producer, level 1, false) = 40
+        SetOwner(neutral5, human);
+        SetGarrison(neutral5, 5); // opponent-owned: CaptureGain(Producer, level 1, true) = 100
+
+        SetGarrison(aiBase, 20); // unclampedHalf = 10, no tower loss either way
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral5.Id, decision.Command.TargetBaseId);
+    }
+
+    /// <summary>
+    /// AC5: the same tied-distance pair as above, except neutral4 is now an enemy tower - a nonzero
+    /// <see cref="TotalExpectedTowerLoss"/> - while carrying the far larger morale swing (an
+    /// opponent-owned tower's capture gain, 200, dwarfs a still-neutral producer's 40). The primary
+    /// key (lowest expected tower loss) must still win: neutral5 is chosen even though it is strictly
+    /// worse on morale, proving the tiebreak never overrides the tower-loss preference.
+    /// </summary>
+    [Fact]
+    public void TryAttack_PrefersLowerTowerLoss_EvenWhenTheHigherTowerLossTargetHasTheBetterMoraleSwing()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
+        var neutral4 = match.Bases[4]; // tied distance with neutral5 from aiBase
+        var neutral5 = match.Bases[5];
+
+        SetOwner(neutral4, human);
+        SetType(neutral4, BaseType.Tower);
+        SetLevel(neutral4, LevelTable.MinLevel);
+        SetGarrison(neutral4, 5); // opponent tower: CaptureGain(Tower, level 1, true) = 200, but costs tower loss
+
+        SetGarrison(neutral5, 5); // stays neutral producer: CaptureGain(Producer, level 1, false) = 40, no tower loss
+
+        SetGarrison(aiBase, 22); // both remain winnable after the ~3-unit estimated tower loss
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral5.Id, decision.Command.TargetBaseId);
+    }
+
+    /// <summary>
+    /// AC6: this feature adds no veto. The only winnable target is a razor-thin capture - 11
+    /// attacking units against 10 garrison, leaving the defender's minimum-1 remaining - so
+    /// predictedAttackerDeaths (10) makes the net morale swing negative
+    /// (40 - 10 x 10 = -60, a still-neutral producer's capture gain). The AI attacks anyway, because
+    /// it is the only winnable choice.
+    /// </summary>
+    [Fact]
+    public void TryAttack_StillAttacks_WhenTheOnlyWinnableTargetIsNetMoraleNegative()
+    {
+        var match = new Match();
+        var ai = match.AiPlayer;
+        var aiBase = match.Bases.Single(b => b.Owner == ai);
+        var neutral4 = match.Bases[4];
+
+        MakeOnlyOneTargetViable(match, neutral4);
+        SetGarrison(neutral4, 10);
+        SetGarrison(aiBase, 22); // unclampedHalf = 11
+
+        var brain = new AiBrain(ai);
+        var decision = InvokeClause("TryAttack", brain, match, OwnBases(match, ai));
+
+        Assert.True(decision.HasCommand);
+        Assert.Equal(neutral4.Id, decision.Command.TargetBaseId);
+        Assert.Equal(11, decision.Command.UnitCount);
+    }
+
     // --- Clause 5: consolidate ---
 
     [Fact]
