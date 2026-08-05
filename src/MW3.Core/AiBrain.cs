@@ -292,15 +292,21 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// Clause 4 (FR-7): considering own bases in descending garrison order, and for each the bases
-    /// it does not own in ascending distance order, among the winnable, untargeted candidates prefer
-    /// the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a refusal:
-    /// the AI still attacks the only winnable target even when it crosses an enemy tower's range.
-    /// Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0 or 1
-    /// garrison can never be winnable, unlike the clamped-to-1 size <see cref="SendStrengthCalculator"/>
-    /// computes for the send itself - minus the expected tower loss, would capture the target's
-    /// garrison predicted at arrival (<see cref="CombatResolver.WouldCapture"/>, weighing the
-    /// target's own <see cref="Base.DefencePercentage"/>), not merely outnumber it.
+    /// Clause 4 (FR-7, FR-6): considering own bases in descending garrison order, and for each the
+    /// bases it does not own in ascending distance order, among the winnable, untargeted candidates
+    /// prefer the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a
+    /// refusal: the AI still attacks the only winnable target even when it crosses an enemy tower's
+    /// range. Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0
+    /// or 1 garrison can never be winnable, unlike the clamped-to-1 size
+    /// <see cref="SendStrengthCalculator"/> computes for the send itself - minus the expected tower
+    /// loss, would capture the target's garrison predicted at arrival
+    /// (<see cref="CombatResolver.WouldCapture"/>, weighing the target's own
+    /// <see cref="Base.DefencePercentage"/>), not merely outnumber it. Among candidates tied on the
+    /// lowest expected tower loss (FR-6), prefer the highest predicted net morale swing - a second,
+    /// separate comparison key, never blended into one score - computed from the same
+    /// <see cref="MoraleTable"/> a real capture would use (<see cref="PredictedMoraleSwing"/>). Ties
+    /// on both keys fall back to the existing distance-ascending-then-id order (the order
+    /// <paramref name="ownBases"/>/<c>targets</c> were already sorted in), unchanged from today.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -338,6 +344,7 @@ public sealed class AiBrain : IPlayerBrain
 
             Base? bestTarget = null;
             var bestExpectedTowerLoss = int.MaxValue;
+            var bestMoraleSwing = int.MinValue;
 
             foreach (var target in targets)
             {
@@ -358,7 +365,7 @@ public sealed class AiBrain : IPlayerBrain
                 // Mechanical, not judgement (FR-2): feeding the same live morale indices Resolve
                 // would use into the shared WouldCapture predicate, so this prediction cannot
                 // silently disagree with what actually happens - the disagreement #68 was filed to
-                // close. The AI gains no new understanding of morale here (that is FR-6).
+                // close.
                 var attackerMoralePercent = MoraleTable.AttackPercentage(match.MoraleFor(Player).Level);
                 var defenderMoralePercent = target.Owner is Player targetOwner
                     ? MoraleTable.DefencePercentage(match.MoraleFor(targetOwner).Level)
@@ -366,11 +373,26 @@ public sealed class AiBrain : IPlayerBrain
                 var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
                 var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, defenderMoralePercent);
 
-                if (CombatResolver.WouldCapture(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison)
-                    && expectedTowerLoss < bestExpectedTowerLoss)
+                if (!CombatResolver.WouldCapture(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison))
+                {
+                    continue;
+                }
+
+                if (expectedTowerLoss > bestExpectedTowerLoss)
+                {
+                    continue;
+                }
+
+                // FR-6: among candidates tied on the lowest expected tower loss, prefer the one
+                // predicted to net the most morale - a second, separate comparison key, not blended
+                // into bestExpectedTowerLoss's own ordering.
+                var moraleSwing = PredictedMoraleSwing(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison, expectedTowerLoss, target);
+
+                if (expectedTowerLoss < bestExpectedTowerLoss || moraleSwing > bestMoraleSwing)
                 {
                     bestTarget = target;
                     bestExpectedTowerLoss = expectedTowerLoss;
+                    bestMoraleSwing = moraleSwing;
                 }
             }
 
@@ -407,6 +429,35 @@ public sealed class AiBrain : IPlayerBrain
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// FR-6: the AI's predicted net morale change for capturing <paramref name="target"/> - not a
+    /// veto, only a tiebreak among winnable candidates already tied on
+    /// <see cref="TotalExpectedTowerLoss"/>. <c>MoraleTable.CaptureGain(target.Type, target.Level,
+    /// wasOpponentOwned) - MoraleTable.AttackingUnitDiedLoss * predictedAttackerDeaths</c>, where
+    /// <paramref name="target"/> is opponent-owned whenever it is not neutral (the two-player match,
+    /// D-9) and <c>predictedAttackerDeaths</c> is D-41's Wu-minus-remaining rule -
+    /// <paramref name="attackingUnitCount"/> minus the wave's own predicted
+    /// <see cref="CombatResult.RemainingGarrison"/> - plus
+    /// <paramref name="expectedTowerLoss"/>, since tower fire kills attacker units too and D-41
+    /// costs every attacker death the same, wherever it happens. Read-only against
+    /// <see cref="MoraleTable"/> and <see cref="CombatResolver"/> - no new literal morale number.
+    /// </summary>
+    private static int PredictedMoraleSwing(
+        int attackerIndex,
+        int defenderIndex,
+        int attackingUnitCount,
+        int predictedGarrison,
+        int expectedTowerLoss,
+        Base target)
+    {
+        var result = CombatResolver.Resolve(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison);
+        var predictedAttackerDeaths = (attackingUnitCount - result.RemainingGarrison) + expectedTowerLoss;
+        var wasOpponentOwned = target.Owner is not null;
+
+        return MoraleTable.CaptureGain(target.Type, target.Level, wasOpponentOwned)
+            - (MoraleTable.AttackingUnitDiedLoss * predictedAttackerDeaths);
     }
 
     /// <summary>
