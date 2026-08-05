@@ -139,4 +139,50 @@ public class MoraleTableTests
         Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.Village.UpgradeGain(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.Village.UpgradeGain(5));
     }
+
+    [Fact]
+    public void Forge_CaptureGain_NeutralIsTwoHundred()
+    {
+        Assert.Equal(200, MoraleTable.Forge.CaptureGain(LevelTable.MinLevel, wasOpponentOwned: false));
+        Assert.Equal(200, MoraleTable.CaptureGain(BaseType.Forge, LevelTable.MinLevel, wasOpponentOwned: false));
+    }
+
+    [Fact]
+    public void Forge_CaptureGain_OpponentOwnedIsThreeHundred()
+    {
+        Assert.Equal(300, MoraleTable.Forge.CaptureGain(LevelTable.MinLevel, wasOpponentOwned: true));
+        Assert.Equal(300, MoraleTable.CaptureGain(BaseType.Forge, LevelTable.MinLevel, wasOpponentOwned: true));
+    }
+
+    [Fact]
+    public void Forge_CaptureLoss_IsOneHundred()
+    {
+        Assert.Equal(100, MoraleTable.Forge.CaptureLoss(LevelTable.MinLevel));
+        Assert.Equal(100, MoraleTable.CaptureLoss(BaseType.Forge, LevelTable.MinLevel));
+    }
+
+    [Fact]
+    public void Forge_OpponentCaptureGain_ExceedsCaptureLoss_SoATradeIsNetPositiveForTheAggressor()
+    {
+        Assert.True(MoraleTable.Forge.CaptureGain(LevelTable.MinLevel, wasOpponentOwned: true) > MoraleTable.Forge.CaptureLoss(LevelTable.MinLevel));
+    }
+
+    [Fact]
+    public void Forge_CaptureGainAndLoss_ThrowForAnyLevelOtherThanMinLevel()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.Forge.CaptureGain(LevelTable.MinLevel - 1, wasOpponentOwned: false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.Forge.CaptureGain(LevelTable.MinLevel + 1, wasOpponentOwned: false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.Forge.CaptureLoss(LevelTable.MinLevel + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.CaptureGain(BaseType.Forge, LevelTable.MinLevel + 1, wasOpponentOwned: false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.CaptureLoss(BaseType.Forge, LevelTable.MinLevel + 1));
+    }
+
+    [Fact]
+    public void Forge_UpgradeGain_ThrowsForEveryLevel_NamingItsLackOfAnUpgradePath()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.UpgradeGain(BaseType.Forge, 1));
+        Assert.Contains("upgrade path", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.UpgradeGain(BaseType.Forge, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MoraleTable.UpgradeGain(BaseType.Forge, 4));
+    }
 }
