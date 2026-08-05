@@ -6,8 +6,9 @@ namespace MW3.Core;
 /// outside this class names a morale literal (D-37, D-38, D-41,
 /// <c>docs/morale/REQUIREMENTS.md</c> §4 "Tuning values"). Villages and towers are separate tables,
 /// exactly as <see cref="LevelTable"/> splits them, because MW2 publishes different capture and
-/// upgrade values per building type. Forge rows are deliberately absent - MW3 has no forge (parity
-/// G-6).
+/// upgrade values per building type. The forge table (phase 6 FR-4) is a single value per event
+/// rather than a ladder, because a forge has no levels (<see cref="LevelTable.MinLevel"/> is its
+/// only reachable level) and never upgrades.
 /// </summary>
 public static class MoraleTable
 {
@@ -109,12 +110,7 @@ public static class MoraleTable
     {
         BaseType.Producer => Village.CaptureGain(level, wasOpponentOwned),
         BaseType.Tower => Tower.CaptureGain(level, wasOpponentOwned),
-
-        // Pinned at 0 pending phase 6 FR-4, which adds MW2-RULES.md §5.2/§5.3's forge capture rows -
-        // mirrors CombatResolver.ForgeContributionPercent's identity pin since phase 3 FR-3b. A forge
-        // must still be capturable in FR-1 (its type and single tier survive capture unchanged); it
-        // simply scores no morale for doing so until FR-4 populates the table.
-        BaseType.Forge => 0,
+        BaseType.Forge => Forge.CaptureGain(level, wasOpponentOwned),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -127,9 +123,7 @@ public static class MoraleTable
     {
         BaseType.Producer => Village.CaptureLoss(level),
         BaseType.Tower => Tower.CaptureLoss(level),
-
-        // Pinned at 0 pending phase 6 FR-4 - see the matching comment on CaptureGain above.
-        BaseType.Forge => 0,
+        BaseType.Forge => Forge.CaptureLoss(level),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -142,6 +136,10 @@ public static class MoraleTable
     {
         BaseType.Producer => Village.UpgradeGain(toLevel),
         BaseType.Tower => Tower.UpgradeGain(toLevel),
+        BaseType.Forge => throw new ArgumentOutOfRangeException(
+            nameof(toLevel),
+            toLevel,
+            "Forge has no upgrade path."),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -192,6 +190,41 @@ public static class MoraleTable
         public static int CaptureLoss(int level) => _captureLoss[IndexOfCaptureLevel(level, 4)];
 
         public static int UpgradeGain(int toLevel) => _upgradeGain[IndexOfUpgradeLevel(toLevel)];
+    }
+
+    /// <summary>
+    /// The forge capture/loss table: a single value per event, not a ladder, because a forge has
+    /// no levels beyond <see cref="LevelTable.MinLevel"/> and never upgrades (MW2-RULES.md §5.2,
+    /// §5.3).
+    /// </summary>
+    public static class Forge
+    {
+        private const int _neutralCaptureGain = 200;
+        private const int _opponentCaptureGain = 300;
+        private const int _captureLoss = 100;
+
+        public static int CaptureGain(int level, bool wasOpponentOwned)
+        {
+            RequireForgeLevel(level);
+            return wasOpponentOwned ? _opponentCaptureGain : _neutralCaptureGain;
+        }
+
+        public static int CaptureLoss(int level)
+        {
+            RequireForgeLevel(level);
+            return _captureLoss;
+        }
+
+        private static void RequireForgeLevel(int level)
+        {
+            if (level != LevelTable.MinLevel)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(level),
+                    level,
+                    FormattableString.Invariant($"A forge is only ever at level {LevelTable.MinLevel}."));
+            }
+        }
     }
 
     private static int IndexOfCaptureLevel(int level, int maxLevel)

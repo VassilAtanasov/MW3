@@ -1,0 +1,57 @@
+# Phase 6 FR-4 (issue #83): drives a forge into existence and through a capture, on the shipped
+# six-base map. Same setup as convert-to-forge.txt (human upgrades base 0 to level 2, then converts
+# it to a Forge - deducts the 30-unit conversion cost and starts the 100-tick build), then waits
+# well past every subsequent deterministic event so the AI plays the whole game out on its own: it
+# is undefended (the human never sends or upgrades again), so the AI takes the four neutral
+# villages, upgrades its own base 2 to level 2, and finally attacks the human's undefended forge -
+# ending the match. Run with --time-scale 10 (see convert-pending.txt for why).
+#
+# Only the +300/-100 opponent-owned forge values are verifiable in real play in this feature - no
+# forge exists on the shipped map until FR-2, so the +200 neutral-forge value cannot be exercised
+# here and is proven headlessly instead (ForgeMoraleTests.CapturingANeutralForge_Awards200_ChargesNobody,
+# against an injected layout, D-44).
+#
+# The expected dump line is derived arithmetically, end to end, from the deterministic engine (no
+# RNG anywhere, D-12/S-8) rather than guessed:
+#
+#  - The AI's uncontested capture of the four neutral villages nets exactly 0 morale by the time all
+#    four are taken (each capture's MoraleTable.Village.CaptureGain(level: 1, wasOpponentOwned:
+#    false) = 40 is offset by that same capture's AttackingUnitDestroyedGain*deaths swing) - checked
+#    directly: Ai reads 0 at this point, before the next event (a run with the same script but a
+#    shorter wait, cut right after the fourth neutral falls and before base 2's upgrade completes,
+#    shows exactly this).
+#  - Base 2's upgrade to level 2 then completes: +100 to Ai (MoraleTable.Village.UpgradeGain(toLevel:
+#    2)). Ai = 100, Human = 0.
+#  - The AI then attacks the human's forge (garrison 11, untouched and never regrown - a forge never
+#    produces) from base 2 with SendStrengthCalculator's usual two-wave split of "half" its garrison:
+#    wave 1 is 8 units, wave 2 is 6 (visible in an intermediate dump's Army lines as Send=22,
+#    Wave=1/2 and Wave=2/2).
+#  - Wave 1 (Wu=8) against the forge's Bu=11 at identity indices (a=10000, d=10000, both sides
+#    morale level 0): 8*10000 = 80000 is not greater than 11*10000 = 110000, so the wave is repelled
+#    -  CombatResolver.Resolve leaves the forge at 11 - 8 = 3, and the whole wave of 8 dies
+#    (MoraleTable.AttackingUnitDestroyedGain*8 = 80): Ai = 100 - 80 = 20, Human = 0 + 80 = 80.
+#  - Wave 2 (Wu=6) against the forge's now Bu=3: 6*10000 = 60000 > 3*10000 = 30000, so it captures -
+#    remaining = (60000 - 30000) / 10000 = 3 (matches the final dump's Base 0 Garrison=3), and
+#    6 - 3 = 3 attackers die (30 points). The forge is opponent(human)-owned, so capture awards
+#    MoraleTable.Forge.CaptureGain(level: 1, wasOpponentOwned: true) = 300 to Ai netted against the
+#    30-point death swing (Ai = 20 + 300 - 30 = 290) and charges Human
+#    MoraleTable.Forge.CaptureLoss(level: 1) = 100 netted against the same swing credited the other
+#    way (Human = 80 - 100 + 30 = 10).
+#  - The human now owns no base, so the match ends in HumanDefeat on this same tick - the forge stays
+#    a forge (type and level survive capture unchanged, phase 6 FR-1), garrison 3.
+#
+# Expected dump: Morale: Human=10 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=290 AiLevel=0 AiAtk=100
+# AiDef=100 - Ai's level stays 0 throughout (290 is well under the 500-point level-1 threshold), the
+# same reason both sides' Atk/Def percentages never move off identity. Base 0: Owner=Ai Garrison=3
+# Level=1 Type=Forge. Outcome: HumanDefeat.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.328906 0.416667
+25 up 0.328906 0.416667
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075781 0.416667
+335 up 0.075781 0.416667
+700 wait
