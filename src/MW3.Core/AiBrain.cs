@@ -89,6 +89,12 @@ public sealed class AiBrain : IPlayerBrain
         var ticksRemaining = earliestArrival - currentTick;
         Base? source = null;
 
+        // The AI's own morale at prediction time (FR-4) - it is the sender of this prospective
+        // reinforcement, so this is the speed Match.Execute would actually lock in were this
+        // command submitted right now. Constant across every candidate below - the AI's morale
+        // cannot change mid-loop.
+        var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
+
         foreach (var candidate in ownBases)
         {
             if (candidate.Id == threatened.Id || candidate.GarrisonCount <= 0)
@@ -96,10 +102,6 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            // The AI's own morale at prediction time (FR-4) - it is the sender of this prospective
-            // reinforcement, so this is the speed Match.Execute would actually lock in were this
-            // command submitted right now.
-            var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
             var travelTicks = TravelTimeCalculator.ComputeTicks(candidate.Position, threatened.Position, speed);
             if (travelTicks > ticksRemaining)
             {
