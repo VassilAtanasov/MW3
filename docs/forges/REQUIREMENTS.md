@@ -177,6 +177,53 @@ that the trade of a producer for a multiplier actually pays. Makes
 at four. Only the count matters — forges have a single tier and no position component. **Closes G-6
 and completes G-7.** This is where the first reachable arithmetic remainder appears (D-46).
 
+**Settled at kickoff 06-08-2026 — issue [#87](https://github.com/VassilAtanasov/MW3/issues/87),
+which carries the verbatim acceptance criteria.** Beyond the §4 ladder, seven things were decided
+that build mode must not re-open:
+
+1. **The ladder lives in a new `ForgeTable`** in `MW3.Core`, the sole home of every forge percentage
+   literal (D-22), mirroring `LevelTable` and `MoraleTable`. Its cap is a named constant, never a
+   literal `4` at a call site.
+2. **The cap clamps rather than throws.** `DefencePercentage(n)` and `AttackPercentage(n)` return the
+   `n = 4` values for every `n >= 5` — holding a fifth forge is legal play, not an error — and throw
+   only for `n < 0`.
+3. **`ComposeAttackerIndex` and `ComposeDefenderIndex` gain a required forge parameter**, so a
+   two-argument call stops compiling. A defaulted parameter was rejected for the reason D-43 gives
+   about the conversion toggle: it would leave the two-term assumption alive in call sites that never
+   get updated. `CombatResolver.ForgeContributionPercent` is deleted outright rather than repurposed.
+4. **The attacker's forge count is read live at the arrival tick**, exactly as the attacker's morale
+   already is (`Match.ResolveArrival`). Nothing about a forge locks at submission — D-39's lock is
+   specific to unit speed, because a send's arrival tick is precomputed from it.
+5. **D-46's remainder is pinned by name**: `ComposeDefenderIndex(110, 125, 145)` returns exactly
+   `19937`, and the test states that truncation is kept, that the error is under one basis point, and
+   that a truncated defender index biases the outcome toward the attacker.
+6. **The desync test is constructed to fail if either path drops the term** — a non-zero forge count
+   on both sides, chosen so that omitting the forge percentage on the resolve path *or* on either
+   `AiBrain` prediction path flips the predicted capture. This is the third occurrence of the hazard
+   follow-up #68 closed against building defence and phase 5 FR-2 was patched for against morale
+   (D-45).
+7. **`--dump-state` gains one line**, directly after `Morale:`:
+   `Forges: Human=<n> HumanAtk=<%> HumanDef=<%> Ai=<n> AiAtk=<%> AiDef=<%>`. Count plus the two
+   resulting percentages is how `MW2-RULES.md` §2.4 itself expresses a forge holding; the reference
+   documents no MW2 HUD, and `--dump-state` has no MW2 counterpart, so §2.4's own shape is the
+   closest MW2-grounded answer available. Written by `MatchScreen`, never `MW3.Core` (D-26); every
+   existing line and field stays byte-identical.
+
+**The cap is proven headlessly, not in a `qa/scripts/` file** (user, 06-08-2026), which amends
+`ARCHITECTURE.md` §2a's expectation that FR-3 carry a scripted cap scenario. Five forges in real play
+on the shipped map means five captures and 150 units of conversion cost under a firing neutral tower
+and an expanding AI — a long script whose every tap depends on AI behaviour FR-6 is about to change.
+The cap is therefore asserted as an identical `CombatResult` at four and five forges against an
+injected layout (D-44), and FR-3's new `qa/scripts/` file proves the *ladder* live in real play at one
+forge — a send that would be repelled at `a = 10000` capturing at `a = 15000` — with its header naming
+the headless test, exactly the precedent FR-4's `morale-forge-capture.txt` set for the +200
+neutral-forge value it could not exercise either.
+
+**FR-3 must not be built before FR-2 (#86) merges.** Its QA script captures the neutral forge, which
+is not on the shipped map until then. The core rules and every headless test here would build without
+it — FR-1's injectable layout sees to that — but the feature is not done until the script runs on the
+eight-base map.
+
 FR-4 (wf: `eb92138da99f`): The player gains and loses morale for taking and losing forges, so that
 the phase's new building participates in phase 5's tempo system instead of sitting outside it.
 `MoraleTable`'s forge rows are absent today and commented as such; this adds them from

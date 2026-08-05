@@ -274,8 +274,8 @@ These run without a human gate and never block or reopen a feature:
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
   board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
-  bullet. Apart from phase 6's own **#82** (FR-1) and **#83** (FR-4), every open issue is
-  `follow-up`-labelled and so is
+  bullet. Apart from phase 6's own **#82** (FR-1), **#83** (FR-4), **#86** (FR-2) and **#87**
+  (FR-3), every open issue is `follow-up`-labelled and so is
   never auto-built. Open as of 05-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
   `HumanVictory`, stale since phase 5 FR-2 changed the combat formula) and **#81**
   (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test). Two more were
@@ -326,8 +326,14 @@ These run without a human gate and never block or reopen a feature:
   Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
   since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
   features on board **23**. **FR-1 (#82) and FR-4 (#83) are merged** — PRs #84 and #85 — and **FR-2
-  is issue #86**, kicked off 06-08-2026 and unblocked, since its one dependency was FR-4's morale
-  rows. FR-3, FR-5 and FR-6 are not yet kicked off. FR-2's kickoff found that the neutral tower's
+  is issue #86** and **FR-3 is issue #87**, both kicked off 06-08-2026. FR-2 is unblocked, since its
+  one dependency was FR-4's morale rows; **FR-3 must not be built before FR-2 merges**, because its
+  QA script captures the neutral forge FR-2 puts on the map — `/autopilot` reads the board, not the
+  prose, so drain these two in order. FR-3's kickoff settled that the **cap is proven headlessly**
+  rather than by a `qa/scripts/` scenario (five forges in real play means five captures and 150 units
+  of conversion cost), which amends `docs/forges/ARCHITECTURE.md` §2a, and fixed `--dump-state`'s one
+  new line as `Forges: Human=<n> HumanAtk=<%> HumanDef=<%> Ai=<n> AiAtk=<%> AiDef=<%>`. FR-5 and FR-6
+  are not yet kicked off. FR-2's kickoff found that the neutral tower's
   centre-line placement breaks `LevelTableTests.Tower_EveryRange_StaysWithinTheMapsOwnGeometry` and
   that the invariant is unpreservable; the user settled on replacing it with three narrower claims
   rather than moving the slots — see `docs/forges/REQUIREMENTS.md` FR-2 for the arithmetic.
@@ -460,7 +466,7 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 |---|---|---|
 | 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` (issue #82) |
 | 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` (issue #86) |
-| 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` |
+| 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` (issue #87) |
 | 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` (issue #83) |
 | 5 | Convert-to-forge in the action menu, and forges drawn on both heads | `06341f0fa15b` |
 | 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` |

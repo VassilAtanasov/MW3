@@ -59,12 +59,34 @@ including the repo-wide `-m:1` build rule and the `down` / `up` / `wait` scripte
 **No new script directive and no new command-line flag this phase.** Every forge action is expressed
 through commands a script can already issue — a convert, a send, a wait. Per `CLAUDE.md`'s standing
 correction, this explicitly does **not** mean no new `qa/scripts/` file: each feature here should
-expect to add at least one, and FR-3 in particular needs a scripted scenario proving the cap, since a
-fifth forge changing nothing is invisible in a screenshot.
+expect to add at least one.
 
-`--dump-state` gains **one** field, at FR-3, fixed exactly at that feature's kickoff rather than
-here: a per-player forge count. It is written by `MatchScreen` and never by `MW3.Core` (D-26). Every
-existing field keeps its name, order and meaning.
+**Amended at FR-3's kickoff (06-08-2026): the cap is proven headlessly, not by a scripted scenario.**
+This paragraph previously said FR-3 "in particular needs a scripted scenario proving the cap, since a
+fifth forge changing nothing is invisible in a screenshot". The premise was right and the conclusion
+was optimistic. Reaching five forges in real play on the eight-base map means five captures and 150
+units of conversion cost under a firing neutral tower and an expanding AI — a long script whose every
+tap depends on AI behaviour FR-6 is about to change, so it would be re-authored twice before the
+phase ends. The user settled it 06-08-2026: the cap is asserted as an identical `CombatResult` at
+four and five forges against an injected layout (D-44), and FR-3's new `qa/scripts/` file proves the
+*ladder* live in real play at one forge — a send repelled at `a = 10000` capturing at `a = 15000` —
+with its header naming the headless test that covers the cap. That is the precedent FR-4's
+`morale-forge-capture.txt` already set for the +200 neutral-forge value it could not exercise either.
+FR-3 still adds a `qa/scripts/` file; it just is not the cap that it proves.
+
+`--dump-state` gains **one** line, at FR-3, its shape fixed at that feature's kickoff (06-08-2026)
+rather than here, placed directly after the existing `Morale:` line:
+
+```
+Forges: Human=<n> HumanAtk=<%> HumanDef=<%> Ai=<n> AiAtk=<%> AiDef=<%>
+```
+
+Count plus the two resulting percentages, because that is how `MW2-RULES.md` §2.4 itself expresses a
+forge holding — the reference documents no MW2 HUD, and `--dump-state` has no MW2 counterpart, so
+§2.4's own shape is the closest MW2-grounded answer available. It also makes the cap directly
+readable rather than re-derivable, which is what would let a script assert it should one ever be
+cheap enough to write. Written by `MatchScreen` and never by `MW3.Core` (D-26). Every existing field
+keeps its name, order and meaning.
 
 **The eight-base layout is the one compatibility break.** Every committed script and test that keys
 on a base index rather than a position must be re-checked at FR-2, not assumed safe. A script
