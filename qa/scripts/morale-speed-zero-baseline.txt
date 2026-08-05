@@ -1,0 +1,16 @@
+# FR-4 regression proof: with the sender at morale 0, EffectiveArmySpeedUnitsPerTick is bit-identical
+# to the base ArmySpeedUnitsPerTick constant, so this script is deliberately byte-identical in its
+# input to the pre-existing phase-2 army-arrival.txt / phase-5 morale-zero-baseline script - hold
+# long enough for the human base to grow past twice the neutral's garrison, then drag to the nearest
+# neutral and hold long enough (~17 ticks) for the army to land and capture it. Since FR-4 threads a
+# speed multiplier through TravelTimeCalculator.ComputeTicks (both the Match and AiBrain call paths)
+# and TowerThreatEstimator.EstimateUnitsLost, this proves the observable end-to-end result - which
+# base ends up owned by whom, with what garrison, on what tick - is bit-identical to before this
+# feature, exactly as docs/morale/ARCHITECTURE.md's morale-0 baseline guarantee requires. If this
+# script's dump ever needs a different budget than army-arrival.txt's, that is a signal the morale-0
+# identity was broken - investigate rather than re-baseline (the standing rule since FR-3a).
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+200 down 0.120000 0.500000
+205 up 0.350000 0.250000
+400 wait

@@ -89,6 +89,12 @@ public sealed class AiBrain : IPlayerBrain
         var ticksRemaining = earliestArrival - currentTick;
         Base? source = null;
 
+        // The AI's own morale at prediction time (FR-4) - it is the sender of this prospective
+        // reinforcement, so this is the speed Match.Execute would actually lock in were this
+        // command submitted right now. Constant across every candidate below - the AI's morale
+        // cannot change mid-loop.
+        var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
+
         foreach (var candidate in ownBases)
         {
             if (candidate.Id == threatened.Id || candidate.GarrisonCount <= 0)
@@ -96,7 +102,7 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            var travelTicks = TravelTimeCalculator.ComputeTicks(candidate.Position, threatened.Position);
+            var travelTicks = TravelTimeCalculator.ComputeTicks(candidate.Position, threatened.Position, speed);
             if (travelTicks > ticksRemaining)
             {
                 continue;
@@ -340,10 +346,13 @@ public sealed class AiBrain : IPlayerBrain
                     continue;
                 }
 
-                var travelTicks = TravelTimeCalculator.ComputeTicks(source.Position, target.Position);
+                // The AI's own morale (FR-4) - it is the prospective sender, so this is the speed
+                // Match.Execute would lock in for this send were it submitted right now.
+                var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
+                var travelTicks = TravelTimeCalculator.ComputeTicks(source.Position, target.Position, speed);
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
-                var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position);
+                var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position, speed);
                 var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
 
                 // Mechanical, not judgement (FR-2): feeding the same live morale indices Resolve
@@ -381,7 +390,7 @@ public sealed class AiBrain : IPlayerBrain
     /// units lost - never the AI's own towers, since a player's armies fly through their own towers
     /// untouched (FR-4).
     /// </summary>
-    private int TotalExpectedTowerLoss(Match match, MapPoint source, MapPoint target)
+    private int TotalExpectedTowerLoss(Match match, MapPoint source, MapPoint target, double speedUnitsPerTick)
     {
         var total = 0;
         var allBases = match.Bases;
@@ -394,7 +403,7 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            total += TowerThreatEstimator.EstimateUnitsLost(source, target, candidate.Position, candidate.Level);
+            total += TowerThreatEstimator.EstimateUnitsLost(source, target, candidate.Position, candidate.Level, speedUnitsPerTick);
         }
 
         return total;

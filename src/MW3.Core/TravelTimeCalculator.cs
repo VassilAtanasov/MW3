@@ -7,12 +7,17 @@ namespace MW3.Core;
 /// </summary>
 internal static class TravelTimeCalculator
 {
-    internal static long ComputeTicks(MapPoint from, MapPoint to)
+    /// <summary>
+    /// <paramref name="speedUnitsPerTick"/> is the sender's effective speed (FR-4,
+    /// <see cref="Match.EffectiveArmySpeedUnitsPerTick"/>) - read once by the caller at submission
+    /// and passed in, never recomputed here, so this stays a pure function of its inputs (D-39).
+    /// </summary>
+    internal static long ComputeTicks(MapPoint from, MapPoint to, double speedUnitsPerTick)
     {
         var dx = to.X - from.X;
         var dy = to.Y - from.Y;
         var distance = Math.Sqrt((dx * dx) + (dy * dy));
-        var ticks = (long)Math.Ceiling(distance / Match.ArmySpeedUnitsPerTick);
+        var ticks = (long)Math.Ceiling(distance / speedUnitsPerTick);
         return Math.Max(1, ticks);
     }
 }
