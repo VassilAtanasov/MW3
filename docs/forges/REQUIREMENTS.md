@@ -125,9 +125,11 @@ unowned tower charges the victim morale while awarding none. **Exactly one neutr
 neutral tower** — this phase adds no other slot and no other terrain concept.
 
 **Now depends on FR-4** (see FR-4's entry): a capturable forge on the shipped map reaches
-`MoraleTable.CaptureGain(BaseType.Forge, …)`, which throws until FR-4 supplies the rows. Three
-further things were settled while investigating that, at FR-2's aborted kickoff on 05-08-2026, and
-FR-2's own kickoff should treat them as decided rather than re-derive them:
+`MoraleTable.CaptureGain(BaseType.Forge, …)`, which throws until FR-4 supplies the rows.
+
+**Settled at kickoff 06-08-2026 — issue [#86](https://github.com/VassilAtanasov/MW3/issues/86),
+which carries the verbatim acceptance criteria.** Two things were settled while investigating this
+at FR-2's aborted kickoff on 05-08-2026 and stand unchanged:
 
 - **`AiBrain`'s tower-threat filter is FR-2's job, not FR-6's.** `AiBrain.cs:423` skips any tower
   whose `Owner is null`, so a firing neutral tower would be invisible to every route the AI weighs —
@@ -136,13 +138,38 @@ FR-2's own kickoff should treat them as decided rather than re-derive them:
   defending* the forge and tower.
 - **The neutral tower's kill charges the victim and awards nobody** — the §7 recommendation,
   consistent with D-41, confirmed rather than left to fall out of a null check.
-- **The neutral tower's range covers both bottom-flank neutrals.** At (0.50, 0.80) with a level-1
-  range of 0.20, the bases at (0.35, 0.75) and (0.65, 0.75) sit 0.158 away — inside it. Expansion to
-  either is therefore taxed from tick 0 while the forge flank stays free. This is still mirror-
-  symmetric about `x = 0.5`, so positional fairness *between players* holds, but it is currently an
-  accident of two independently derived numbers. FR-2 must pin it with a test asserting exactly which
-  bases fall inside that range, so it is a designed fact rather than something a later tuning change
-  silently breaks.
+
+A third was **understated** by the earlier draft and is corrected here. That draft said the neutral
+tower's coverage of both bottom-flank neutrals was "an accident of two independently derived numbers"
+that FR-2 should "pin with a test". It is not a latent fact — it is a **live test failure**, and the
+invariant behind it cannot be preserved:
+
+- `LevelTableTests.Tower_EveryRange_StaysWithinTheMapsOwnGeometry` asserts every tower range is
+  `<= closestPairDistance` over the real map. Today that distance is 0.30. The neutral tower at
+  (0.50, 0.80) sits 0.158 from the bases at (0.35, 0.75) and (0.65, 0.75), so the closest pair drops
+  to 0.158 and **all four ranges** (0.20, 0.22, 0.25, 0.28) violate it.
+- **The invariant is unpreservable with two drawable centre-line slots.** For a point on `x = 0.5` to
+  sit at least 0.28 (the level-4 range) from the flank bases at `y = 0.25` and `y = 0.75` it needs
+  `|Δy| ≥ sqrt(0.28² − 0.15²) = 0.2364` from each, i.e. `y ≤ 0.0136`, `y ≥ 0.9864`, or
+  `y ∈ [0.4864, 0.5136]`. Two slots at least 0.28 apart can only take the first and last of those
+  bands — jammed against the map edges, where the base circles clip off-screen and `MoraleMeter`'s
+  own "no base sits closer than 0.12 to any edge" premise stops holding. Moving the four flank bases
+  instead was rejected: it would rewrite positions phases 2–5's tests and scripts were authored
+  against, a far larger break than appending two slots, and it contradicts §5's promise that the six
+  original bases are untouched.
+- **Decision (user, 06-08-2026): relax the blanket claim deliberately and replace it.** It was an
+  observation about the six-base map frozen into a test, never a stated design goal; the new map's
+  point is a contested, hazardous middle. The test is **re-authored, not deleted or loosened**, into
+  three narrower claims that are true and worth protecting: **(a)** no tower range at any level
+  reaches either start base (the nearest base to a start is 0.34 away, the widest range is 0.28);
+  **(b)** exactly bases **3** (0.35, 0.75) and **5** (0.65, 0.75) fall inside the neutral tower's
+  level-1 range of 0.20, at 0.158 each, with the exclusions asserted as well as the inclusions;
+  **(c)** a level-1 tower converted at base **2** (0.35, 0.25) or base **4** (0.65, 0.25) covers the
+  neutral forge slot, 0.158 away, so a forge holder can guard it with a flank tower.
+- **Decision (user, 06-08-2026): the flank asymmetry is the intended texture.** Expansion to the two
+  bottom-flank neutrals is taxed from tick 0 while the forge flank stays free — the prize is free and
+  the hazard guards itself. It remains mirror-symmetric about `x = 0.5`, so positional fairness
+  *between players* holds, and (b) and (c) pin it as a designed fact rather than an accident.
 
 FR-3 (wf: `8554c22a4421`): The player can hold forges and hit harder and defend better everywhere, so
 that the trade of a producer for a multiplier actually pays. Makes
@@ -257,7 +284,14 @@ Only the ones that genuinely constrain design:
 - **The eight-base layout is a breaking change to scripts that index bases.** Unlike the baseline
   guarantee above, this one is not free: every committed `qa/scripts/` file and every test that
   assumes six bases must be re-checked, and a script *weakened* rather than re-authored is a defect
-  (the standing rule since phase 3 FR-3a doubled every tick count).
+  (the standing rule since phase 3 FR-3a doubled every tick count). The two new slots are **appended**
+  rather than inserted, so bases 0–5 keep their ids; what genuinely moves is any expectation touched
+  by the neutral tower's fire or by the AI now seeing two more bases, and FR-2's issue requires each
+  re-authored file to name which of the two in a header comment.
+- **`Tower_EveryRange_StaysWithinTheMapsOwnGeometry` is replaced, not weakened.** The "no tower range
+  covers a neighbouring base" invariant is unpreservable on the eight-base map (see FR-2). Its three
+  replacement claims are binding from FR-2 onward; deleting the test, or loosening its bound so it
+  passes, is a defect rather than a judgement call.
 - **No allocation per tick.** The forge count is read on the combat path; it must not allocate a
   collection per evaluation, the same standing rule phase 3's tower fire and phase 4's pending-wave
   scan established.
@@ -324,8 +358,9 @@ had it inert; the correction is in FR-2, D-47 and success criterion 7.
 
 Three items are ordinary kickoff work with a recommendation each, not blocking questions:
 
-- The exact placement and starting garrison of the two new slots (§4 Tuning values proposes
-  centre-line positions and a garrison of 10).
+- ~~The exact placement and starting garrison of the two new slots~~ — **settled at FR-2's kickoff,
+  06-08-2026**: (0.50, 0.20) and (0.50, 0.80), garrison 10 each, exactly as §4's Tuning values
+  proposed. Settling it surfaced the geometry-invariant failure recorded at FR-2.
 - Whether the forge count is drawn beside phase 5's morale meter as a second global indicator or per
   building (FR-5 — the meter is the better home, since both are per-player globals).
 - **Morale attribution for a neutral tower's kill** (FR-2). The existing path awards the killer's
