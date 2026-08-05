@@ -94,6 +94,28 @@ shipped and their issues are the record that matters.
 Writes need `WORKFLOWY_API_KEY` (from `.env`, never printed) and are dry-run until the user says
 go. Never delete, move, or complete a Workflowy node.
 
+## Transport: HTTP API first, CLI wrapper last
+
+Workflowy and GitHub are each reachable several ways. The ordering is deliberate:
+
+1. **The HTTP API** — Workflowy's REST endpoints (the Ivan plugin's `references/workflowy.md` lists
+   them) and GitHub's REST/GraphQL, called with `Invoke-RestMethod` and the token from `.env`.
+   This is the default.
+2. **An MCP tool**, where one exists and is known not to lose data — the `github` server for
+   titles, labels, state and comment metadata, never for long bodies (see **GitHub access** below).
+3. **A CLI wrapper** (`workflowy_cli.py`, `git`) only where it does something the API does not:
+   `append-outline`'s indentation parsing, its dry-run diff, `git`'s whole job.
+
+CLI wrappers cost two things repeatedly on this machine. **Encoding** — `workflowy_cli.py` dies with
+`UnicodeEncodeError` the moment a note contains a character outside cp1252, because Python's console
+falls back to the Windows codepage; the API call itself succeeds and only the JSON dump to stdout
+fails, so the failure looks worse than it is. Prefix `PYTHONIOENCODING=utf-8` when you must use it.
+Hit 05-08-2026 on the `ō` in "jorō spider" while seeding the Branding project. **Forced file
+attachments** — a CLI that takes content as an argument makes you write a temp file to dodge
+PowerShell's native-call quoting (`git commit -F`, `append-outline --file`,
+`update-node --note-file`), which is one more file to get wrong and one more BOM risk (see the
+PowerShell gotchas below). An HTTP request body is just a JSON string and has neither problem.
+
 ## GitHub access (every skill, no exceptions)
 
 **There is no `gh` CLI on this machine.** Every Ivan version shipped so far defaults to `gh`
@@ -241,16 +263,23 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Morale** (`docs/morale/`, wf `3401ecb1c7a5`), discovered 04-08-2026 — see its
-  own bullet below. Phases 1–4 are all complete and merged. Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
+- Active project: **Forges** (`docs/forges/`, wf `3900095949a7`), discovered 05-08-2026 — see its
+  own bullet below. No board and no issues yet; `/kickoff` creates the board at the first feature.
+  A second level-2 project, **Branding** (wf `6080284b9dcc`), was seeded the same day for the IP
+  layer and is **not** discovered; it gates hero *content*, never mechanics, so it blocks neither
+  phase 6 nor 7. Phases 1–5 are all complete and merged.
+  Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
   shipped as #21. **Phase 2** (Core gameplay loop, board 19) complete — #8, #9, #13, #14, #20, #24,
   #25. **Phase 3** (Base upgrades and types, board 20) complete — FR-1 #30, FR-2 #32, FR-3 #34,
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
-  board 21) complete — see the next bullet. The only open issues are `follow-up`-labelled and so
-  are never auto-built: **#56** (FR-7's determinism test doesn't confirm the tower-aware attack
-  branch actually fired) and **#60** (is snaking's 2,2,1 count sequence an acceptable demo, or
-  should tuning change?).
+  board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
+  bullet. The only open issues are `follow-up`-labelled and so are never auto-built: **#56** (FR-7's
+  determinism test doesn't confirm the tower-aware attack branch actually fired), **#60** (is
+  snaking's 2,2,1 count sequence an acceptable demo, or should tuning change?), **#76**
+  (`qa/scripts/victory.txt` no longer reaches `HumanVictory`, stale since phase 5 FR-2 changed the
+  combat formula), and **#81** (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a
+  regression test).
 - **Phase 4, "Sending armies the MW2 way" (`docs/army-sending/`) — complete.** Discovered
   30-07-2026, board **21**, all four features merged: FR-1 #54 (PR #57), FR-2 #58 (PR #59),
   FR-3 #61 (PR #62), FR-4 #63 (PR #64, merged 31-07-2026). It closed parity **G-2** (waves — rules
@@ -264,12 +293,13 @@ These run without a human gate and never block or reopen a feature:
   that the out-of-scope passive skill "row density" shortens it, parity **G-20**); and **D-36**
   records that consecutive waves overlap on screen at every viewport size, solved by tapering the
   marker radius plus a shared spine rather than by compositing the column into one shape.
-- **Phase 5, "Morale" (`docs/morale/`), discovered 04-08-2026 — the active project.** Closes parity
-  **G-1** and **G-7**'s morale term, leaving G-7 open on the forge term alone. Six features in
-  dependency order: the score and its gain/loss tables, the combat indices, inactivity decay, unit
-  speed, the drawn meter, and an AI that plays for morale. Board **22**, created 04-08-2026 at FR-1's
-  kickoff; **FR-1 is #66, FR-2 is #67, FR-3 is #69, FR-4 is #71** (all Todo), and FR-5 and FR-6 have
-  no issue yet. Follow-up **#68** (`AiBrain`'s winnability and threat checks ignored building defence
+- **Phase 5, "Morale" (`docs/morale/`) — complete.** Discovered 04-08-2026, closed 05-08-2026.
+  Closes parity **G-1** and **G-7**'s morale term, leaving G-7 open on the forge term alone. Six
+  features in dependency order, all merged: the score and its gain/loss tables (FR-1 #66, PR #72),
+  the combat indices (FR-2 #67, PR #73), inactivity decay (FR-3 #69, PR #74), unit speed (FR-4 #71,
+  PR #75), the drawn meter (FR-5 #77, PR #79), and an AI that plays for morale (FR-6 #78, PR #80).
+  Board **22**, created 04-08-2026 at FR-1's kickoff, is fully drained; the retrospective is at
+  `dcbb963`. Follow-up **#68** (`AiBrain`'s winnability and threat checks ignored building defence
   percentages — a pre-existing phase-3 gap) was filed and **merged the same day as PR #70**; it
   extracted `CombatResolver.WouldCapture` as the single shared capture predicate for both `Resolve`
   and `AiBrain`'s predictions, mirroring `TravelTimeCalculator`'s role for arrival timing. **FR-2's
@@ -289,6 +319,31 @@ These run without a human gate and never block or reopen a feature:
   and invisible against a table nobody checks by eye). Energy (**G-5**), heroes (**G-4**) and Rush
   Mode (**G-16**) were deliberately held back to a phase 6: energy has no sink until abilities
   exist, so shipping it here would mean a number that accumulates and is spent on nothing.
+- **Phase 6, "Forges" (`docs/forges/`, wf `3900095949a7`) — the active project.** Discovered
+  05-08-2026. Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
+  since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
+  features; no board or issues yet. Three things were settled with the user in discovery and are
+  binding, not build-mode calls. **Forges are optional** and the zero-forge baseline must stay
+  bit-identical on the six original bases, which is what protects phases 2–5's tests and
+  `qa/scripts/` budgets. **The map grows from six bases to eight** with a contested neutral forge and
+  neutral tower on the centre line — MW2's "one forge per four unit-producing buildings" implies maps
+  with ~16 producers and MW3 had six bases total, so without a contested forge the ladder's upper
+  half is unreachable or degenerate. **The neutral tower fires** at any player's army in range and
+  never at neutral units (**D-47**), which makes FR-2 a behavioural feature rather than a layout
+  edit: both ownership guards on `Match`'s firing path change, the optimisation that skips tower
+  evaluation early in a match dies, and an unowned tower's kill charges the victim morale while
+  awarding none. Scope is **exactly two slots** — extended map support (flexible layouts, paths,
+  obstacles, zones) is its own future project, so this phase adds no terrain concept and D-44's
+  injectable layout is a testability seam, not the start of a map system. **The map layout becomes
+  an injectable value** on `Match`
+  (D-44), because `MapLayout` is `internal static` and hardcoded, so no neutral-forge rule is
+  testable until the shipped map changes. Also **D-43** (`ConvertCommand` carries an explicit target
+  type — the `Producer`↔`Tower` toggle at `Match.cs:368` is deleted, an S-8 interface change) and
+  **D-46** (the composed index keeps integer truncation, and this is the first phase where a
+  remainder is actually reachable, so FR-3 must pin one in a regression test; truncation favours the
+  attacker and that is recorded rather than corrected). Watch **D-45**: the forge term must enter
+  `CombatResolver.WouldCapture` on both the resolve and prediction paths — the third occurrence of
+  the desync follow-up #68 closed against building defence and phase 5 patched against morale.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -311,7 +366,9 @@ These run without a human gate and never block or reopen a feature:
   Android input is injected with `adb shell input tap <x> <y>` and `adb shell input keyevent 4`.
   Requires `C:\Program Files (x86)\Android\android-sdk\platform-tools` on `PATH`.
 - Workflowy CLI gotcha: `update-node` and other **write** endpoints 404 on a short id — pass the
-  **full** node id. Reads accept either.
+  **full** node id. Reads accept either. The CLI also crashes with `UnicodeEncodeError` on any
+  character outside cp1252 — prefix `PYTHONIOENCODING=utf-8`, or better, call the REST API directly
+  per **Transport** above.
 - Ivan plugin version: **1.6.0** (the installed plugin, verified 04-08-2026; this line had gone
   stale at 1.3.0). Both project-local substitutions below still apply unchanged at 1.6.0 — the
   skills still emit `gh` commands and still assume a Workflowy note can hold a full feature
@@ -328,6 +385,8 @@ These run without a human gate and never block or reopen a feature:
 | Base upgrades and types | `1dd3b0f977af` | `docs/base-upgrades-and-types/` | 20 | `PVT_kwHOANIl2M4Beosx` | Status `PVTSSF_lAHOANIl2M4BeosxzhZBabk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Forges | `3900095949a7` | `docs/forges/` | — | — | filled by `/kickoff` |
+| Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -378,12 +437,26 @@ Phase 5 features, in dependency order (`/kickoff` one at a time), discovered 04-
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` (issue #66) |
-| 2 | Morale feeds the combat formula's attack and defence indices | `f7b795f0a982` (issue #67) |
-| 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` (issue #69) |
-| 4 | Morale raises unit speed, locked at the send's submission tick | `2e35c45de62c` (issue #71) |
-| 5 | The morale meter drawn for both players | `b0d20abba8ad` |
-| 6 | The AI opponent plays for morale and against decay | `1713e24400b9` |
+| 1 | Morale points, the sun ladder, and gains and losses in the core rules | `c99d42cbc681` (issue #66, merged) |
+| 2 | Morale feeds the combat formula's attack and defence indices | `f7b795f0a982` (issue #67, merged) |
+| 3 | Inactivity decay drains morale, faster the higher it is | `eeb19c449be6` (issue #69, merged) |
+| 4 | Morale raises unit speed, locked at the send's submission tick | `2e35c45de62c` (issue #71, merged) |
+| 5 | The morale meter drawn for both players | `b0d20abba8ad` (issue #77, merged) |
+| 6 | The AI opponent plays for morale and against decay | `1713e24400b9` (issue #78, merged) |
+
+Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-08-2026:
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` |
+| 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` |
+| 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` |
+| 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` |
+| 5 | Convert-to-forge in the action menu, and forges drawn on both heads | `06341f0fa15b` |
+| 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` |
+
+**FR-2 sits last in Workflowy, not second** — `append-outline` only appends and Ivan never moves a
+node, the same treatment phase 3's FR-3a/3b/3c got. This table carries the real dependency order.
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it
