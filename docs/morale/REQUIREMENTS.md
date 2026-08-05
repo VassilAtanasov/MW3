@@ -276,7 +276,28 @@ are on its GitHub issue, which is the contract `/implement`, `code-reviewer` and
 FR-6 (wf: `1713e24400b9`): The AI opponent weighs morale when choosing to attack — a failed attack
 feeds the defender +10 per unit and costs the attacker −10 per unit — and keeps sending rather than
 idling into decay. Parity **G-21** territory (MW2's AI is unpublished), so MW3's own heuristic work
-rather than a port, and described as such. Depends on FR-1 through FR-4 being live.
+rather than a port, and described as such. Depends on FR-1 through FR-4 being live. Kicked off
+05-08-2026; the 12 verbatim acceptance criteria are on issue #78, which is the contract
+`/implement`, `code-reviewer` and `qa-verifier` read.
+  - Settled at kickoff: **tower-loss stays `TryAttack`'s primary preference; morale swing is a
+    tiebreak only**, among winnable targets already tied on lowest `expectedTowerLoss` — not a
+    blended weighted score, to avoid inventing an unpublished weighting constant.
+  - Settled at kickoff: **the morale swing reads existing tables rather than a new one** —
+    `MoraleTable.CaptureGain(target.Type, target.Level, wasOpponentOwned)` minus 10 points per
+    predicted attacker death, where deaths are `attackingUnitCount − CombatResolver.Resolve(...)
+    .RemainingGarrison` (D-41's Wu-minus-remaining rule) plus the already-computed
+    `expectedTowerLoss` (tower-fire deaths cost the attacker morale too, per D-41).
+  - Settled at kickoff: **no veto on net-morale-negative attacks.** `TryAttack` still attacks the
+    sole winnable target even when the predicted swing is negative — this feature is a preference
+    among choices, not a new refusal condition.
+  - Settled at kickoff: **no decay-avoidance change.** `TryConsolidate`'s existing fallback send
+    (clause 5) remains the only mechanism that incidentally resets FR-3's idle timer. Forcing a
+    send ahead of `TryUpgrade`/`TryConvert` priority as decay becomes imminent was proposed and
+    explicitly rejected — no reference requires it, and MW2's AI logic being unpublished (G-21)
+    means there is nothing to corroborate the added complexity against. A future session may
+    revisit this as a new feature if real play shows a build-heavy AI decaying meaningfully.
+  - Settled at kickoff: **`TryDefend`, `TryUpgrade`, `TryConvert`, and `TryConsolidate` are
+    unmodified** — the change is contained to `TryAttack` and any private helper it calls.
 
 ### Tuning values
 
