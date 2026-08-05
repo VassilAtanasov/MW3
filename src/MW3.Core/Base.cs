@@ -10,13 +10,23 @@ namespace MW3.Core;
 public sealed class Base
 {
     internal Base(int id, MapPoint position, int garrisonCount, Player? owner)
+        : this(id, position, garrisonCount, owner, BaseType.Producer, LevelTable.MinLevel)
+    {
+    }
+
+    /// <summary>
+    /// Overload used when a base's starting type and level come from a <see cref="MapSlot"/> rather
+    /// than defaulting to a level-1 producer (D-44) - a match built from an injected layout can start
+    /// a base as a forge or a pre-placed tower.
+    /// </summary>
+    internal Base(int id, MapPoint position, int garrisonCount, Player? owner, BaseType type, int level)
     {
         Id = id;
         Position = position;
         GarrisonCount = garrisonCount;
         Owner = owner;
-        Level = LevelTable.MinLevel;
-        Type = BaseType.Producer;
+        Level = level;
+        Type = type;
     }
 
     public int Id { get; }

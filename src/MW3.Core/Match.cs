@@ -29,6 +29,11 @@ public sealed class Match
     public static double EffectiveArmySpeedUnitsPerTick(int moraleLevel) =>
         ArmySpeedUnitsPerTick * MoraleTable.UnitSpeedPercentage(moraleLevel) / 100.0;
 
+    // Every BaseType, in declaration order (D-48) - AvailableActions offers one Convert action per
+    // entry here other than the base's own, so the button order is stable regardless of enum-value
+    // ordinal changes elsewhere.
+    private static readonly BaseType[] _convertibleTypes = { BaseType.Producer, BaseType.Tower, BaseType.Forge };
+
     private readonly List<Base> _bases;
     private readonly List<Army> _armies = new();
     private readonly List<PendingWave> _pendingWaves = new();
@@ -38,14 +43,36 @@ public sealed class Match
     private int _nextSendId;
 
     public Match()
+        : this(MapLayout.Slots)
     {
+    }
+
+    /// <summary>
+    /// Builds a match from an explicit layout (D-44) rather than the shipped <see cref="MapLayout"/>.
+    /// A test can construct a layout containing a neutral forge - or any other slot combination - and
+    /// prove FR-2's rules before the shipped map itself changes. The parameterless constructor
+    /// delegates here with <see cref="MapLayout.Slots"/> so there is exactly one bases-building code
+    /// path (D-44).
+    /// </summary>
+    public Match(IReadOnlyList<MapSlot> layout)
+    {
+        if (layout is null)
+        {
+            throw new ArgumentNullException(nameof(layout));
+        }
+
+        if (layout.Count == 0)
+        {
+            throw new ArgumentException("A match's layout must contain at least one slot.", nameof(layout));
+        }
+
         HumanPlayer = new Player(Id: 1, PlayerControllerKind.Human);
         AiPlayer = new Player(Id: 2, PlayerControllerKind.Ai);
 
-        _bases = new List<Base>(MapLayout.Slots.Count);
-        for (var i = 0; i < MapLayout.Slots.Count; i++)
+        _bases = new List<Base>(layout.Count);
+        for (var i = 0; i < layout.Count; i++)
         {
-            var slot = MapLayout.Slots[i];
+            var slot = layout[i];
             var owner = slot.Kind switch
             {
                 MapSlotKind.HumanStart => HumanPlayer,
@@ -53,7 +80,7 @@ public sealed class Match
                 _ => null,
             };
 
-            _bases.Add(new Base(id: i, slot.Position, slot.StartingGarrison, owner));
+            _bases.Add(new Base(id: i, slot.Position, slot.StartingGarrison, owner, slot.Type, slot.Level));
         }
     }
 
@@ -318,14 +345,15 @@ public sealed class Match
     }
 
     /// <summary>
-    /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: exactly two
-    /// <see cref="BaseAction"/>s, always in order [Upgrade, Convert], each computed independently
-    /// from the other - a level-4 base's Upgrade reads AlreadyAtMaxLevel while its Convert can still
-    /// be live, since the two share no state but the base itself (FR-5). Costs read from
-    /// <see cref="LevelTable"/> and never named by the caller (D-25). Returns an empty list for an
-    /// unknown base or one <paramref name="player"/> does not own - the widget that renders this
-    /// answer never learns why there is nothing to show, because there is nothing for it to compute
-    /// either way.
+    /// What <paramref name="player"/> can do to <paramref name="baseId"/> right now: one Upgrade
+    /// action followed by one Convert action per <see cref="BaseType"/> other than the base's own, in
+    /// <see cref="BaseType"/> declaration order (D-48) - always exactly three actions for an owned
+    /// base now that <see cref="BaseType"/> has three members. Each is computed independently of the
+    /// others - a level-4 base's Upgrade reads AlreadyAtMaxLevel while a Convert can still be live,
+    /// since none share state but the base itself (FR-5). Costs read from <see cref="LevelTable"/>
+    /// and never named by the caller (D-25). Returns an empty list for an unknown base or one
+    /// <paramref name="player"/> does not own - the widget that renders this answer never learns why
+    /// there is nothing to show, because there is nothing for it to compute either way.
     /// </summary>
     public IReadOnlyList<BaseAction> AvailableActions(Player player, int baseId)
     {
@@ -340,7 +368,16 @@ public sealed class Match
             return Array.Empty<BaseAction>();
         }
 
-        return new[] { BuildUpgradeAction(target), BuildConvertAction(target) };
+        var actions = new List<BaseAction>(_convertibleTypes.Length) { BuildUpgradeAction(target) };
+        foreach (var type in _convertibleTypes)
+        {
+            if (type != target.Type)
+            {
+                actions.Add(BuildConvertAction(target, type));
+            }
+        }
+
+        return actions;
     }
 
     private static BaseAction BuildUpgradeAction(Base target)
@@ -363,9 +400,8 @@ public sealed class Match
         return new BaseAction(BaseActionKind.Upgrade, cost, availability);
     }
 
-    private static BaseAction BuildConvertAction(Base target)
+    private static BaseAction BuildConvertAction(Base target, BaseType targetType)
     {
-        var targetType = target.Type == BaseType.Producer ? BaseType.Tower : BaseType.Producer;
         var cost = LevelTable.ConversionCost;
 
         if (target.Construction is not null)
@@ -874,7 +910,7 @@ public sealed class Match
 
         foreach (var b in _bases)
         {
-            if (b.Owner is null || b.Type == BaseType.Tower)
+            if (b.Owner is null || b.Type != BaseType.Producer)
             {
                 continue;
             }

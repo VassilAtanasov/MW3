@@ -725,17 +725,26 @@ internal sealed class MatchScreen : IScreen
 
     /// <summary>
     /// The `Building=` token: `none`, or the kind and target and completion tick of a base's pending
-    /// construction (D-30, FR-3c) - `UpgradeToLevel3@1240` or `ConvertToTower@1300`.
+    /// construction (D-30, FR-3c) - `UpgradeToLevel3@1240`, `ConvertToTower@1300`, or (phase 6 FR-1)
+    /// `ConvertToForge@1300`. Renders the target type by name so a third convert destination costs
+    /// this line nothing beyond adding the enum member.
     /// </summary>
     private static string FormatBuildingField(Base b) => b.Construction switch
     {
         null => "Building=none",
         PendingUpgrade upgrade => FormattableString.Invariant($"Building=UpgradeToLevel{upgrade.TargetLevel}@{upgrade.CompletionTick}"),
         PendingConversion conversion => FormattableString.Invariant(
-            $"Building=Convert{(conversion.TargetType == BaseType.Tower ? "ToTower" : "ToProducer")}@{conversion.CompletionTick}"),
+            $"Building=ConvertTo{conversion.TargetType}@{conversion.CompletionTick}"),
         _ => "Building=none",
     };
 
+    /// <summary>
+    /// The `Menu:` line (D-48): `Upgrade=`/`Cost=` keep their names and meaning, and one
+    /// `Convert:&lt;TargetType&gt;=&lt;Availability&gt;@&lt;cost&gt;` token is written per convert
+    /// action, in <see cref="Match.AvailableActions"/> order - replacing the old single
+    /// `Convert=/ConvertCost=/ConvertTo=` triple now that a base can have more than one convert
+    /// destination.
+    /// </summary>
     private string FormatMenuDumpLine()
     {
         if (_openMenu is null)
@@ -745,15 +754,22 @@ internal sealed class MatchScreen : IScreen
 
         var anchorBase = FindBase(_openMenu.BaseId);
         var upgrade = _openMenu.Actions.Count > 0 ? _openMenu.Actions[0] : null;
-        var convert = _openMenu.Actions.Count > 1 ? _openMenu.Actions[1] : null;
-        if (anchorBase is null || upgrade is null || convert is null)
+        if (anchorBase is null || upgrade is null)
         {
             return "Menu: none";
         }
 
         var cap = anchorBase.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
-        return FormattableString.Invariant(
-            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{cap} Upgrade={upgrade.Availability} Cost={upgrade.Cost} Convert={convert.Availability} ConvertCost={convert.Cost} ConvertTo={convert.ConvertTargetType}");
+        var line = FormattableString.Invariant(
+            $"Menu: Base={anchorBase.Id} Garrison={anchorBase.GarrisonCount}/{cap} Upgrade={upgrade.Availability} Cost={upgrade.Cost}");
+
+        for (var i = 1; i < _openMenu.Actions.Count; i++)
+        {
+            var convert = _openMenu.Actions[i];
+            line += FormattableString.Invariant($" Convert:{convert.ConvertTargetType}={convert.Availability}@{convert.Cost}");
+        }
+
+        return line;
     }
 
     public void Dispose()

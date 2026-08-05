@@ -74,22 +74,29 @@ public class BaseActionMenuTests
     // and angular step never depends on the anchor's position at all. Exercised at both target
     // viewports, anchored at the human base's real starting position (0.12, 0.50, near the left
     // edge - MapLayout) where the overlap this regression test guards against was first found.
+    // Now three buttons (Upgrade, Convert:Tower, Convert:Forge) once BaseType gained Forge (D-48) -
+    // every pair is checked, not only the first two.
     [Theory]
     [InlineData(1280, 720)]
     [InlineData(1808, 1018)]
-    public void TwoButtons_NeverOverlap(int width, int height)
+    public void ThreeButtons_NeverOverlap(int width, int height)
     {
         var match = new Match();
         var humanBase = HumanBase(match);
-        SetGarrison(humanBase, LevelTable.ConversionCost + 10); // Convert affordable too, so both buttons render live
+        SetGarrison(humanBase, LevelTable.ConversionCost + 10); // both converts affordable too, so every button renders live
         var menu = new BaseActionMenu(match, match.HumanPlayer, humanBase.Id);
-        Assert.Equal(2, menu.Actions.Count);
+        Assert.Equal(3, menu.Actions.Count);
 
         var viewport = new Viewport(0, 0, width, height);
 
-        var rect0 = GetButtonRect(menu, 0, viewport);
-        var rect1 = GetButtonRect(menu, 1, viewport);
-
-        Assert.False(rect0.Intersects(rect1), $"button rects overlap at {width}x{height}: {rect0} vs {rect1}");
+        for (var i = 0; i < menu.ButtonCount; i++)
+        {
+            for (var j = i + 1; j < menu.ButtonCount; j++)
+            {
+                var rectI = GetButtonRect(menu, i, viewport);
+                var rectJ = GetButtonRect(menu, j, viewport);
+                Assert.False(rectI.Intersects(rectJ), $"buttons {i} and {j} overlap at {width}x{height}: {rectI} vs {rectJ}");
+            }
+        }
     }
 }

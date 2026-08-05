@@ -202,6 +202,7 @@ public static class LevelTable
     {
         BaseType.Producer => Village.MaxLevel,
         BaseType.Tower => Tower.MaxLevel,
+        BaseType.Forge => MinLevel,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -214,6 +215,7 @@ public static class LevelTable
     {
         BaseType.Producer => Village.MaxUpgradableLevel,
         BaseType.Tower => Tower.MaxUpgradableLevel,
+        BaseType.Forge => MinLevel,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -229,6 +231,7 @@ public static class LevelTable
     {
         BaseType.Producer => Village.GarrisonCap(level),
         BaseType.Tower => null,
+        BaseType.Forge => null,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -241,6 +244,10 @@ public static class LevelTable
     {
         BaseType.Producer => Village.UpgradeCost(fromLevel),
         BaseType.Tower => Tower.UpgradeCost(fromLevel),
+        BaseType.Forge => throw new ArgumentOutOfRangeException(
+            nameof(fromLevel),
+            fromLevel,
+            "Forge has no upgrade path."),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -254,6 +261,7 @@ public static class LevelTable
     {
         BaseType.Producer => Village.DefencePercentage(level),
         BaseType.Tower => Tower.DefencePercentage(level),
+        BaseType.Forge => 100,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 
@@ -266,6 +274,7 @@ public static class LevelTable
     {
         BaseType.Producer => Village.RingThicknessFractionOfRadius(level),
         BaseType.Tower => Tower.RingThicknessFractionOfRadius(level),
+        BaseType.Forge => 0.05,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown base type."),
     };
 

@@ -444,12 +444,17 @@ public class ConvertTests
         Assert.Equal(BaseType.Tower, humanBase.Type);
 
         var actions = match.AvailableActions(match.HumanPlayer, humanBase.Id);
-        Assert.Equal(2, actions.Count);
+        Assert.Equal(3, actions.Count);
         Assert.Equal(BaseActionKind.Upgrade, actions[0].Kind);
 
-        var convert = actions[1];
-        Assert.Equal(BaseActionKind.Convert, convert.Kind);
-        Assert.Equal(BaseType.Producer, convert.ConvertTargetType);
+        // A tower's other two types, in BaseType declaration order (D-48): Producer then Forge.
+        var convertToProducer = actions[1];
+        Assert.Equal(BaseActionKind.Convert, convertToProducer.Kind);
+        Assert.Equal(BaseType.Producer, convertToProducer.ConvertTargetType);
+
+        var convertToForge = actions[2];
+        Assert.Equal(BaseActionKind.Convert, convertToForge.Kind);
+        Assert.Equal(BaseType.Forge, convertToForge.ConvertTargetType);
     }
 
     private static void AdvanceToNextArrival(Match match)
