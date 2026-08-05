@@ -274,7 +274,8 @@ These run without a human gate and never block or reopen a feature:
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
   board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
-  bullet. Apart from phase 6's own **#82** (FR-1), every open issue is `follow-up`-labelled and so is
+  bullet. Apart from phase 6's own **#82** (FR-1) and **#83** (FR-4), every open issue is
+  `follow-up`-labelled and so is
   never auto-built. Open as of 05-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
   `HumanVictory`, stale since phase 5 FR-2 changed the combat formula) and **#81**
   (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test). Two more were
@@ -324,8 +325,9 @@ These run without a human gate and never block or reopen a feature:
   05-08-2026; board **23**, created at FR-1's kickoff the same day, with FR-1 as issue **#82**.
   Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
   since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
-  features on board **23**; FR-1 is issue **#82**, the rest are not yet kicked off. Three things
-  were settled with the user in discovery and are
+  features on board **23**; FR-1 is issue **#82** and FR-4 is **#83**, the rest are not yet kicked
+  off. The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6, not the FR numbering — see the
+  phase-6 feature table below. Three things were settled with the user in discovery and are
   binding, not build-mode calls. **Forges are optional** and the zero-forge baseline must stay
   bit-identical on the six original bases, which is what protects phases 2–5's tests and
   `qa/scripts/` budgets. **The map grows from six bases to eight** with a contested neutral forge and
@@ -454,9 +456,17 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 | 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` (issue #82) |
 | 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` |
 | 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` |
-| 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` |
+| 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` (issue #83) |
 | 5 | Convert-to-forge in the action menu, and forges drawn on both heads | `06341f0fa15b` |
 | 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` |
+
+**The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6**, not the FR numbering above. FR-4 was
+resequenced ahead of FR-2 at its kickoff (05-08-2026): FR-2 puts a capturable forge on the shipped
+map, and both `Match.cs:1037` and `AiBrain.cs:459` call `MoraleTable.CaptureGain(target.Type, …)`,
+which throws for `BaseType.Forge` until FR-4 supplies the rows. Discovery had the dependency the
+other way round on the grounds that a neutral forge's value was unexercisable until one was on the
+board — FR-1's injectable layout (D-44) dissolved that. The numbers are left alone rather than
+renumbered, exactly as phase 3's FR-3a/3b/3c were; `docs/forges/REQUIREMENTS.md` carries the reasoning.
 
 **FR-2 sits last in Workflowy, not second** — `append-outline` only appends and Ivan never moves a
 node, the same treatment phase 3's FR-3a/3b/3c got. This table carries the real dependency order.

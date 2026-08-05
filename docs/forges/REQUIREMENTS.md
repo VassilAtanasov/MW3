@@ -124,6 +124,26 @@ tower evaluation early in a match dies because a tower now exists from tick 0, a
 unowned tower charges the victim morale while awarding none. **Exactly one neutral forge and one
 neutral tower** — this phase adds no other slot and no other terrain concept.
 
+**Now depends on FR-4** (see FR-4's entry): a capturable forge on the shipped map reaches
+`MoraleTable.CaptureGain(BaseType.Forge, …)`, which throws until FR-4 supplies the rows. Three
+further things were settled while investigating that, at FR-2's aborted kickoff on 05-08-2026, and
+FR-2's own kickoff should treat them as decided rather than re-derive them:
+
+- **`AiBrain`'s tower-threat filter is FR-2's job, not FR-6's.** `AiBrain.cs:423` skips any tower
+  whose `Owner is null`, so a firing neutral tower would be invisible to every route the AI weighs —
+  its predictions would be systematically wrong about the map FR-2 itself creates. Dropping that one
+  clause is the same class of fix as follow-up #68. FR-6 still owns the AI *contesting, capturing and
+  defending* the forge and tower.
+- **The neutral tower's kill charges the victim and awards nobody** — the §7 recommendation,
+  consistent with D-41, confirmed rather than left to fall out of a null check.
+- **The neutral tower's range covers both bottom-flank neutrals.** At (0.50, 0.80) with a level-1
+  range of 0.20, the bases at (0.35, 0.75) and (0.65, 0.75) sit 0.158 away — inside it. Expansion to
+  either is therefore taxed from tick 0 while the forge flank stays free. This is still mirror-
+  symmetric about `x = 0.5`, so positional fairness *between players* holds, but it is currently an
+  accident of two independently derived numbers. FR-2 must pin it with a test asserting exactly which
+  bases fall inside that range, so it is a designed fact rather than something a later tuning change
+  silently breaks.
+
 FR-3 (wf: `8554c22a4421`): The player can hold forges and hit harder and defend better everywhere, so
 that the trade of a producer for a multiplier actually pays. Makes
 `CombatResolver.ForgeContributionPercent` live against the count of forges their owner holds, capped
@@ -134,8 +154,34 @@ FR-4 (wf: `eb92138da99f`): The player gains and loses morale for taking and losi
 the phase's new building participates in phase 5's tempo system instead of sitting outside it.
 `MoraleTable`'s forge rows are absent today and commented as such; this adds them from
 `MW2-RULES.md` §5.2 and §5.3. Unlike villages and towers the values do not vary by level, because a
-forge has none. Depends on FR-2: the neutral-forge value is unexercisable until a neutral forge
-exists on the board.
+forge has none.
+
+**Resequenced ahead of FR-2 at kickoff 05-08-2026 — issue
+[#83](https://github.com/VassilAtanasov/MW3/issues/83), which carries the verbatim acceptance
+criteria.** This entry previously read "Depends on FR-2: the neutral-forge value is unexercisable
+until a neutral forge exists on the board." FR-1's injectable layout (D-44) dissolved that — a test
+can place a neutral forge without touching the shipped map. The dependency in fact runs the *other*
+way and only that way: `Match.ResolveArrival` (`Match.cs:1037`) and `AiBrain.PredictedMoraleSwing`
+(`AiBrain.cs:459`) both call `MoraleTable.CaptureGain(target.Type, …)`, which **throws** for
+`BaseType.Forge`. FR-2 puts a capturable forge on the shipped map, so without these rows it throws
+the first time the AI merely scores the centre forge as a target. **The build order is therefore
+FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6**, and the FR numbers are left alone rather than renumbered,
+exactly as phase 3's FR-3a/3b/3c were.
+
+Three things were settled at that kickoff and bind build mode:
+
+1. The forge arms **validate the level rather than ignore it** — `CaptureGain` and `CaptureLoss`
+   throw for a `BaseType.Forge` at any level other than `LevelTable.MinLevel`, making
+   §5's "a forge is never given a level" an enforced invariant rather than a comment.
+2. `UpgradeGain(BaseType.Forge, …)` **throws** rather than returning 0. It is unreachable in play,
+   and a silent zero would read as a deliberate "forges earn no upgrade morale" rule nobody decided.
+3. **Completing a conversion into or out of a forge awards no morale.** Conversion is not an
+   upgrade; `Match`'s conversion-completion branch awards nothing today and must still award nothing.
+   Pinned by a test rather than left as an absence.
+
+The **+200 neutral-forge value is not verifiable in real play in FR-4** — no forge is on the shipped
+map until FR-2 — so it is proven headlessly against an injected layout, and FR-4's new QA script says
+so in its header rather than leaving `qa-verifier` to chase an impossible scenario.
 
 FR-5 (wf: `06341f0fa15b`): The player can convert a base into a forge from the action menu and can
 see how many forges they hold, so that the type is reachable and the buff is legible. Extends phase 3
