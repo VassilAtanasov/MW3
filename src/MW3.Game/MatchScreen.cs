@@ -537,6 +537,12 @@ internal sealed class MatchScreen : IScreen
 
         DrawArmiesInFlight(spriteBatch, viewport);
 
+        // FR-5: read straight from _match every Draw call, never cached at screen entry, so a
+        // morale change (capture, kill, upgrade, decay) lands in the meter the same frame it lands
+        // in Match.
+        MoraleMeter.Draw(spriteBatch, _circleTexture, viewport, _match.HumanMorale.Level, GetOwnerColor(_match.HumanPlayer), isHuman: true);
+        MoraleMeter.Draw(spriteBatch, _circleTexture, viewport, _match.AiMorale.Level, GetOwnerColor(_match.AiPlayer), isHuman: false);
+
         if (_buttonTexture is not null)
         {
             _strengthSelector.Draw(spriteBatch, _buttonTexture, _font, viewport);
