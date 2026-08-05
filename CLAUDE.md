@@ -325,8 +325,13 @@ These run without a human gate and never block or reopen a feature:
   05-08-2026; board **23**, created at FR-1's kickoff the same day, with FR-1 as issue **#82**.
   Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
   since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
-  features on board **23**; FR-1 is issue **#82** and FR-4 is **#83**, the rest are not yet kicked
-  off. The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6, not the FR numbering — see the
+  features on board **23**. **FR-1 (#82) and FR-4 (#83) are merged** — PRs #84 and #85 — and **FR-2
+  is issue #86**, kicked off 06-08-2026 and unblocked, since its one dependency was FR-4's morale
+  rows. FR-3, FR-5 and FR-6 are not yet kicked off. FR-2's kickoff found that the neutral tower's
+  centre-line placement breaks `LevelTableTests.Tower_EveryRange_StaysWithinTheMapsOwnGeometry` and
+  that the invariant is unpreservable; the user settled on replacing it with three narrower claims
+  rather than moving the slots — see `docs/forges/REQUIREMENTS.md` FR-2 for the arithmetic.
+  The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6, not the FR numbering — see the
   phase-6 feature table below. Three things were settled with the user in discovery and are
   binding, not build-mode calls. **Forges are optional** and the zero-forge baseline must stay
   bit-identical on the six original bases, which is what protects phases 2–5's tests and
@@ -454,7 +459,7 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 | # | Feature | wf short id |
 |---|---|---|
 | 1 | Forge base type, explicit-target conversion, and an injectable map layout | `69b8d6032657` (issue #82) |
-| 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` |
+| 2 | The map gains a contested neutral forge and neutral tower | `65f7360af81d` (issue #86) |
 | 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` |
 | 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` (issue #83) |
 | 5 | Convert-to-forge in the action menu, and forges drawn on both heads | `06341f0fa15b` |
