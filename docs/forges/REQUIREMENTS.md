@@ -328,6 +328,74 @@ multiplier sitting in the middle of the map is not playing the phase. **G-21 ter
 describes how MW2's AI plays, so this is original work and must be described as such, never as a
 port.
 
+**Settled at kickoff 07-08-2026 — issue [#93](https://github.com/VassilAtanasov/MW3/issues/93),
+which carries the verbatim acceptance criteria.** The kickoff's first finding was how much of this
+feature is *already done*, which narrows it sharply. Three of `AiBrain`'s five clauses need no
+change at all:
+
+- **The WATCH note on the Workflowy stub is closed.** It warned that a live forge term makes the
+  winnability and threat predictions wrong until they read it — the third occurrence of the hazard
+  follow-up #68 closed. FR-3 already did it: `AiBrain.cs:379` and `AiBrain.cs:582` both compose
+  `Match.ForgeAttackPercentFor`/`ForgeDefencePercentFor` into the shared `WouldCapture`. FR-6
+  inherits D-45's guarantee rather than owing it.
+- **"Convert before committing to an attack" is already the structure.** `Decide` evaluates convert
+  (clause 3) before attack (clause 4), so `MW2-RULES.md` §2.4's ordering heuristic falls out of the
+  existing priority order for free rather than needing a rule.
+- **Clause 4 already contests the neutral forge.** `PredictedMoraleSwing` tiebreaks winnable targets
+  on `MoraleTable.CaptureGain(target.Type, …)`, which prices a neutral forge at **+200** against a
+  neutral level-1 producer's **+40**; base 6 sits on the *unguarded* flank (D-47 put the tower at
+  (0.50, 0.80), the forge at (0.50, 0.20)), so `expectedTowerLoss` ties at 0 and the morale key
+  decides. Clause 2 needs nothing either — a forge's `GarrisonCap` is null (§4), so
+  `IsUpgradeCandidate` already rejects it through the empty case rather than a type test.
+
+Six things were decided that build mode must not re-open. All are **G-21 territory** — MW2's AI is
+unpublished, so each is MW3's original work and must be described as such in code and docs, never as
+a port. The one published input is §2.4's rule of thumb.
+
+1. **The build ratio transfers literally**: a forge is owed when
+   `ForgeCountFor(player) < producerCount / ForgeTable.ProducersPerForge`, integer division,
+   evaluated *before* the conversion. Halving the ratio to suit the smaller map was offered and
+   rejected — it would invent a number where MW2 published one, and the phase transfers MW2's
+   literals everywhere else. The rule is **stable by construction**: 4 producers / 0 forges converts,
+   and the resulting 3 producers / 1 forge is not a converting state, so it cannot oscillate. It also
+   makes the last-producer hazard unreachable on the forge path, since the gate needs four.
+2. **`ForgeTable` gains `ProducersPerForge = 4`, distinct from `MaxContributingForges`.** The two are
+   numerically equal by coincidence and mean different things — a buff cap and a build ratio — so
+   conflating them would be a latent defect the moment either moves. D-22 routes both; no `AiBrain`
+   call site names either literal.
+3. **The forge converts the rear-most base, the tower keeps the front.** Among convert candidates,
+   greatest `NearestNotOwnedDistance`, ties by lowest id — the rule `TryUpgrade` already uses for
+   "safest", so **D-31's one distance rule gains a third reader** rather than a fourth rule. A forge
+   has no local defence (100%, D-42) and pays off globally, so it belongs where it will not be taken;
+   the front/rear split is the design in one line.
+4. **Forge conversion is tried first within clause 3**, falling through to today's unchanged tower
+   conversion when no forge is owed. Tower-first was rejected on inspection: `IsConvertCandidate` is
+   effectively unconditional once any front producer holds 30, so the forge branch would never be
+   reached and the AI would convert everything to towers.
+5. **A threatened forge outranks any threatened non-forge**, whatever the ids; among forges and among
+   non-forges today's lowest-id order is unchanged. Ordering all threatened bases by
+   `MoraleTable.CaptureLoss` instead was rejected as a phase-5 behaviour change smuggled into a forge
+   feature. A forge is the only building whose loss weakens its owner *everywhere*.
+6. **Clause 4 gains no new comparison key**, and the existing tiebreak is pinned by a test
+   constructed to **fail if it stops reading `target.Type`** — not merely to pass today. Inventing a
+   second forge preference on top of a morale table that already prices it 5:1 would be unfounded
+   original work in the one area where the reference cannot check us.
+
+**The ratio-gated conversion and the forge-first defence are proven headlessly, not by a scripted
+scenario**, following FR-3's amendment to `ARCHITECTURE.md` §2a. Building a forge needs four owned
+producers, which on the eight-base map means three uncontested captures — a long run whose every tick
+depends on the AI behaviour this feature is itself changing. Both are asserted against injected
+layouts (D-44), and FR-6's one new `qa/scripts/ai-contests-forge.txt` proves the *contest* live: tap
+Play, the human does nothing, and the AI takes base 6 unassisted. Its header names the headless
+tests, exactly the precedent FR-3's `forge-buff-decides-an-exchange.txt` and FR-4's
+`morale-forge-capture.txt` set.
+
+**One pre-existing defect was found and deliberately left out of scope.** Clause 3 can convert the
+AI's *last* producer into a tower — `ownBases.Count >= 2` counts bases, not producers, so an AI
+holding one producer and one tower can convert away its only source of units. The forge path cannot
+reach it (decision 1), so it stays a tower-path defect predating this phase and is filed as a
+`follow-up` rather than widened into FR-6.
+
 ### Tuning values
 
 Every simulation number this phase introduces, per D-22's routing rule: a constant lives in a table
@@ -347,6 +415,14 @@ adds to them.
 | 4 or more | 150% | 200% |
 
 A fifth forge does nothing — four is the cap, stated explicitly in the source.
+
+**The build ratio** (`MW2-RULES.md` §2.4, `[S]`) — `ForgeTable.ProducersPerForge` = **4**, MW2's
+published rule of thumb *one forge per four unit-producing buildings*, added at FR-6's kickoff
+(07-08-2026) as the AI's build threshold. It is **numerically equal to `MaxContributingForges` by
+coincidence and means something different** — that one is the buff cap, this one is a build ratio —
+so the two are separate named constants and neither is ever spelled as a literal at a call site
+(D-22). MW2 states the ratio as player advice; using it as the AI's own threshold is MW3's original
+work (**G-21**), not a parity claim.
 
 **Forge morale rows** (`MW2-RULES.md` §5.2 and §5.3, `[T]`) — the rows phase 5 deliberately omitted:
 
@@ -466,8 +542,10 @@ Three items are ordinary kickoff work with a recommendation each, not blocking q
   per building~~ — **settled at FR-5's kickoff, 06-08-2026**: beside the morale meter, as plain
   `Forges: <n>` text in owner colour, mirrored for both players. Settling it also fixed that the
   readout is uncapped and never hidden at zero, and that the buff percentage stays out of the HUD.
-- **Morale attribution for a neutral tower's kill** (FR-2). The existing path awards the killer's
-  owner and charges the victim; an unowned tower has nobody to award, while the victim still pays.
-  The recommendation is to keep exactly that — it is consistent with D-41, and it prices routing
-  through the contested middle — but FR-2's kickoff must state it deliberately rather than let it
-  fall out of a null check.
+- ~~**Morale attribution for a neutral tower's kill** (FR-2)~~ — **settled at FR-2's kickoff,
+  06-08-2026**: the kill charges the victim and awards nobody, exactly as the recommendation
+  proposed, stated deliberately at D-47 rather than left to fall out of a null check.
+
+All three are now closed, and **FR-6's kickoff (07-08-2026) raised no new open questions** — every
+decision it reached is recorded at FR-6's entry above. Every feature in this phase is now settled and
+carries an issue.
