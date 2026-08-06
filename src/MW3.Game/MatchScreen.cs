@@ -7,8 +7,9 @@ using MW3.Core;
 namespace MW3.Game;
 
 /// <summary>
-/// Draws the match live: a circle per producer base and a square per tower base (FR-5), tinted by
-/// owner, with its rising garrison count, plus the drag interaction that sends armies. Owns a fresh
+/// Draws the match live: a circle per producer base, a square per tower base, and (phase 6 FR-5) an
+/// upward-pointing triangle per forge base, tinted by owner, with its rising garrison count, plus
+/// the drag interaction that sends armies. Owns a fresh
 /// <see cref="Match"/> and a fresh
 /// <see cref="MatchRunner"/> (with a fresh AI brain) per instance, so pushing this screen always
 /// starts a new match against a new opponent. Presentation reads and commands write: this class
@@ -57,6 +58,10 @@ internal sealed class MatchScreen : IScreen
     // sizing exactly like the circle already is, never allocated per frame.
     private Texture2D? _squareTexture;
 
+    // Forges are an upward-pointing triangle (phase 6 FR-5), the third and last shape - same
+    // stretch-by-Rectangle treatment, same lifetime as the other two.
+    private Texture2D? _triangleTexture;
+
     // A tower's range is drawn as an outline (an annulus: transparent center, opaque rim) stretched
     // by a non-uniform Rectangle into an ellipse - the same stretch trick the circle texture already
     // uses for the base fill and its rings, applied here to map Core's normalized-space circular
@@ -71,6 +76,14 @@ internal sealed class MatchScreen : IScreen
     // - frame-loop code allocates nothing per frame (docs/CONVENTIONS.md).
     private string[]? _garrisonText;
     private int[]? _lastGarrisonCount;
+
+    // The Forges: readout's text, formatted only when the underlying count actually changes (phase
+    // 6 FR-5, docs/CONVENTIONS.md's no-per-frame-allocation rule) - -1 is not a reachable forge
+    // count, so it guarantees the first Draw call formats even when the true count starts at 0.
+    private int _lastHumanForgeCount = -1;
+    private int _lastAiForgeCount = -1;
+    private string _humanForgesText = string.Empty;
+    private string _aiForgesText = string.Empty;
 
     // An army's unit count can now drop while it is in flight (FR-4, a tower shooting it down), so
     // its text is cached alongside the count it was formatted from and only reformatted when that
@@ -139,6 +152,7 @@ internal sealed class MatchScreen : IScreen
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
         _squareTexture = CreateSquareTexture(graphicsDevice, diameter: 128);
+        _triangleTexture = CreateTriangleTexture(graphicsDevice, diameter: 128);
         _rangeRingTexture = CreateRingTexture(graphicsDevice, diameter: 128, innerFraction: _rangeRingInnerFraction);
         _buttonTexture = CreateButtonTexture(graphicsDevice);
 
@@ -437,8 +451,8 @@ internal sealed class MatchScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_font is null || _circleTexture is null || _squareTexture is null || _rangeRingTexture is null
-            || _garrisonText is null || _lastGarrisonCount is null)
+        if (_font is null || _circleTexture is null || _squareTexture is null || _triangleTexture is null
+            || _rangeRingTexture is null || _garrisonText is null || _lastGarrisonCount is null)
         {
             return;
         }
@@ -455,8 +469,14 @@ internal sealed class MatchScreen : IScreen
             // Shape follows the base's current, committed type (b.Type) - never a pending
             // conversion's target type, which only takes effect at Advance's completion tick (D-30,
             // FR-3c). A base converting into a tower stays a circle with no range until then; one
-            // converting back to a producer stays a square with its range drawn right up to then.
-            var shapeTexture = b.Type == BaseType.Tower ? _squareTexture : _circleTexture;
+            // converting into or out of a forge (phase 6 FR-1, FR-5) stays its old shape and shows
+            // only the construction ring until the same tick.
+            var shapeTexture = b.Type switch
+            {
+                BaseType.Tower => _squareTexture,
+                BaseType.Forge => _triangleTexture,
+                _ => _circleTexture,
+            };
 
             if (b.Id == _selectedSourceBaseId)
             {
@@ -529,9 +549,24 @@ internal sealed class MatchScreen : IScreen
 
             var garrisonText = _garrisonText[i];
             var unscaledSize = _font.MeasureString(garrisonText);
-            var textScale = (diameter * 0.5f) / unscaledSize.Y;
+
+            // A triangle inscribes less area than a circle or square at the same bounding box, so
+            // the garrison digits are sized and centred against its own incircle - the true largest
+            // circle that fits inside it - rather than the bounding box's geometric centre, which
+            // would let them overhang the sloped sides (phase 6 FR-5). The circle and square glyphs
+            // are unchanged: their incircle is the same circle textScale already targeted.
+            var textCenter = center;
+            var textDiameterTarget = diameter;
+            if (b.Type == BaseType.Forge)
+            {
+                var apexY = center.Y - radius;
+                textCenter = new Vector2(center.X, apexY + (TriangleGeometry.IncenterYFraction() * diameter));
+                textDiameterTarget = (int)(TriangleGeometry.InradiusFraction() * diameter * 2f);
+            }
+
+            var textScale = (textDiameterTarget * 0.5f) / unscaledSize.Y;
             var textSize = unscaledSize * textScale;
-            var textPosition = new Vector2(center.X - (textSize.X / 2f), center.Y - (textSize.Y / 2f));
+            var textPosition = new Vector2(textCenter.X - (textSize.X / 2f), textCenter.Y - (textSize.Y / 2f));
             spriteBatch.DrawString(_font, garrisonText, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
         }
 
@@ -542,6 +577,26 @@ internal sealed class MatchScreen : IScreen
         // in Match.
         MoraleMeter.Draw(spriteBatch, _circleTexture, viewport, _match.HumanMorale.Level, GetOwnerColor(_match.HumanPlayer), isHuman: true);
         MoraleMeter.Draw(spriteBatch, _circleTexture, viewport, _match.AiMorale.Level, GetOwnerColor(_match.AiPlayer), isHuman: false);
+
+        // Phase 6 FR-5: same read-fresh-every-Draw rule as the morale meters above, formatted only
+        // on change (docs/CONVENTIONS.md). Always drawn, including "Forges: 0" - hiding it at zero
+        // would be indistinguishable from the readout not existing.
+        var humanForgeCount = _match.ForgeCountFor(_match.HumanPlayer);
+        if (_lastHumanForgeCount != humanForgeCount)
+        {
+            _humanForgesText = FormattableString.Invariant($"Forges: {humanForgeCount}");
+            _lastHumanForgeCount = humanForgeCount;
+        }
+
+        var aiForgeCount = _match.ForgeCountFor(_match.AiPlayer);
+        if (_lastAiForgeCount != aiForgeCount)
+        {
+            _aiForgesText = FormattableString.Invariant($"Forges: {aiForgeCount}");
+            _lastAiForgeCount = aiForgeCount;
+        }
+
+        ForgesReadout.Draw(spriteBatch, _font, viewport, _humanForgesText, GetOwnerColor(_match.HumanPlayer), isHuman: true);
+        ForgesReadout.Draw(spriteBatch, _font, viewport, _aiForgesText, GetOwnerColor(_match.AiPlayer), isHuman: false);
 
         if (_buttonTexture is not null)
         {
@@ -785,6 +840,7 @@ internal sealed class MatchScreen : IScreen
     {
         _circleTexture?.Dispose();
         _squareTexture?.Dispose();
+        _triangleTexture?.Dispose();
         _rangeRingTexture?.Dispose();
         _buttonTexture?.Dispose();
     }
@@ -831,6 +887,30 @@ internal sealed class MatchScreen : IScreen
         for (var j = 0; j < data.Length; j++)
         {
             data[j] = Color.White;
+        }
+
+        texture.SetData(data);
+        return texture;
+    }
+
+    /// <summary>
+    /// An upward-pointing triangle - apex at the top-centre, base along the bottom edge - filling
+    /// the same <paramref name="diameter"/> x <paramref name="diameter"/> square the circle and
+    /// square textures fill, so a forge occupies the same footprint as any other base (phase 6
+    /// FR-5). Rasterized with <see cref="TriangleGeometry.Contains"/>, the same pure geometry
+    /// <see cref="Draw"/> uses to position the garrison digits inside it.
+    /// </summary>
+    private static Texture2D CreateTriangleTexture(GraphicsDevice graphicsDevice, int diameter)
+    {
+        var texture = new Texture2D(graphicsDevice, diameter, diameter);
+        var data = new Color[diameter * diameter];
+
+        for (var y = 0; y < diameter; y++)
+        {
+            for (var x = 0; x < diameter; x++)
+            {
+                data[(y * diameter) + x] = TriangleGeometry.Contains(x, y, diameter) ? Color.White : Color.Transparent;
+            }
         }
 
         texture.SetData(data);
