@@ -17,19 +17,13 @@ namespace MW3.Core;
 /// Indices are expressed in <b>basis points</b> (1/10000 - FR-2), not percent: identity is
 /// <c>10000</c>, not <c>100</c>. Percent scale floors a common case - a level-2 village (110%)
 /// defended at morale 1 (125%) is 137.5, truncated to 137, a bias toward the attacker that can flip
-/// a knife-edge capture. At basis-point scale, and with the forge term still at identity, the
-/// two-term product is exact with no division loss at all; only a future third non-identity term
-/// (G-6) floors, and then at 1/10000 grain rather than 1%.
+/// a knife-edge capture. At basis-point scale a two-term product is exact with no division loss at
+/// all; with phase 6 FR-3's forge term live the three-term product can floor, and does, but at
+/// 1/10000 grain rather than 1% (D-46 - see <see cref="ComposePercentages"/>).
 /// </para>
 /// </summary>
 public static class CombatResolver
 {
-    /// <summary>
-    /// A forge's contribution to an attack or defence index, fixed at identity until parity gap G-6
-    /// supplies a real value.
-    /// </summary>
-    public const int ForgeContributionPercent = 100;
-
     /// <summary>
     /// The uniform baseline an attacking wave's units carry before morale and forge multipliers -
     /// MW3 has no per-unit attack stat, so every unit attacks at the same 100% until a later feature
@@ -41,19 +35,28 @@ public static class CombatResolver
     /// The attacker's total attack index <c>a</c>, in basis points (1/10000): the uniform baseline
     /// composed with <paramref name="moraleAttackPercent"/> - the arriving army's owner's live
     /// morale attack percentage (<see cref="MoraleTable.AttackPercentage"/>), 100 for a morale-0
-    /// owner - and forge, forge fixed at identity until G-6.
+    /// owner - and <paramref name="forgeAttackPercent"/>, that same owner's live forge attack
+    /// percentage (<see cref="ForgeTable.AttackPercentage"/>), 100 for an owner holding none.
+    /// <para>
+    /// The forge parameter is required rather than defaulted (FR-3): every existing call site is
+    /// forced to decide which count it means, so none can quietly keep the pre-FR-3 two-term
+    /// assumption alive.
+    /// </para>
     /// </summary>
-    public static int ComposeAttackerIndex(int moraleAttackPercent) =>
-        ComposePercentages(BaselineAttackPercent, moraleAttackPercent, ForgeContributionPercent);
+    public static int ComposeAttackerIndex(int moraleAttackPercent, int forgeAttackPercent) =>
+        ComposePercentages(BaselineAttackPercent, moraleAttackPercent, forgeAttackPercent);
 
     /// <summary>
     /// The defender's total protection index <c>d</c>, in basis points (1/10000): the base's own
     /// defence percentage composed with <paramref name="moraleDefencePercent"/> - the base owner's
     /// morale defence percentage (<see cref="MoraleTable.DefencePercentage"/>), 100 for a neutral
-    /// base, which has no morale (D-11) - and forge, forge fixed at identity until G-6.
+    /// base, which has no morale (D-11) - and <paramref name="forgeDefencePercent"/>, that same
+    /// owner's live forge defence percentage (<see cref="ForgeTable.DefencePercentage"/>), 100 for a
+    /// neutral base, which owns no forges either. Required rather than defaulted for the reason
+    /// <see cref="ComposeAttackerIndex"/> gives.
     /// </summary>
-    public static int ComposeDefenderIndex(int baseDefencePercent, int moraleDefencePercent) =>
-        ComposePercentages(baseDefencePercent, moraleDefencePercent, ForgeContributionPercent);
+    public static int ComposeDefenderIndex(int baseDefencePercent, int moraleDefencePercent, int forgeDefencePercent) =>
+        ComposePercentages(baseDefencePercent, moraleDefencePercent, forgeDefencePercent);
 
     /// <summary>
     /// Whether <paramref name="attackingUnits"/> would capture a base defended by
@@ -93,10 +96,13 @@ public static class CombatResolver
     // terms combine"), but the reference's own worked example multiplies, and this is the codebase's
     // shipped composition; MW2-PARITY.md records this as MW3's assumption, not a parity claim, so a
     // future observation of additive stacking in MW2 reopens the gap. Dividing once by 100 (not
-    // 100*100) lands identity (100, 100, 100) on exactly 10000, and - since the forge term stays at
-    // identity this phase - the two-term product basePercent*moralePercent is exact with no
-    // remainder discarded; only a future non-identity forge term (G-6) can floor, and then at
-    // 1/10000 grain.
+    // 100*100) lands identity (100, 100, 100) on exactly 10000.
+    //
+    // With phase 6 FR-3's forge term live, a remainder is reachable for the first time and the
+    // division truncates it (D-46, settled - not a defect to correct here). The discarded part is
+    // under one basis point of a five-figure index, and it always shrinks the index it is computed
+    // for; a truncated *defender* index therefore biases a knife-edge exchange toward the attacker.
+    // ForgeCompositionTests pins the first reachable case by name.
     private static int ComposePercentages(int basePercent, int moralePercent, int forgePercent) =>
         (int)((long)basePercent * moralePercent * forgePercent / 100);
 }

@@ -1,3 +1,17 @@
+# ANNOTATED at phase 6 FR-3 (issue #87). THIS SCRIPT'S SETUP NO LONGER RUNS, and FR-3 neither
+# caused that nor fixes it. Its frame-20 tap at (0.176563, 0.281944) was the convert-to-tower
+# button; phase 6 FR-1 gave the action menu a second convert entry (D-43's explicit target type)
+# and the tap no longer lands on it. Base 0 stays a Producer, so the tower never exists, no army is
+# ever shot at in transit, and the Count= drop this script and army-shrinking-late.txt exist to show
+# cannot happen. Already true on main at 430c999, before FR-3 existed - verified by running this
+# script there. morale-defender-gains.txt shares the same stale tap.
+#
+# FR-3 did NOT move this script's numbers: its dump is byte-identical to main's once the new
+# Forges: line is excluded, at --time-scale 3 and at its own --time-scale 10 (checked both ways in
+# a before/after sweep of every script in this directory). Filed as follow-up #90 rather than fixed
+# here: re-aiming these three scripts at the new menu belongs with FR-5, which settles what those
+# buttons are labelled and where they sit.
+#
 # Same setup as convert-completed.txt (human converts base 0 to a tower), then waits for the AI's
 # own attacks to keep coming until one flies within the tower's range: Army 30 (Source=2, Target=0)
 # is caught here mid-flight, before the tower's fire has finished it off - compare against

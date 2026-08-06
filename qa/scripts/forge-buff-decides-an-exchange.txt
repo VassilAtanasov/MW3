@@ -1,0 +1,64 @@
+# Phase 6 FR-3 (issue #87): the human captures the shipped map's neutral forge and then wins, with
+# the forge's +50% attack and nothing else, an exchange that would have been repelled without it.
+# Run with --time-scale 3 (one frame advances almost exactly one tick, 16.667 ms x 3 = 50.0 ms;
+# see capture-neutral-forge.txt, where the same relationship was confirmed against this build).
+#
+# THE CAP IS NOT EXERCISED IN REAL PLAY HERE, and no script in this directory exercises it. Five
+# forges on the shipped map means five captures and 150 units of conversion cost, under a firing
+# neutral tower and an expanding AI - a script whose every tap would depend on AI behaviour FR-6 is
+# about to change. The cap is proven headlessly instead, against an injected layout (D-44), by
+# ForgeCombatTests.AtAndBeyondTheCap_TheSameSendProducesAnIdenticalResult, which asserts an
+# identical CombatResult at four forges and at five and - so the claim is not vacuous - a different
+# one at three. This is exactly the precedent morale-forge-capture.txt set for the +200
+# neutral-forge value it could not exercise either.
+#
+# The run, in three moves:
+#
+#  1. Frames 90-95: at Full (100%), the capital's 11 units take the near neutral village (base 2, at
+#     0.35/0.25). Waves of 8 and 3: wave 1 is 8 against 5 at identity indices on both sides, so
+#     80000 > 50000 captures it with (80000 - 50000) / 10000 = 3 left, and wave 2 arrives at a base
+#     the human now owns and reinforces it to 6.
+#  2. Frames 605-610: base 2, grown to 13, sends Full at the neutral forge (base 6, at 0.50/0.20).
+#     The forge never produces (FR-1) and still holds its starting 10, defended at identity - it is
+#     neutral, so it buffs nobody (D-47) and has no morale either (D-11). Waves of 8 and 5: wave 1
+#     is repelled (80000 is not greater than 100000), leaving the forge at 10 - 8 = 2; wave 2's 5
+#     against 2 captures it, remaining (50000 - 20000) / 10000 = 3. The human now holds one forge.
+#  3. Frames 895-900: base 2, regrown to exactly 5, sends Full at the far neutral village (base 4,
+#     at 0.65/0.25), which is still neutral and still holds its starting 5. THIS IS THE FEATURE:
+#       - the attacker's index is a = 100 (baseline) x 100 (morale level 0) x 150 (ForgeTable's
+#         one-forge attack row) / 100 = 15000;
+#       - the defender's is d = 100 (level-1 village) x 100 (no morale) x 100 (a neutral owns no
+#         forge) / 100 = 10000;
+#       - 5 x 15000 = 75000 > 5 x 10000 = 50000, so it captures, leaving
+#         (75000 - 50000) / 10000 = 2.
+#     At the pre-FR-3 index of a = 10000 the identical send would have been 5 x 10000 = 50000
+#     against the same 50000 - not strictly greater, so repelled, leaving the defender holding 0 and
+#     still neutral. One forge is the entire difference between the two outcomes.
+#
+# Base 2 must hold exactly 5 when move 3 is issued - one more unit would capture with or without the
+# forge and prove nothing - which is why that drag sits at frame 895 rather than being given the
+# generous margin used elsewhere in this directory.
+#
+# Expected dump:
+#   Forges: Human=1 HumanAtk=150 HumanDef=125 Ai=0 AiAtk=100 AiDef=100
+#   Base 4: Owner=Human Garrison=2 Level=1 Cap=20 Building=none Type=Producer
+#   Base 6: Owner=Human Garrison=1 Level=1 Cap=none Building=none Type=Forge
+# Base 6 reads 1 rather than the 3 it was captured with because the AI attacks it near the end of
+# the run with 3 units: 3 x 10000 = 30000 against the forge's own defence of
+# 100 x 100 x 125 (ForgeTable's one-forge defence row) / 100 = 12500 x 3 = 37500, so that attack is
+# repelled too and the forge is left holding 3 - floor(30000 / 12500) = 1. The human also loses
+# base 2, emptied by move 3, to the AI - expected, and irrelevant to the claim above.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+70 wait
+75 down 0.033203 0.670139
+80 up 0.033203 0.670139
+90 down 0.120000 0.500000
+95 up 0.350000 0.250000
+600 wait
+605 down 0.350000 0.250000
+610 up 0.500000 0.200000
+890 wait
+895 down 0.350000 0.250000
+900 up 0.650000 0.250000
+960 wait

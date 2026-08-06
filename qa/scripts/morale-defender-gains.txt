@@ -1,3 +1,25 @@
+# RE-AUTHORED at phase 6 FR-3 (issue #87), for two separate reasons - and the first one is a real
+# defect in this script that FR-3 did not cause and does not fix:
+#
+#  1. THIS SCRIPT'S SETUP NO LONGER RUNS. Its frame-20 tap at (0.176563, 0.281944) was the
+#     convert-to-tower button; phase 6 FR-1 gave the action menu a second convert entry (D-43's
+#     explicit target type) and the tap no longer lands on it. Base 0 therefore stays a Producer,
+#     the tower never exists, it never shoots anything, and the "Human's Morale should read
+#     strictly positive" expectation below is simply not met - Human reads 0. This was already true
+#     on main at 430c999, before FR-3 existed (verified by running this script there). The same
+#     stale tap breaks army-shrinking-early.txt and army-shrinking-late.txt, which share the setup.
+#     Filed as follow-up #90 rather than fixed here: re-aiming three scripts at the new menu is FR-5's
+#     territory, since FR-5 is the feature that settles what those buttons are labelled and where.
+#  2. FR-3 made the forge term live, and separately moved this run's AI-side numbers. The AI holds
+#     the map's centre forge (base 6) from early on, so from that point it attacks at ForgeTable's
+#     150% and defends at 125%; by the end of the run it has taken the neutral tower (base 7) and
+#     upgraded base 3, neither of which it managed before. Ai morale 60 -> 100. Nothing on the
+#     Human side moves - the human's own numbers are identical to main's, because the human owns no
+#     forge in this run.
+#
+# The description below is kept as the record of what this script was written to prove. It becomes
+# true again once its setup is repaired.
+#
 # Same setup as army-shrinking-late.txt (human converts base 0 to a tower), waited further so the
 # tower has finished destroying at least one AI army that flew within its range - the same
 # mechanism army-shrinking-early.txt/army-shrinking-late.txt already prove for garrison count, now

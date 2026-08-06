@@ -16,6 +16,13 @@ public class MoraleCombatTests
     private static void SetMoralePoints(MoraleState state, int points) =>
         typeof(MoraleState).GetProperty(nameof(MoraleState.Points))!.GetSetMethod(nonPublic: true)!.Invoke(state, new object?[] { points });
 
+    // Re-authored at phase 6 FR-3 (issue #87): both Compose methods now take a required forge
+    // percentage. Every scenario in this file is about morale alone and holds no player-owned forge
+    // (the shipped map's own forge is neutral, and a neutral forge buffs nobody - D-47), so each
+    // call states ForgeTable's identity explicitly. No expected number in this file moves.
+    private static readonly int _noForgesAttack = ForgeTable.AttackPercentage(ForgeTable.MinForgeCount);
+    private static readonly int _noForgesDefence = ForgeTable.DefencePercentage(ForgeTable.MinForgeCount);
+
     /// <summary>
     /// A neutral base (Owner is null, D-11) has no morale and composes its defence at identity
     /// (100%) regardless of how high the attacker's own morale climbs - asserted explicitly per
@@ -39,8 +46,8 @@ public class MoraleCombatTests
         var army = match.ArmiesInFlight.Single();
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
-        var expectedAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(5));
-        var expectedDefenderIndex = CombatResolver.ComposeDefenderIndex(neutral.DefencePercentage, moraleDefencePercent: 100);
+        var expectedAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(5), _noForgesAttack);
+        var expectedDefenderIndex = CombatResolver.ComposeDefenderIndex(neutral.DefencePercentage, moraleDefencePercent: 100, _noForgesDefence);
         var expected = CombatResolver.Resolve(expectedAttackerIndex, expectedDefenderIndex, 6, 5);
 
         Assert.True(expected.Captured); // sanity: the scenario is chosen to capture
@@ -138,14 +145,14 @@ public class MoraleCombatTests
         const int garrison = 10;
         const int waveUnits = 15;
 
-        var identityAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var identityDefenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent, MoraleTable.DefencePercentage(0));
+        var identityAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), _noForgesAttack);
+        var identityDefenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent, MoraleTable.DefencePercentage(0), _noForgesDefence);
         var baseline = CombatResolver.Resolve(identityAttackerIndex, identityDefenderIndex, waveUnits, garrison);
 
-        var boostedAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(5));
+        var boostedAttackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(5), _noForgesAttack);
         var attackerBoosted = CombatResolver.Resolve(boostedAttackerIndex, identityDefenderIndex, waveUnits, garrison);
 
-        var boostedDefenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent, MoraleTable.DefencePercentage(5));
+        var boostedDefenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent, MoraleTable.DefencePercentage(5), _noForgesDefence);
         var defenderBoosted = CombatResolver.Resolve(identityAttackerIndex, boostedDefenderIndex, waveUnits, garrison);
 
         Assert.True(baseline.Captured); // sanity: identity captures, so there is room to move in both directions
@@ -189,8 +196,13 @@ public class MoraleCombatTests
         var period = LevelTable.Village.ProductionPeriodTicks(target.Level);
         var predictedGarrison = startingGarrison + (int)(travelTicks / period);
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(match.MoraleFor(match.HumanPlayer).Level));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, MoraleTable.DefencePercentage(match.MoraleFor(match.AiPlayer).Level));
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(
+            MoraleTable.AttackPercentage(match.MoraleFor(match.HumanPlayer).Level),
+            match.ForgeAttackPercentFor(match.HumanPlayer));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(
+            target.DefencePercentage,
+            MoraleTable.DefencePercentage(match.MoraleFor(match.AiPlayer).Level),
+            match.ForgeDefencePercentFor(target.Owner));
         var predicted = CombatResolver.WouldCapture(attackerIndex, defenderIndex, send, predictedGarrison);
 
         Assert.Equal(expectedCapture, predicted); // sanity: the chosen garrison lands on the intended side

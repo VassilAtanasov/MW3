@@ -1,3 +1,41 @@
+# RE-AUTHORED at phase 6 FR-3 (issue #87). Two things moved this file's numbers, and neither is a
+# defect in it:
+#
+#  1. FR-2 (issue #86) grew the map from six bases to eight. Every tick-by-tick number below was
+#     derived against the six-base map and stopped describing the run the moment that merged - this
+#     was already true on main at 430c999, before FR-3 existed (verified by running this script
+#     against that commit: Human=0, Ai=340, 2114 ticks, eight bases).
+#  2. FR-3 then made the forge term live. This run ends with the AI holding TWO forges - base 0,
+#     the one it takes off the human, and base 6, the map's contested centre forge - so from its
+#     first forge capture onward the AI attacks at ForgeTable's 150/175% and defends at 125/135%.
+#     That shifts the second half of the game: Ai 340 -> 380, 2114 ticks -> 2074.
+#
+# The step-by-step derivation below is therefore RETIRED, not weakened: it is kept as the record of
+# what FR-4 originally proved, and the observed end state is recorded fresh underneath it. The
+# +300/-100 opponent-forge values it was written to demonstrate are pinned independently and
+# exactly by ForgeMoraleTests.CapturingAnOpponentsForge_Awards300_Charges100; what this script still
+# proves in real play is that a forge changes hands and both players' morale moves when it does.
+# Re-deriving a full 2074-tick AI-driven game against the eight-base map is its own piece of work
+# and is filed as follow-up #91 rather than done inside FR-3.
+#
+# OBSERVED END STATE (this build, --time-scale 10). Read this as an OBSERVATION, not as a derived
+# expectation: it was captured from the build under test, so it cannot catch a regression in the
+# forge or morale arithmetic - it would simply re-print itself. It is here so a reader knows what
+# the run currently does, not as an oracle. The values this script was written to demonstrate are
+# pinned exactly and independently by ForgeMoraleTests.CapturingAnOpponentsForge_Awards300_Charges100;
+# restoring a hand-derivable expectation here needs the eight-base run derived from scratch, which
+# is follow-up #91.
+#   ElapsedTicks: 2074, Outcome: HumanDefeat
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=380 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=0 HumanAtk=100 HumanDef=100 Ai=2 AiAtk=175 AiDef=135
+#   Base 0: Owner=Ai Garrison=7 Level=1 Cap=none Building=none Type=Forge
+#   Base 6: Owner=Ai Garrison=1 Level=1 Cap=none Building=none Type=Forge
+# The human's converted forge (base 0) survives capture as a forge at level 1, exactly as phase 6
+# FR-1 requires, and the human ends with no base at all - hence HumanDefeat.
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 six-base map only):
+#
 # Phase 6 FR-4 (issue #83): drives a forge into existence and through a capture, on the shipped
 # six-base map. Same setup as convert-to-forge.txt (human upgrades base 0 to level 2, then converts
 # it to a Forge - deducts the 30-unit conversion cost and starts the 100-tick build), then waits
