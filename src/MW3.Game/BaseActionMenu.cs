@@ -349,12 +349,29 @@ internal sealed class BaseActionMenu
         return null;
     }
 
+    /// <summary>
+    /// A button's text. A convert button reads its <b>target type</b> and cost - <c>Producer: 30</c>,
+    /// <c>Tower: 30</c>, <c>Forge: 30</c> - rather than the bare <c>Convert: 30</c> every convert
+    /// button carried before phase 6 FR-5. With three base types a menu shows two convert buttons at
+    /// once (D-48), and two buttons a player cannot tell apart before pressing one is the defect this
+    /// fixes. The type name comes from <see cref="BaseAction.ConvertTargetType"/>, which the action
+    /// already carries so this widget never decides a target itself (D-25).
+    /// <para>
+    /// Only the text changes: button order, geometry, and the availability colouring are untouched
+    /// (D-48), so every committed menu QA script's tap coordinates and button indices still hold.
+    /// The upgrade arm below is byte-identical to what it has always emitted.
+    /// </para>
+    /// </summary>
     private static string FormatLabel(BaseAction action) => action.Kind switch
     {
+        // ConvertTargetType is non-null for every Convert action by BaseAction's own contract; the
+        // fallback keeps a malformed action rendering as *something* rather than throwing inside a
+        // Draw, and no code path produces it.
         BaseActionKind.Convert => action.Availability switch
         {
-            BaseActionAvailability.UnderConstruction => "Convert: Building",
-            _ => FormattableString.Invariant($"Convert: {action.Cost}"),
+            BaseActionAvailability.UnderConstruction =>
+                FormattableString.Invariant($"{ConvertTargetName(action)}: Building"),
+            _ => FormattableString.Invariant($"{ConvertTargetName(action)}: {action.Cost}"),
         },
         _ => action.Availability switch
         {
@@ -363,4 +380,7 @@ internal sealed class BaseActionMenu
             _ => FormattableString.Invariant($"Upgrade: {action.Cost}"),
         },
     };
+
+    private static string ConvertTargetName(BaseAction action) =>
+        action.ConvertTargetType is BaseType target ? target.ToString() : "Convert";
 }

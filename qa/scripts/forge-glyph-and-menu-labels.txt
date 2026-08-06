@@ -1,0 +1,34 @@
+# Phase 6 FR-5 (issue #89): the whole feature in one final-frame screenshot. Same setup as
+# convert-to-forge.txt (human upgrades base 0 to level 2, waits for production to clear the 30-unit
+# conversion cost, presses Convert: Forge - the third menu button, D-48 - deducting 30 and starting
+# the 100-tick build), then reopens the action menu on the same base once the conversion has
+# completed. Run with --time-scale 10 (see convert-pending.txt for why).
+#
+# --screenshot captures only the final frame, so everything this feature adds must be on screen at
+# once at that moment:
+#   - the human's now-converted base 0 draws as an owner-tinted triangle, not a circle;
+#   - the shipped map's neutral forge (base 6, FR-2, at 0.50/0.20) draws as a grey triangle - it has
+#     had no owner since tick 0, so no capture is needed to put a second triangle on screen;
+#   - the bottom-left readout reads "Forges: 1" (the human's own converted base 0) and the top-right
+#     reads "Forges: 0" (the AI has not converted or captured a forge this early in the run, and the
+#     neutral centre forge counts for nobody, D-47);
+#   - the action menu, reopened on the human's own forge at the final frame, shows two convert
+#     buttons reading "Producer: 30" and "Tower: 30" - distinguishable before either is pressed,
+#     which is the defect this feature fixes (both previously read the identical "Convert: 30").
+#
+# No new --dump-state field: this script is verified by the screenshot alone, per the issue's own
+# acceptance criteria - the Forges: dump line belongs to FR-3 and the Menu: line's tokens to FR-1,
+# neither changed by this feature.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 down 0.120000 0.500000
+15 up 0.120000 0.500000
+20 down 0.328906 0.416667
+25 up 0.328906 0.416667
+320 down 0.120000 0.500000
+325 up 0.120000 0.500000
+330 down 0.075781 0.416667
+335 up 0.075781 0.416667
+360 wait
+370 down 0.120000 0.500000
+375 up 0.120000 0.500000
