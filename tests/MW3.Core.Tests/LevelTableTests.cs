@@ -278,39 +278,85 @@ public class LevelTableTests
     }
 
     /// <summary>
-    /// Every range stays at or below the map's own closest base-to-base distance, and below a home
-    /// base's distance to its nearest neutral - so a tower guards its own approach rather than
-    /// reaching a neighbouring base (FR-4). Computed from the real map through the public
-    /// <see cref="Base.Position"/> surface rather than a hardcoded literal, since the map itself is
-    /// an internal implementation detail this test has no other way to reach.
+    /// Superseded at phase 6 FR-2: <c>Tower_EveryRange_StaysWithinTheMapsOwnGeometry</c> asserted
+    /// every tower range stayed at or below the map's own closest base-to-base distance. That was an
+    /// observation about the six-base map frozen into a test, never a stated design goal, and it is
+    /// unpreservable once a neutral tower sits 0.158 from two flank bases - no two centre-line slots
+    /// can put a level-4 range's worth of clearance (0.28) between the tower and both flanks without
+    /// clipping the map edge. Replaced, not weakened, by the three narrower claims below - each one
+    /// genuinely worth protecting on the eight-base layout.
     /// </summary>
     [Fact]
-    public void Tower_EveryRange_StaysWithinTheMapsOwnGeometry()
+    public void Tower_NoRangeAtAnyLevel_ReachesEitherStartBase()
     {
         var match = new Match();
         var bases = match.Bases;
 
-        var closestPairDistance = double.MaxValue;
-        for (var i = 0; i < bases.Count; i++)
-        {
-            for (var j = i + 1; j < bases.Count; j++)
-            {
-                var distance = Distance(bases[i].Position, bases[j].Position);
-                if (distance < closestPairDistance)
-                {
-                    closestPairDistance = distance;
-                }
-            }
-        }
+        var humanStart = bases.Single(b => b.Owner == match.HumanPlayer).Position;
+        var aiStart = bases.Single(b => b.Owner == match.AiPlayer).Position;
 
-        var humanBase = bases.Single(b => b.Owner == match.HumanPlayer);
-        var nearestNeutralDistance = bases.Where(b => b.Owner is null).Min(b => Distance(humanBase.Position, b.Position));
+        var nearestToAnyStart = double.MaxValue;
+        foreach (var b in bases)
+        {
+            if (b.Owner == match.HumanPlayer || b.Owner == match.AiPlayer)
+            {
+                continue;
+            }
+
+            nearestToAnyStart = Math.Min(nearestToAnyStart, Math.Min(Distance(humanStart, b.Position), Distance(aiStart, b.Position)));
+        }
 
         for (var level = LevelTable.MinLevel; level <= LevelTable.Tower.MaxLevel; level++)
         {
-            Assert.True(LevelTable.Tower.RangeUnits(level) <= closestPairDistance);
-            Assert.True(LevelTable.Tower.RangeUnits(level) < nearestNeutralDistance);
+            Assert.True(LevelTable.Tower.RangeUnits(level) < nearestToAnyStart);
         }
+    }
+
+    /// <summary>
+    /// Exactly bases 3 (0.35, 0.75) and 5 (0.65, 0.75) fall inside the neutral tower's level-1 range
+    /// of 0.20, at 0.158 each - both the inclusions and the exclusions are asserted, so a later
+    /// tuning change to a range or a position cannot silently alter which bases the centre is taxing
+    /// (FR-2).
+    /// </summary>
+    [Fact]
+    public void NeutralTower_LevelOneRange_CoversExactlyTheTwoBottomFlankNeutrals()
+    {
+        var match = new Match();
+        var bases = match.Bases;
+        var neutralTower = bases.Single(b => b.Type == BaseType.Tower && b.Owner is null);
+        var range = LevelTable.Tower.RangeUnits(LevelTable.MinLevel);
+
+        var covered = new List<int>();
+        foreach (var b in bases)
+        {
+            if (b.Id != neutralTower.Id && Distance(neutralTower.Position, b.Position) <= range)
+            {
+                covered.Add(b.Id);
+            }
+        }
+
+        covered.Sort();
+        Assert.Equal(new[] { 3, 5 }, covered);
+    }
+
+    /// <summary>
+    /// A level-1 tower converted at base 2 (0.35, 0.25) or base 4 (0.65, 0.25) covers the neutral
+    /// forge slot, 0.158 away - so a forge holder can guard it with a flank tower, symmetrically for
+    /// both players (FR-2).
+    /// </summary>
+    [Fact]
+    public void LevelOneTower_AtEitherTopFlankNeutral_CoversTheNeutralForgeSlot()
+    {
+        var match = new Match();
+        var bases = match.Bases;
+        var neutralForge = bases.Single(b => b.Type == BaseType.Forge);
+        var range = LevelTable.Tower.RangeUnits(LevelTable.MinLevel);
+
+        var base2 = bases.Single(b => b.Id == 2);
+        var base4 = bases.Single(b => b.Id == 4);
+
+        Assert.True(Distance(base2.Position, neutralForge.Position) <= range);
+        Assert.True(Distance(base4.Position, neutralForge.Position) <= range);
     }
 
     private static double Distance(MapPoint a, MapPoint b)

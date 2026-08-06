@@ -70,7 +70,10 @@ public class AiTowerRoutingDeterminismTests
         var neutral4 = match.Bases[4];
         var neutral5 = match.Bases[5];
 
-        Assert.Equal(SendArmyOutcome.Accepted, runner.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)));
+        // 7, not 6 (phase 6 FR-2): base 5 sits within the shipped map's new neutral tower's range,
+        // so one attacking unit is lost to tower fire during the final approach before this capture
+        // resolves.
+        Assert.Equal(SendArmyOutcome.Accepted, runner.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)));
         advance(34); // below the 40-tick decision interval: no AI decision fires before the rig below
         Assert.Equal(ai, neutral5.Owner);
 

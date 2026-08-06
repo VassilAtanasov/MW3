@@ -16,12 +16,22 @@ public class GarrisonCapTests
         Assert.All(match.Bases, b => Assert.Equal(LevelTable.MinLevel, b.Level));
     }
 
+    // Re-authored at phase 6 FR-2: the shipped layout gains a neutral forge and a neutral tower
+    // (ids 6 and 7), neither a Producer, so LevelTable.GarrisonCap returns null for both (D-21,
+    // the tower precedent FR-1 extended to forges) rather than the village cap every base carried
+    // through phase 5.
     [Fact]
     public void GarrisonCap_ReflectsTheBasesLevel()
     {
         var match = new Match();
 
-        Assert.All(match.Bases, b => Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel), b.GarrisonCap));
+        Assert.All(
+            match.Bases.Where(b => b.Type == BaseType.Producer),
+            b => Assert.Equal(LevelTable.GarrisonCap(BaseType.Producer, LevelTable.MinLevel), b.GarrisonCap));
+
+        Assert.All(
+            match.Bases.Where(b => b.Type != BaseType.Producer),
+            b => Assert.Null(b.GarrisonCap));
     }
 
     [Fact]
@@ -36,6 +46,10 @@ public class GarrisonCapTests
         Assert.Equal(20, humanBase.GarrisonCount);
     }
 
+    // Re-authored at phase 6 FR-2: the original four flank neutrals start at garrison 5 and stay
+    // there, but the neutral forge and neutral tower (ids 6 and 7) start at 10 (REQUIREMENTS.md §4
+    // "Tuning values" - a prize, not expansion room). Neither type ever produces, so both groups
+    // must stay exactly at their own starting number.
     [Fact]
     public void NeutralBases_NeverProduce_EvenAfterOneThousandTicks()
     {
@@ -43,7 +57,8 @@ public class GarrisonCapTests
 
         match.Advance(1000);
 
-        Assert.All(match.Bases.Where(b => b.Owner is null), b => Assert.Equal(5, b.GarrisonCount));
+        Assert.All(match.Bases.Where(b => b.Owner is null && b.Type == BaseType.Producer), b => Assert.Equal(5, b.GarrisonCount));
+        Assert.All(match.Bases.Where(b => b.Owner is null && b.Type != BaseType.Producer), b => Assert.Equal(10, b.GarrisonCount));
     }
 
     [Fact]

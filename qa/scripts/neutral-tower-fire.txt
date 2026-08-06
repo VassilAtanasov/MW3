@@ -1,0 +1,36 @@
+# Phase 6 FR-2 (issue #86): the shipped map's neutral tower (id 7, at (0.50, 0.80)) fires from
+# tick 0 with no player-built tower anywhere on the board (D-47). Tap Play, then drag a send from
+# the human base straight to base 3 (0.35, 0.75) - a bottom-flank neutral whose position (0.158
+# from the tower) sits inside even the tower's weakest level-1 range (0.20), so the last stretch of
+# the flight is spent under fire.
+#
+# Run with --time-scale 3: TargetElapsedTime (1/60 s, 16.667 ms) x 3 = 50.0 ms, MW3's own tick
+# duration exactly, so - unlike every other script in this directory, which is authored against
+# --time-scale 10 (see convert-pending.txt) or the default scale 1 (see victory.txt's frame-to-tick
+# derivation) - one frame here advances almost exactly one tick, letting the frame numbers below be
+# read directly as tick numbers (offset by the fixed ~5-frame Play-tap/navigation lead every script
+# pays). Generous margins are used throughout rather than a razor-exact frame count, since the
+# criteria below only need "the tower has fired at least once by the time of the dump", not an
+# exact tick.
+#
+# The default send strength is Half (SendStrengthSelector), so this launches half the human's
+# starting garrison of 10 - 5 units - at a target defended by its own garrison of 5. Travel time
+# capital-to-base-3 is ~34 ticks (the fixed distance from the capital corner to a flank neutral,
+# the same figure TowerFireTests' own comments derive); the tower's range covers roughly the last
+# 5-6 ticks of that flight, and its level-1 fire period (6 ticks) means exactly one shot lands
+# before arrival - the wave lands with 4 units, not 5, against the neutral's own garrison of 5:
+# 4 x 10000 is not greater than 5 x 10000, so the attack is repelled and Base 3 stays neutral, held
+# at 5 - 4 = 1 garrison (CombatResolver.Resolve's "not captured" branch).
+#
+# The tower's kill charges Human MoraleTable.AttackingUnitDiedLoss (10) and awards nobody (D-47).
+# Human starts this run at morale 0, so - exactly like morale-capture-neutral.txt's own -10 event -
+# the charge clamps back to MoraleTable.PointFloor (0) rather than going negative: the dump's
+# Morale: line should read Human=0, Ai=0. That the charge genuinely happened rather than never
+# firing is what Base 3's own Garrison=1 (not the untouched neutral garrison of 5) and the tower's
+# LastFireTick (visible as a non-empty tower-fire trace in an intermediate --dump-state cut right
+# after the shot, mirroring army-shrinking-early.txt's own approach) both independently confirm.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+15 down 0.120000 0.500000
+20 up 0.350000 0.750000
+80 wait

@@ -223,14 +223,18 @@ public class ForgeMoraleTests
         Assert.Equal(MoraleTable.ClampPoints(expectedGain - deathSwing), match.HumanMorale.Points);
     }
 
+    /// <summary>
+    /// FR-2 grows the layout to 8 slots (a neutral forge and a neutral tower, appended); this test
+    /// now only pins the first six, which stay level-1 producers unchanged. See
+    /// <c>MapLayoutInjectionTests</c> for the full 8-slot layout coverage.
+    /// </summary>
     [Fact]
-    public void MapLayout_Slots_StillSixLevelOneProducerSlots()
+    public void MapLayout_Slots_FirstSixStillLevelOneProducerSlots()
     {
-        Assert.Equal(6, MapLayout.Slots.Count);
-        foreach (var slot in MapLayout.Slots)
+        for (var i = 0; i < 6; i++)
         {
-            Assert.Equal(BaseType.Producer, slot.Type);
-            Assert.Equal(LevelTable.MinLevel, slot.Level);
+            Assert.Equal(BaseType.Producer, MapLayout.Slots[i].Type);
+            Assert.Equal(LevelTable.MinLevel, MapLayout.Slots[i].Level);
         }
     }
 }

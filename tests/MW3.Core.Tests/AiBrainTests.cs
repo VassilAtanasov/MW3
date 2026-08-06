@@ -2,6 +2,12 @@ using System.Reflection;
 
 namespace MW3.Core.Tests;
 
+// Re-authored at phase 6 FR-2: base 5 (0.65, 0.75) sits 0.158 from the shipped map's new neutral
+// tower (id 7, at (0.50, 0.80)) - inside even its level-1 range of 0.20 - so the tower now fires
+// once during the final approach of any send that arrives there, removing exactly one attacking
+// unit before combat resolves. Every send of 6 units at base 5 that used to capture with 1
+// remaining garrison now sends 7 to net the same outcome; base 4 (0.65, 0.25), outside the tower's
+// range, is untouched.
 public class AiBrainTests
 {
     private static BrainDecision InvokeClause(string methodName, AiBrain brain, Match match, List<Base> ownBases)
@@ -24,7 +30,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
 
         var humanBase = match.Bases.Single(b => b.Owner == human);
@@ -49,7 +55,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
 
         var humanBase = match.Bases.Single(b => b.Owner == human);
@@ -72,7 +78,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
 
         var humanBase = match.Bases.Single(b => b.Owner == human);
@@ -202,7 +208,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
 
         // Both saturated: aiBase (id 1)'s nearest not-owned base is id 4 at ~0.34, neutral5 (id 5,
@@ -232,8 +238,8 @@ public class AiBrainTests
         var army1 = match.ArmiesInFlight.Single();
         match.Advance(army1.ArrivalTick - match.ElapsedTicks);
 
-        SetGarrison(aiBase, 6); // regrown enough to also take neutral5, without depending on exact ticks
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures with 1 remaining
+        SetGarrison(aiBase, 7); // regrown enough to also take neutral5, without depending on exact ticks
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures with 1 remaining
         var army2 = match.ArmiesInFlight.Single();
         match.Advance(army2.ArrivalTick - match.ElapsedTicks);
 
@@ -241,6 +247,15 @@ public class AiBrainTests
         Assert.Equal(ai, neutral5.Owner);
 
         SetGarrison(aiBase, 0); // not a candidate: below its cap
+
+        // Phase 6 FR-2: the neutral forge (id 6) and neutral tower (id 7) are each closer to id 4
+        // and id 5 respectively (0.158) than id 2/id 3 are (0.30), and their off-axis positions
+        // (dy != 0, unlike id 2/id 3's exact dy = 0 pairing) make the two distances differ by a
+        // sub-ULP floating-point rounding error rather than tie exactly. Owning them here removes
+        // both from NearestNotOwnedDistance's search, restoring the original id 2/id 3 exact tie
+        // (dx = 0.30, dy = 0 for both) this test is actually about.
+        SetOwner(match.Bases[6], ai);
+        SetOwner(match.Bases[7], ai);
 
         // id 4 (0.65, 0.25) and id 5 (0.65, 0.75) are each 0.30 from their own nearest not-owned base
         // (id 2 and id 3 respectively) - an exact tie, broken towards the lower id.
@@ -283,7 +298,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
 
         // aiBase (id 1) is the only saturated-at-max-level candidate; neutral5 (id 5, now AI-owned)
@@ -309,7 +324,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
         SetGarrison(aiBase, LevelTable.ConversionCost - 1); // just under the cost
 
@@ -327,7 +342,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
         SetType(aiBase, BaseType.Tower);
         SetGarrison(aiBase, 999);
@@ -346,7 +361,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
         SetGarrison(aiBase, LevelTable.ConversionCost + 20);
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(ai, aiBase.Id, BaseType.Tower)));
@@ -371,7 +386,7 @@ public class AiBrainTests
         var humanBase = match.Bases.Single(b => b.Owner == human);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
         SetGarrison(aiBase, LevelTable.ConversionCost + 20);
 
@@ -411,8 +426,8 @@ public class AiBrainTests
         var army1 = match.ArmiesInFlight.Single();
         match.Advance(army1.ArrivalTick - match.ElapsedTicks);
 
-        SetGarrison(aiBase, 6);
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        SetGarrison(aiBase, 7);
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         var army2 = match.ArmiesInFlight.Single();
         match.Advance(army2.ArrivalTick - match.ElapsedTicks);
 
@@ -443,7 +458,7 @@ public class AiBrainTests
 
         // TryConvert's own guard requires at least two owned bases (converting the AI's only base
         // would remove its sole source of new units) - capture a second one first.
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
 
         SetLevel(aiBase, LevelTable.MaxUpgradableLevel(BaseType.Producer));
@@ -862,10 +877,10 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
 
-        // aiBase (id 1): garrison 4 (10 - 6, no production yet at 60 ticks/unit), nearest non-owned
+        // aiBase (id 1): garrison 3 (10 - 7, no production yet at 60 ticks/unit), nearest non-owned
         // base (id 4) is 34 ticks away.
         // neutral5 (id 5, now AI-owned): garrison 1, nearest non-owned base (id 3) is 30 ticks away - the front.
         var brain = new AiBrain(ai);
@@ -874,7 +889,7 @@ public class AiBrainTests
         Assert.True(decision.HasCommand);
         Assert.Equal(aiBase.Id, decision.Command.SourceBaseId);
         Assert.Equal(neutral5.Id, decision.Command.TargetBaseId);
-        Assert.Equal(2, decision.Command.UnitCount); // floor(4 / 2)
+        Assert.Equal(1, decision.Command.UnitCount); // floor(3 / 2)
     }
 
     [Fact]
@@ -885,7 +900,7 @@ public class AiBrainTests
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var neutral5 = match.Bases[5];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6));
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7));
         match.Advance(34);
         match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 1)); // already feeding the front
 
@@ -957,7 +972,7 @@ public class AiBrainTests
         var neutral5 = match.Bases[5];
         var neutral3 = match.Bases[3];
 
-        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 6)); // captures at tick 34 with 1 remaining
+        match.Execute(new SendArmyCommand(ai, aiBase.Id, neutral5.Id, 7)); // captures at tick 34 with 1 remaining
         match.Advance(34);
         match.Execute(new SendArmyCommand(ai, neutral5.Id, neutral3.Id, neutral5.GarrisonCount)); // drains it to zero
         Assert.Equal(0, neutral5.GarrisonCount);

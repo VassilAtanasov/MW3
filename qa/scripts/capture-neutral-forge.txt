@@ -1,0 +1,34 @@
+# Phase 6 FR-2 (issue #86): the human captures the shipped map's neutral forge (id 6, at
+# (0.50, 0.20)) in real play, closing the gap FR-4's own QA script had to leave unverified (no
+# forge existed on the shipped map before this feature). Tap Play, wait one production period (60
+# ticks at the level-1 village rate) so the human capital's garrison grows from its starting 10 to
+# 11, select Full (100%) on the strength control, then drag straight to the forge.
+#
+# Run with --time-scale 3: one frame here advances almost exactly one tick (TargetElapsedTime,
+# 16.667 ms, x 3 = 50.0 ms, MW3's own tick duration), so frame numbers below read close to tick
+# numbers, empirically confirmed against this build rather than assumed. The final wait is kept
+# tight (not the generous margin used elsewhere in this directory) because the AI plays uncontested
+# for the whole run and a long wait lets it capture the forge itself before this dump.
+#
+# The forge never produces (phase 6 FR-1) and stays at its starting garrison of 10, defended at
+# identity (100%, no morale, no forge bonus of its own). The capital's 11 units, at Full, exceed
+# SendWaveCalculator's 8-unit single-wave ceiling (FR-3) and split into wave 1 (8 units, launched
+# tick 86) and wave 2 (3 units, launched tick 91, WaveIntervalTicks later), resolving against the
+# forge in sequence: wave 1 (8 vs 10) is repelled, holding the forge at 10 - 8 = 2 and charging
+# Human the whole wave's 8 dead attackers (D-41: a failed attack counts every attacking unit as
+# dead, not just the shortfall) - -80 points (8 x MoraleTable.AttackingUnitDestroyedGain). Human
+# starts this run at morale 0, so - exactly like morale-capture-neutral.txt's own -10 event - that
+# charge clamps straight back to MoraleTable.PointFloor (0) rather than going negative, and wave 1's
+# loss is erased before wave 2 ever resolves. Wave 2 (3 vs the now-2 remaining) then captures,
+# remaining = 3 - 2 = 1 - Base 6's dump should read Owner=Human Garrison=1 Type=Forge - netting
+# +200 (MoraleTable.CaptureGain(Forge, level 1, wasOpponentOwned: false), charging nobody, there
+# being no previous owner) against 2 dead attackers (3 - 1), -20 points: 0 + 200 - 20 = 180. The
+# dump's Morale: line should read Human=180, Ai=0.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+70 wait
+75 down 0.033203 0.670139
+80 up 0.033203 0.670139
+90 down 0.120000 0.500000
+95 up 0.500000 0.200000
+150 wait

@@ -407,10 +407,11 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// The sum, over every enemy-owned tower whose range the <paramref name="source"/>-to-
-    /// <paramref name="target"/> segment crosses, of <see cref="TowerThreatEstimator"/>'s estimated
-    /// units lost - never the AI's own towers, since a player's armies fly through their own towers
-    /// untouched (FR-4).
+    /// The sum, over every tower whose range the <paramref name="source"/>-to-<paramref name="target"/>
+    /// segment crosses and that is not the AI's own, of <see cref="TowerThreatEstimator"/>'s estimated
+    /// units lost - a player's armies fly through their own towers untouched (FR-4). Includes an
+    /// unowned tower (FR-2, D-47): the neutral tower fires at any player's army in range, so a route
+    /// crossing it is a real threat and must not be scored as zero.
     /// </summary>
     private int TotalExpectedTowerLoss(Match match, MapPoint source, MapPoint target, double speedUnitsPerTick)
     {
@@ -420,7 +421,7 @@ public sealed class AiBrain : IPlayerBrain
         for (var i = 0; i < allBases.Count; i++)
         {
             var candidate = allBases[i];
-            if (candidate.Type != BaseType.Tower || candidate.Owner is null || candidate.Owner == Player)
+            if (candidate.Type != BaseType.Tower || candidate.Owner == Player)
             {
                 continue;
             }
