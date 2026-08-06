@@ -1,3 +1,13 @@
+# ANNOTATED at phase 6 FR-3 (issue #87). THIS SCRIPT'S SETUP NO LONGER RUNS, and FR-3 neither
+# caused that nor fixes it - see army-shrinking-early.txt's header for the full account. In short:
+# the frame-20 convert-to-tower tap went stale when phase 6 FR-1 added a second convert entry to the
+# action menu (D-43), so base 0 stays a Producer and the tower whose fire this script exists to
+# measure is never built. Already true on main at 430c999. morale-defender-gains.txt shares it.
+#
+# FR-3 did NOT move this script's numbers: its dump is byte-identical to main's once the new
+# Forges: line is excluded, at --time-scale 3 and at its own --time-scale 10. Filed as follow-up #90
+# rather than fixed here.
+#
 # Same run as army-shrinking-early.txt, waited a little further: Army 30 (Source=2, Target=0, same
 # launch/arrival ticks as the earlier dump) now shows a strictly lower Count= - the tower's fire
 # during transit is the only feedback this feature draws (no projectile, no floating damage number).

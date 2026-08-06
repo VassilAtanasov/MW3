@@ -8,7 +8,7 @@
 #     strictly positive" expectation below is simply not met - Human reads 0. This was already true
 #     on main at 430c999, before FR-3 existed (verified by running this script there). The same
 #     stale tap breaks army-shrinking-early.txt and army-shrinking-late.txt, which share the setup.
-#     Filed as a follow-up rather than fixed here: re-aiming three scripts at the new menu is FR-5's
+#     Filed as follow-up #90 rather than fixed here: re-aiming three scripts at the new menu is FR-5's
 #     territory, since FR-5 is the feature that settles what those buttons are labelled and where.
 #  2. FR-3 made the forge term live, and separately moved this run's AI-side numbers. The AI holds
 #     the map's centre forge (base 6) from early on, so from that point it attacks at ForgeTable's

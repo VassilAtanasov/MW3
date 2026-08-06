@@ -67,10 +67,10 @@ public class ForgeCompositionTests
 
         Assert.Equal(19937, index);
 
-        // The exact value, had nothing been discarded, and the direction of the loss.
-        const int exactTimesTwo = 110 * 125 * 145 / 50; // 39875 = 19937.5 * 2
-        Assert.Equal(39875, exactTimesTwo);
-        Assert.True(index * 2 < exactTimesTwo, "truncation shrinks the defender's index, never grows it");
+        // The direction of the loss, against the undiscarded value at twice the scale (39875 is
+        // 19937.5 doubled): truncation shrinks the defender's index and never grows it, which is why
+        // the bias runs toward the attacker.
+        Assert.True(index * 2 < 39875, "truncation shrinks the defender's index, never grows it");
     }
 
     /// <summary>

@@ -129,7 +129,13 @@ public class ForgeCombatTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.True(sink > 0); // keep the loop from being optimized away
-        Assert.Equal(0, allocated);
+
+        // A budget rather than an exact zero: tiered compilation can re-JIT inside the loop and
+        // charge this thread a few hundred bytes for it, which would make an exact-zero assertion
+        // flake on a CI machine under load rather than catch anything. The budget is still
+        // load-bearing by three orders of magnitude - the collection-per-call this rules out would
+        // be at least 32 bytes on each of 3000 calls, roughly 96 KB.
+        Assert.True(allocated < 4096, FormattableString.Invariant($"3000 calls allocated {allocated} bytes; expected effectively none."));
     }
 
     // ---------------------------------------------------------------- the buff
@@ -218,9 +224,19 @@ public class ForgeCombatTests
 
     /// <summary>
     /// <b>The third occurrence of the desync hazard</b> follow-up #68 closed against building defence
-    /// and phase 5 FR-2 patched against morale (D-45): what <see cref="AiBrain"/> predicts through
-    /// <see cref="CombatResolver.WouldCapture"/> must be what <see cref="Match"/> actually resolves,
+    /// and phase 5 FR-2 patched against morale (D-45): the indices composed the way
+    /// <see cref="AiBrain"/> composes them must predict what <see cref="Match"/> actually resolves,
     /// with non-zero forge counts on both sides.
+    /// <para>
+    /// This pins the <i>arithmetic</i> half of that claim only - it recomputes the indices from
+    /// <see cref="Match"/>'s accessors rather than driving <see cref="AiBrain"/>. The <i>wiring</i>
+    /// half - that each of the brain's four forge terms is actually supplied - is pinned separately
+    /// and behaviourally by <see cref="TheAttackPath_ReadsItsOwnForgeTerm"/>,
+    /// <see cref="TheAttackPath_ReadsTheDefendersForgeTerm"/>,
+    /// <see cref="TheThreatPath_ReadsTheAttackersForgeTerm"/> and
+    /// <see cref="TheThreatPath_ReadsTheDefendersForgeTerm"/>, each of which fails if its own term is
+    /// replaced by identity.
+    /// </para>
     /// <para>
     /// The two cases are chosen so that dropping the forge term flips the answer in each direction.
     /// The attacker holds 2 forges (attack index 17500) and the defender 1 (defence index 12500). At
@@ -278,6 +294,128 @@ public class ForgeCombatTests
         match.Advance(arrivalTick - match.ElapsedTicks);
 
         Assert.Equal(predicted, target.Owner == match.HumanPlayer);
+    }
+
+    /// <summary>
+    /// <see cref="AiBrain"/>'s <i>attack</i> path (clause 4) reads the AI's own forge term: a target
+    /// is winnable only because the AI holds two forges. With them it attacks; without them it sees
+    /// nothing worth attacking and its decision goes elsewhere. Fails if that term is replaced by
+    /// identity - which is the point, since an AI silently blind to its own buff would simply play a
+    /// weaker game with every gate still green.
+    /// </summary>
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(0, false)]
+    public void TheAttackPath_ReadsItsOwnForgeTerm(int aiForges, bool expectsAttack)
+    {
+        // The AI's 16 garrison gives TryAttack an unclamped half of 8. Against the neutral target's
+        // 10 that is 80000 against 100000 at identity - not winnable - and 8 x 17500 = 140000 at two
+        // forges, which is. The human capital is stocked far past anything 8 units could take, so
+        // this target is the only candidate either way, and neither the upgrade clause (garrison
+        // below cap) nor the convert clause (garrison below the conversion cost) preempts it.
+        var layout = new[]
+        {
+            new MapSlot(new MapPoint(0.10, 0.50), MapSlotKind.HumanStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.50, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.60, 0.50), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.20, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+        };
+
+        var match = new Match(layout);
+        SetGarrison(match.Bases[0], 40);
+        SetGarrison(match.Bases[1], 16);
+        SetGarrison(match.Bases[2], 10);
+        GiveForgesTo(match, match.AiPlayer, aiForges);
+
+        var decision = new AiBrain(match.AiPlayer).Decide(match);
+
+        var attacksTheTarget = decision.HasCommand && decision.IsSend && decision.Command.TargetBaseId == 2;
+        Assert.Equal(expectsAttack, attacksTheTarget);
+    }
+
+    /// <summary>
+    /// <see cref="AiBrain"/>'s attack path also reads the <i>defender's</i> forge term, so a base
+    /// made harder by its owner's forges stops being a target rather than absorbing armies the AI
+    /// predicted would take it. Fails if that term is replaced by identity.
+    /// </summary>
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(0, true)]
+    public void TheAttackPath_ReadsTheDefendersForgeTerm(int humanForges, bool expectsAttack)
+    {
+        // 8 attacking units against the human capital's 7: 80000 against 70000 at identity, which is
+        // winnable - and against 7 x 15000 = 105000 once the human holds four forges, which is not.
+        // The forges themselves are never a candidate at either count (10 garrison is already out of
+        // reach of 8 units at identity), so the capital is the only target that can move.
+        var layout = new[]
+        {
+            new MapSlot(new MapPoint(0.10, 0.50), MapSlotKind.HumanStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.20, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.60, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.70, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.80, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.90, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+        };
+
+        var match = new Match(layout);
+        SetGarrison(match.Bases[0], 7);
+        SetGarrison(match.Bases[1], 16);
+        GiveForgesTo(match, match.HumanPlayer, humanForges);
+
+        var decision = new AiBrain(match.AiPlayer).Decide(match);
+
+        var attacksTheCapital = decision.HasCommand && decision.IsSend && decision.Command.TargetBaseId == 0;
+        Assert.Equal(expectsAttack, attacksTheCapital);
+    }
+
+    /// <summary>
+    /// <see cref="AiBrain"/>'s threat path reads the <i>defender's</i> forge term - its own, here -
+    /// so a base its forges already make safe does not pull a reinforcement it does not need. Fails
+    /// if that term is replaced by identity.
+    /// </summary>
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(0, true)]
+    public void TheThreatPath_ReadsTheDefendersForgeTerm(int aiForges, bool expectsReinforcement)
+    {
+        // 8 human units in flight against the AI's 6-garrison base: 80000 against 60000 at identity
+        // captures, so the base is threatened - and against 6 x 13500 = 81000 with two AI forges it
+        // does not, so it is not. The margin is one thousandth of the defence index, which is
+        // exactly the kind of edge a dropped term flips.
+        var layout = new[]
+        {
+            new MapSlot(new MapPoint(0.10, 0.50), MapSlotKind.HumanStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.50, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.40, 0.50), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.20, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.95), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel),
+        };
+
+        var match = new Match(layout);
+        var human = match.Bases[0];
+        var threatened = match.Bases[1];
+        var reinforcer = match.Bases[2];
+
+        SetOwner(reinforcer, match.AiPlayer);
+        SetGarrison(human, 40);
+        SetGarrison(threatened, 6);
+        SetGarrison(reinforcer, 12);
+        GiveForgesTo(match, match.AiPlayer, aiForges);
+
+        // 8 units is the single-wave ceiling, so the whole send is in flight at once and the threat
+        // total is not split across a pending wave the brain cannot see yet.
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, threatened.Id, 8)));
+        Assert.Single(match.ArmiesInFlight);
+
+        var decision = new AiBrain(match.AiPlayer).Decide(match);
+
+        var reinforces = decision.HasCommand
+            && decision.IsSend
+            && decision.Command.TargetBaseId == threatened.Id
+            && decision.Command.SourceBaseId == reinforcer.Id;
+
+        Assert.Equal(expectsReinforcement, reinforces);
     }
 
     /// <summary>
