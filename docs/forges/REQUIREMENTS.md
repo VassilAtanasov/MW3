@@ -257,12 +257,66 @@ The **+200 neutral-forge value is not verifiable in real play in FR-4** — no f
 map until FR-2 — so it is proven headlessly against an injected layout, and FR-4's new QA script says
 so in its header rather than leaving `qa-verifier` to chase an impossible scenario.
 
-FR-5 (wf: `06341f0fa15b`): The player can convert a base into a forge from the action menu and can
-see how many forges they hold, so that the type is reachable and the buff is legible. Extends phase 3
-FR-5's action menu with the third type, which means the menu stops being a two-way toggle in the UI
-as well as in the command. A forge must be distinguishable at a glance from a producer and a tower on
-the MI PAD 4's ~1808x1018 viewport, and the owner's forge count must be legible somewhere, because
-the buff is global and therefore invisible at the building that grants it.
+FR-5 (wf: `06341f0fa15b`): The player can tell a forge apart from a village and a tower at a glance,
+can tell the two convert buttons apart before pressing one, and can see how many forges each side
+holds. A forge must be distinguishable on the MI PAD 4's ~1808x1018 viewport, and the owner's forge
+count must be legible somewhere, because the buff is global and therefore invisible at the building
+that grants it.
+
+**Settled at kickoff 06-08-2026 — issue [#89](https://github.com/VassilAtanasov/MW3/issues/89),
+which carries the verbatim acceptance criteria.** The feature was **renamed** at that kickoff, from
+"Convert-to-forge in the action menu, and forges drawn on both heads" to its present name, in
+Workflowy as well as here. Discovery wrote the old name on 05-08-2026, before FR-1's kickoff moved
+the third menu button forward under **D-48**; convert-to-forge is now a working command with its own
+`qa/scripts/convert-to-forge.txt`, so the old title advertised merged work as if it were pending and
+invited an implementer to re-open D-48's ground. What D-48 actually left to FR-5 is the three things
+the player *sees*, and the new name says so. Six things were decided that build mode must not
+re-open:
+
+1. **A forge draws as an upward-pointing triangle** — a third generated texture beside
+   `CreateCircleTexture`/`CreateSquareTexture`, stretched by `Rectangle` exactly as those two are, so
+   the level ring, construction ring and selection highlight all reuse it for free. A diamond was
+   rejected as too easily confused with the tower's square at a glance on an eight-base map — the two
+   types whose effects are least alike would be the two shapes hardest to tell apart. Its ring
+   thickness comes from `LevelTable.RingThicknessFractionOfRadius(Forge, …)` (0.05), never a literal
+   in `MW3.Game` (D-22). `MatchScreen.cs:459` currently special-cases only `Tower`, which is why a
+   forge draws as a producer's circle today.
+2. **The count is drawn as plain text, `Forges: <n>`, for both players**, in owner colour, mirrored
+   on phase 5's morale meters — human immediately right of the fifth bottom-left sun, AI immediately
+   left of the fifth top-right sun. This settles §7's open question in favour of the meter over
+   per-building, both being per-player globals. Four filled pips mirroring the sun ladder were
+   offered and rejected by the user in favour of the plainer readout.
+3. **The readout is not clamped at four.** FR-3's cap governs the arithmetic, not the holding, and
+   holding a fifth forge is legal play — so five forges reads `Forges: 5`. A readout showing `4`
+   while the player holds `5` would be false; the cap stays legible in `--dump-state`'s `Forges:`
+   line, which FR-3 already specifies.
+4. **It is always drawn, reading `Forges: 0` at match start**, never hidden at zero — otherwise
+   "drawn, count zero" and "not implemented" are indistinguishable, which would cost `qa-verifier`
+   the ability to check the criterion at all.
+5. **Each convert button is labelled with its target type and cost alone** — `Producer: 30`,
+   `Tower: 30`, `Forge: 30` — so no two buttons on one menu ever carry the same text, which is the
+   defect FR-1 knowingly left behind (both convert buttons read the identical `Convert: 30` today).
+   Under construction reads `<TargetType>: Building`, keeping the existing pattern in which the cost
+   slot is replaced by that word. The verb is dropped deliberately, for label width; the user
+   accepted the resulting asymmetry with `Upgrade: <cost>`, which is byte-identical to today. Button
+   order and geometry are untouched (D-48), so committed menu scripts' tap coordinates still hold.
+6. **The buff percentage is deliberately not drawn.** The readout is the count alone; the
+   percentages live in FR-3's `--dump-state` line. This is why FR-5 reads no `ForgeTable` and has no
+   code dependency on FR-3.
+
+**`--dump-state` gains nothing at FR-5**, and neither does the script vocabulary: the `Forges:` line
+is FR-3's and the `Menu:` line's `Convert:<TargetType>=<Availability>@<cost>` tokens are FR-1's, so
+every existing line stays byte-identical. The glyph, the labels and the readout are therefore
+verified by **screenshot**, and `--screenshot` captures only the *final* frame — so FR-5's new
+`qa/scripts/` file is authored to end in a single frame carrying the whole feature at once: the
+human's converted forge as an owner-tinted triangle, FR-2's neutral forge as a grey triangle,
+`Forges: 1` bottom-left and `Forges: 0` top-right, and the action menu open on the forge showing
+`Producer: 30` and `Tower: 30` as two distinguishable buttons. The neutral forge is on the board from
+tick 0, so no capture is needed to get it into frame.
+
+**FR-5 must not be built before FR-2 (#86) merges.** No forge sits on the shipped map until then, so
+the final-frame screenshot the feature is verified by cannot be produced. It carries no dependency on
+FR-3 (#87), which precedes it only in the phase's build order.
 
 FR-6 (wf: `b78d24560dd7`): The AI opponent builds, contests and defends forges, so that a human
 playing the phase meets an opponent that plays it too. Extends `AiBrain`, which already upgrades and
@@ -408,8 +462,10 @@ Three items are ordinary kickoff work with a recommendation each, not blocking q
 - ~~The exact placement and starting garrison of the two new slots~~ — **settled at FR-2's kickoff,
   06-08-2026**: (0.50, 0.20) and (0.50, 0.80), garrison 10 each, exactly as §4's Tuning values
   proposed. Settling it surfaced the geometry-invariant failure recorded at FR-2.
-- Whether the forge count is drawn beside phase 5's morale meter as a second global indicator or per
-  building (FR-5 — the meter is the better home, since both are per-player globals).
+- ~~Whether the forge count is drawn beside phase 5's morale meter as a second global indicator or
+  per building~~ — **settled at FR-5's kickoff, 06-08-2026**: beside the morale meter, as plain
+  `Forges: <n>` text in owner colour, mirrored for both players. Settling it also fixed that the
+  readout is uncapped and never hidden at zero, and that the buff percentage stays out of the HUD.
 - **Morale attribution for a neutral tower's kill** (FR-2). The existing path awards the killer's
   owner and charges the victim; an unowned tower has nobody to award, while the victim still pays.
   The recommendation is to keep exactly that — it is consistent with D-41, and it prices routing
