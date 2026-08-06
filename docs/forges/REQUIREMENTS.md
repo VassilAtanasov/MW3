@@ -393,8 +393,9 @@ tests, exactly the precedent FR-3's `forge-buff-decides-an-exchange.txt` and FR-
 **One pre-existing defect was found and deliberately left out of scope.** Clause 3 can convert the
 AI's *last* producer into a tower — `ownBases.Count >= 2` counts bases, not producers, so an AI
 holding one producer and one tower can convert away its only source of units. The forge path cannot
-reach it (decision 1), so it stays a tower-path defect predating this phase and is filed as a
-`follow-up` rather than widened into FR-6.
+reach it (decision 1), so it stays a tower-path defect predating this phase and is filed as
+follow-up [#95](https://github.com/VassilAtanasov/MW3/issues/95) rather than widened into FR-6. It
+has been reachable since phase 3 FR-7 (#55) added tower conversion.
 
 ### Tuning values
 

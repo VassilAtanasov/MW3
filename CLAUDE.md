@@ -274,11 +274,16 @@ These run without a human gate and never block or reopen a feature:
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
   board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
-  bullet. Apart from phase 6's own **#82** (FR-1), **#83** (FR-4), **#86** (FR-2) and **#87**
-  (FR-3), every open issue is `follow-up`-labelled and so is
-  never auto-built. Open as of 05-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
-  `HumanVictory`, stale since phase 5 FR-2 changed the combat formula) and **#81**
-  (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test). Two more were
+  bullet. Apart from phase 6's own **#82** (FR-1), **#83** (FR-4), **#86** (FR-2), **#87**
+  (FR-3), **#89** (FR-5) and **#93** (FR-6), every open issue is `follow-up`-labelled and so is
+  never auto-built. Open as of 07-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
+  `HumanVictory`, stale since phase 5 FR-2 changed the combat formula), **#81**
+  (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test), **#90** (three
+  `qa/scripts` convert-to-tower taps went stale when FR-1 added a second convert entry), **#91**
+  (re-derive `morale-forge-capture.txt`'s expectations against the eight-base map) and **#95**
+  (`AiBrain.TryConvert` can convert the AI's last producer into a tower — its `ownBases.Count < 2`
+  guard counts bases, not producers; found at FR-6's kickoff, pre-existing since phase 3 FR-7, and
+  explicitly out of FR-6's scope because the forge branch's ratio gate cannot reach it). Two more were
   filed earlier in the phase sequence and have since been closed: **#56** (FR-7's determinism test
   doesn't confirm the tower-aware attack branch actually fired) and **#60** (is snaking's 2,2,1
   count sequence an acceptable demo, or should tuning change?).
@@ -325,13 +330,11 @@ These run without a human gate and never block or reopen a feature:
   05-08-2026; board **23**, created at FR-1's kickoff the same day, with FR-1 as issue **#82**.
   Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
   since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
-  features on board **23**. **FR-1 (#82) and FR-4 (#83) are merged** — PRs #84 and #85 — and **FR-2
-  is issue #86**, **FR-3 is issue #87** and **FR-5 is issue #89**, all three kicked off 06-08-2026.
-  FR-2 is unblocked, since its
-  one dependency was FR-4's morale rows; **neither FR-3 nor FR-5 may be built before FR-2 merges**,
-  because FR-3's QA script captures the neutral forge FR-2 puts on the map and FR-5's single
-  final-frame screenshot must show it — `/autopilot` reads the board, not the
-  prose, so drain these in order. FR-3's kickoff settled that the **cap is proven headlessly**
+  features on board **23**, and **every one of them is now kicked off and carries an issue**.
+  **FR-1 (#82), FR-4 (#83), FR-2 (#86) and FR-3 (#87) are merged** — PRs #84, #85, #88 and #92 — so
+  a forge exists, is contested on the shipped map, moves morale, and buys its owner the published
+  global buff. **FR-5 is issue #89** (kicked off 06-08-2026) and **FR-6 is issue #93** (kicked off
+  07-08-2026); both are unblocked, FR-2 having merged. FR-3's kickoff settled that the **cap is proven headlessly**
   rather than by a `qa/scripts/` scenario (five forges in real play means five captures and 150 units
   of conversion cost), which amends `docs/forges/ARCHITECTURE.md` §2a, and fixed `--dump-state`'s one
   new line as `Forges: Human=<n> HumanAtk=<%> HumanDef=<%> Ai=<n> AiAtk=<%> AiDef=<%>`. **FR-5 was
@@ -339,7 +342,16 @@ These run without a human gate and never block or reopen a feature:
   D-48 — settled the forge as an upward-pointing **triangle** and the count as plain uncapped
   `Forges: <n>` text beside each morale meter, and adds **nothing** to `--dump-state`, so it is
   verified by a single final-frame screenshot. It reads no `ForgeTable` and so has no dependency on
-  FR-3. **FR-6 is not yet kicked off.** FR-2's kickoff found that the neutral tower's
+  FR-3. **FR-6's kickoff (07-08-2026) found the feature much narrower than discovery assumed**:
+  three of `AiBrain`'s five clauses need no change, because FR-3 already put the forge term into both
+  prediction paths, `Decide`'s existing clause order already satisfies MW2 §2.4's "convert before
+  attacking", and clause 4's morale tiebreak already prefers the neutral forge (+200) over a village
+  (+40). What is left is that the AI never *builds* a forge and never prioritises *defending* one.
+  Settled: `ForgeTable` gains **`ProducersPerForge = 4`**, deliberately kept distinct from
+  `MaxContributingForges` (equal by coincidence, different meanings); the forge converts the
+  **rear-most** base while the tower keeps the front, giving D-31's one distance rule a third reader;
+  forge conversion is tried **first** within clause 3, since a tower-first order would starve it; and
+  a threatened forge outranks any non-forge. FR-2's kickoff found that the neutral tower's
   centre-line placement breaks `LevelTableTests.Tower_EveryRange_StaysWithinTheMapsOwnGeometry` and
   that the invariant is unpreservable; the user settled on replacing it with three narrower claims
   rather than moving the slots — see `docs/forges/REQUIREMENTS.md` FR-2 for the arithmetic.
@@ -475,7 +487,7 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 | 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` (issue #87) |
 | 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` (issue #83) |
 | 5 | Forges drawn on both heads, with per-type convert labels and a count | `06341f0fa15b` (issue #89) |
-| 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` |
+| 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` (issue #93) |
 
 **The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6**, not the FR numbering above. FR-4 was
 resequenced ahead of FR-2 at its kickoff (05-08-2026): FR-2 puts a capturable forge on the shipped
