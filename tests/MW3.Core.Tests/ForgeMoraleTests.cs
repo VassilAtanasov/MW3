@@ -42,15 +42,21 @@ public class ForgeMoraleTests
 
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, forge.Id, 10)));
         var army = match.ArmiesInFlight.Single();
+
+        // Read before the arrival resolves (FR-3): both terms are live, and ownership of the forge
+        // is exactly what this capture is about to change.
+        var attackerForgePercent = match.ForgeAttackPercentFor(match.HumanPlayer);
+        var defenderForgePercent = match.ForgeDefencePercentFor(forge.Owner);
+
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
         Assert.Equal(match.HumanPlayer, forge.Owner);
 
-        // 10 attackers vs 1 defender at identity indices (100/100) captures outright, killing 0
-        // attackers (Bu=1 < Wu=10 leaves the whole wave alive) - no AttackingUnitDestroyedGain/Loss
-        // swing to net against the capture gain.
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100);
+        // 10 attackers vs 1 defender at identity indices (100/100, and a neutral forge buffs nobody
+        // - D-47) captures outright, killing 0 attackers (Bu=1 < Wu=10 leaves the whole wave alive)
+        // - no AttackingUnitDestroyedGain/Loss swing to net against the capture gain.
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), attackerForgePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100, defenderForgePercent);
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, 10, 1);
         Assert.True(result.Captured); // sanity
         var attackerDeaths = 10 - result.RemainingGarrison;
@@ -75,12 +81,19 @@ public class ForgeMoraleTests
 
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, forge.Id, 10)));
         var army = match.ArmiesInFlight.Single();
+
+        // Read before the arrival resolves (FR-3). The AI holds this forge at combat time, so its
+        // own defence term is ForgeTable's one-forge 125% - a forge defends itself.
+        var attackerForgePercent = match.ForgeAttackPercentFor(match.HumanPlayer);
+        var defenderForgePercent = match.ForgeDefencePercentFor(forge.Owner);
+        Assert.Equal(ForgeTable.DefencePercentage(1), defenderForgePercent);
+
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
         Assert.Equal(match.HumanPlayer, forge.Owner);
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100);
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), attackerForgePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100, defenderForgePercent);
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, 10, 1);
         Assert.True(result.Captured); // sanity
         var attackerDeaths = 10 - result.RemainingGarrison;
@@ -143,13 +156,17 @@ public class ForgeMoraleTests
         var arrivalTick = match.ArmiesInFlight.Single().ArrivalTick;
         SetLastOwnerChangeTick(forge, arrivalTick - 5); // well inside the grace window
 
+        // Read before the arrival resolves (FR-3): the human holds this forge at combat time.
+        var attackerForgePercent = match.ForgeAttackPercentFor(match.AiPlayer);
+        var defenderForgePercent = match.ForgeDefencePercentFor(forge.Owner);
+
         match.Advance(arrivalTick - match.ElapsedTicks);
 
         Assert.Equal(match.AiPlayer, forge.Owner); // a true retake
         Assert.Equal(LevelTable.MinLevel, forge.Level); // no level to demote in the first place
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100);
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), attackerForgePercent);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100, defenderForgePercent);
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, 10, 1);
         var attackerDeaths = 10 - result.RemainingGarrison;
         var deathSwing = attackerDeaths * MoraleTable.AttackingUnitDestroyedGain;
@@ -211,8 +228,10 @@ public class ForgeMoraleTests
         var army = match.ArmiesInFlight.Single();
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(neutral.DefencePercentage, moraleDefencePercent: 100);
+        // Neither player owns a forge here - the shipped map's own forge (base 6, FR-2) is neutral
+        // and buffs nobody (D-47) - so both terms are ForgeTable's identity.
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), ForgeTable.AttackPercentage(ForgeTable.MinForgeCount));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(neutral.DefencePercentage, moraleDefencePercent: 100, ForgeTable.DefencePercentage(ForgeTable.MinForgeCount));
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, 6, 5);
         var attackerDeaths = result.Captured ? 6 - result.RemainingGarrison : 6;
         var deathSwing = attackerDeaths * MoraleTable.AttackingUnitDestroyedGain;

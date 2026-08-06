@@ -323,8 +323,15 @@ public class SendWaveTests
 
         var columnDamage = before - aiBase.GarrisonCount;
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(startingAttackerMoralePercent);
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(LevelTable.Village.DefencePercentage(5), startingDefenderMoralePercent);
+        // Phase 6 FR-3: neither player owns a forge in this scenario, so both terms are ForgeTable's
+        // identity and the comparison below is unchanged.
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(
+            startingAttackerMoralePercent,
+            ForgeTable.AttackPercentage(ForgeTable.MinForgeCount));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(
+            LevelTable.Village.DefencePercentage(5),
+            startingDefenderMoralePercent,
+            ForgeTable.DefencePercentage(ForgeTable.MinForgeCount));
         var singleArrivalResult = CombatResolver.Resolve(attackerIndex, defenderIndex, 80, 1_000_000);
         var singleArrivalDamage = 1_000_000 - singleArrivalResult.RemainingGarrison;
 

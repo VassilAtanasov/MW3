@@ -705,6 +705,15 @@ internal sealed class MatchScreen : IScreen
         writer.WriteLine(FormattableString.Invariant(
             $"Morale: Human={_match.HumanMorale.Points} HumanLevel={_match.HumanMorale.Level} HumanAtk={MoraleTable.AttackPercentage(_match.HumanMorale.Level)} HumanDef={MoraleTable.DefencePercentage(_match.HumanMorale.Level)} Ai={_match.AiMorale.Points} AiLevel={_match.AiMorale.Level} AiAtk={MoraleTable.AttackPercentage(_match.AiMorale.Level)} AiDef={MoraleTable.DefencePercentage(_match.AiMorale.Level)}"));
 
+        // Phase 6 FR-3: count plus the two resulting percentages, the shape MW2-RULES.md §2.4 uses
+        // to express a forge holding. The percentages are read from ForgeTable here rather than
+        // recomputed, so this line can never quietly disagree with the indices combat actually
+        // composes. Written by the screen, never by MW3.Core (D-26).
+        var humanForges = _match.ForgeCountFor(_match.HumanPlayer);
+        var aiForges = _match.ForgeCountFor(_match.AiPlayer);
+        writer.WriteLine(FormattableString.Invariant(
+            $"Forges: Human={humanForges} HumanAtk={ForgeTable.AttackPercentage(humanForges)} HumanDef={ForgeTable.DefencePercentage(humanForges)} Ai={aiForges} AiAtk={ForgeTable.AttackPercentage(aiForges)} AiDef={ForgeTable.DefencePercentage(aiForges)}"));
+
         foreach (var b in _match.Bases)
         {
             var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";

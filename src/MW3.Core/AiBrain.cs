@@ -362,16 +362,20 @@ public sealed class AiBrain : IPlayerBrain
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position, speed);
                 var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
 
-                // Mechanical, not judgement (FR-2): feeding the same live morale indices Resolve
-                // would use into the shared WouldCapture predicate, so this prediction cannot
-                // silently disagree with what actually happens - the disagreement #68 was filed to
-                // close.
+                // Mechanical, not judgement (FR-2, and FR-3 for the forge term): feeding the same
+                // live morale and forge indices Resolve would use into the shared WouldCapture
+                // predicate, so this prediction cannot silently disagree with what actually happens
+                // - the disagreement #68 was filed to close, and the same hazard D-45 names for
+                // forges.
                 var attackerMoralePercent = MoraleTable.AttackPercentage(match.MoraleFor(Player).Level);
                 var defenderMoralePercent = target.Owner is Player targetOwner
                     ? MoraleTable.DefencePercentage(match.MoraleFor(targetOwner).Level)
                     : 100;
-                var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
-                var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, defenderMoralePercent);
+                var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent, match.ForgeAttackPercentFor(Player));
+                var defenderIndex = CombatResolver.ComposeDefenderIndex(
+                    target.DefencePercentage,
+                    defenderMoralePercent,
+                    match.ForgeDefencePercentFor(target.Owner));
 
                 if (!CombatResolver.WouldCapture(attackerIndex, defenderIndex, attackingUnitCount, predictedGarrison))
                 {
@@ -562,15 +566,19 @@ public sealed class AiBrain : IPlayerBrain
 
         var predictedGarrison = PredictGarrison(candidate, currentTick, earliestArrival);
 
-        // Mechanical, not judgement (FR-2): the same shared WouldCapture predicate Resolve uses,
-        // fed the attacker's (the threatening enemy's) and this base's own owner's live morale
-        // indices, so the threat prediction cannot silently disagree with what actually happens.
+        // Mechanical, not judgement (FR-2, and FR-3 for the forge term): the same shared
+        // WouldCapture predicate Resolve uses, fed the attacker's (the threatening enemy's) and this
+        // base's own owner's live morale and forge indices, so the threat prediction cannot silently
+        // disagree with what actually happens (D-45).
         var attackerMoralePercent = MoraleTable.AttackPercentage(match.MoraleFor(attacker!).Level); // attacker is set whenever threatened is true, checked above
         var defenderMoralePercent = candidate.Owner is Player candidateOwner
             ? MoraleTable.DefencePercentage(match.MoraleFor(candidateOwner).Level)
             : 100;
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(candidate.DefencePercentage, defenderMoralePercent);
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent, match.ForgeAttackPercentFor(attacker!));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(
+            candidate.DefencePercentage,
+            defenderMoralePercent,
+            match.ForgeDefencePercentFor(candidate.Owner));
         return CombatResolver.WouldCapture(attackerIndex, defenderIndex, enemyUnitTotal, predictedGarrison);
     }
 

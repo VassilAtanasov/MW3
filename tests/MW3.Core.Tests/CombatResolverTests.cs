@@ -8,16 +8,17 @@ namespace MW3.Core.Tests;
 /// </summary>
 public class CombatResolverTests
 {
-    [Fact]
-    public void ForgeContribution_IsFixedAtIdentity_UntilG6SuppliesAValue()
-    {
-        Assert.Equal(100, CombatResolver.ForgeContributionPercent);
-    }
+    // Re-authored at phase 6 FR-3 (issue #87): CombatResolver.ForgeContributionPercent is gone and
+    // both Compose methods now take a required forge percentage, so every call below states the
+    // forge term explicitly. These cases are all zero-forge, so each supplies ForgeTable's identity
+    // - the expected numbers are unchanged, which is the point.
+    private static readonly int _noForgesAttack = ForgeTable.AttackPercentage(ForgeTable.MinForgeCount);
+    private static readonly int _noForgesDefence = ForgeTable.DefencePercentage(ForgeTable.MinForgeCount);
 
     [Fact]
     public void AttackerIndex_IsTenThousand_WithIdentityMoraleAndForge()
     {
-        Assert.Equal(10000, CombatResolver.ComposeAttackerIndex(moraleAttackPercent: 100));
+        Assert.Equal(10000, CombatResolver.ComposeAttackerIndex(moraleAttackPercent: 100, _noForgesAttack));
     }
 
     [Theory]
@@ -26,18 +27,19 @@ public class CombatResolverTests
     [InlineData(200, 20000)]
     public void DefenderIndex_EqualsBaseDefencePercentTimesOneHundred_WithIdentityMoraleAndForge(int baseDefencePercent, int expectedIndex)
     {
-        Assert.Equal(expectedIndex, CombatResolver.ComposeDefenderIndex(baseDefencePercent, moraleDefencePercent: 100));
+        Assert.Equal(expectedIndex, CombatResolver.ComposeDefenderIndex(baseDefencePercent, moraleDefencePercent: 100, _noForgesDefence));
     }
 
     /// <summary>
-    /// D-40's multiplicative composition is exact at basis-point scale while forge stays at
+    /// D-40's multiplicative composition is exact at basis-point scale while the forge term is at
     /// identity: a level-2 village (110%) defended at morale 1 (125%) composes to exactly 13750,
-    /// not percent scale's floored 137 (settled at FR-2's kickoff).
+    /// not percent scale's floored 137 (settled at FR-2's kickoff). The same two terms with a
+    /// non-identity third do floor - see <c>ForgeCompositionTests</c>, which pins that case (D-46).
     /// </summary>
     [Fact]
     public void ComposeDefenderIndex_LevelTwoVillageAtMoraleOne_ComposesExactlyWithNoDivisionLoss()
     {
-        var index = CombatResolver.ComposeDefenderIndex(baseDefencePercent: 110, moraleDefencePercent: 125);
+        var index = CombatResolver.ComposeDefenderIndex(baseDefencePercent: 110, moraleDefencePercent: 125, _noForgesDefence);
 
         Assert.Equal(13750, index);
     }
@@ -50,8 +52,8 @@ public class CombatResolverTests
     [Fact]
     public void AttackAndDefenceColumns_AtMoraleThree_AreNotInterchangeable()
     {
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(3));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent: 100, MoraleTable.DefencePercentage(3));
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(3), _noForgesAttack);
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(baseDefencePercent: 100, MoraleTable.DefencePercentage(3), _noForgesDefence);
 
         Assert.Equal(11500, attackerIndex);
         Assert.Equal(17500, defenderIndex);

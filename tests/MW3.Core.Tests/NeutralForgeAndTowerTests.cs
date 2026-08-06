@@ -205,8 +205,15 @@ public class NeutralForgeAndTowerTests
         // The capture gain nets against the attacker's own dead-unit losses (D-41) - computed via
         // CombatResolver, the same single source ForgeMoraleTests' zero-forge-baseline test uses,
         // rather than hand-derived to avoid silently drifting from the resolver's own arithmetic.
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0));
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(forge.DefencePercentage, moraleDefencePercent: 100);
+        // Phase 6 FR-3: both terms are ForgeTable's identity here - the human owns no forge yet when
+        // this wave lands, and the forge it is landing on is neutral, so it buffs nobody (D-47).
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(
+            MoraleTable.AttackPercentage(0),
+            ForgeTable.AttackPercentage(ForgeTable.MinForgeCount));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(
+            forge.DefencePercentage,
+            moraleDefencePercent: 100,
+            ForgeTable.DefencePercentage(ForgeTable.MinForgeCount));
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, sentUnits, startingGarrison);
         var attackerDeaths = result.Captured ? sentUnits - result.RemainingGarrison : sentUnits;
         var expectedGain = MoraleTable.CaptureGain(BaseType.Forge, LevelTable.MinLevel, wasOpponentOwned: false)

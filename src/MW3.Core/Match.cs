@@ -1013,16 +1013,22 @@ public sealed class Match
         // attacking-unit-death swing and (on capture) who is charged the capture-loss table.
         var defenderOwnerAtCombat = target.Owner;
 
-        // The attacker's index is read live, at arrival (FR-2) - the sender's morale at the moment
-        // the wave lands, not when the send was issued. No index is stored on Army. A neutral
-        // defender (Owner is null, D-11) has no morale and composes at identity.
+        // The attacker's index is read live, at arrival (FR-2, and FR-3 for the forge term) - the
+        // sender's morale and forge holding at the moment the wave lands, not when the send was
+        // issued. Nothing about a forge locks at submission; D-39's lock is specific to unit speed,
+        // because a send's arrival tick is precomputed from it. No index is stored on Army. A
+        // neutral defender (Owner is null, D-11) has neither morale nor forges and composes both
+        // terms at identity (D-47).
         var attackerMoralePercent = MoraleTable.AttackPercentage(MoraleOf(army.Owner).Level);
         var defenderMoralePercent = defenderOwnerAtCombat is Player defenderOwnerForIndex
             ? MoraleTable.DefencePercentage(MoraleOf(defenderOwnerForIndex).Level)
             : 100;
 
-        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent);
-        var defenderIndex = CombatResolver.ComposeDefenderIndex(target.DefencePercentage, defenderMoralePercent);
+        var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent, ForgeAttackPercentFor(army.Owner));
+        var defenderIndex = CombatResolver.ComposeDefenderIndex(
+            target.DefencePercentage,
+            defenderMoralePercent,
+            ForgeDefencePercentFor(defenderOwnerAtCombat));
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, army.UnitCount, target.GarrisonCount);
 
         // Only attacking units generate morale, in both directions (D-41): Wu died on a failed
@@ -1118,6 +1124,55 @@ public sealed class Match
     /// arrival timing for both).
     /// </summary>
     public MoraleState MoraleFor(Player player) => MoraleOf(player);
+
+    /// <summary>
+    /// How many forges <paramref name="player"/> holds right now (FR-3), derived from the board on
+    /// every read rather than stored in a field (D-45). A count kept alongside ownership would be a
+    /// second source of truth needing an update at each of capture, loss, conversion-in and
+    /// conversion-out, and would silently drift the first time one of those paths was added without
+    /// it - the same hazard #68 was filed about. Deriving it makes every one of those paths correct
+    /// by construction.
+    /// <para>
+    /// Allocates nothing: an index loop over the existing list, not a LINQ query, because this is on
+    /// the per-tick combat path (REQUIREMENTS.md §5). Forges owned by nobody count for nobody
+    /// (D-47) - a neutral forge buffs neither player until it is captured.
+    /// </para>
+    /// </summary>
+    public int ForgeCountFor(Player player)
+    {
+        if (player is null)
+        {
+            throw new ArgumentNullException(nameof(player));
+        }
+
+        var count = 0;
+        for (var i = 0; i < _bases.Count; i++)
+        {
+            if (_bases[i].Type == BaseType.Forge && _bases[i].Owner == player)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// The forge attack percentage <paramref name="owner"/> composes an attack index with right now
+    /// - <see cref="ForgeTable.AttackPercentage"/> at their live count. The one place the attacker's
+    /// forge term is derived, so <see cref="ResolveArrival"/> and <see cref="AiBrain"/>'s predictions
+    /// cannot compose different ones (D-45).
+    /// </summary>
+    public int ForgeAttackPercentFor(Player owner) => ForgeTable.AttackPercentage(ForgeCountFor(owner));
+
+    /// <summary>
+    /// The forge defence percentage a base owned by <paramref name="owner"/> defends at right now. A
+    /// neutral base has no owner and therefore no forges, so it composes at
+    /// <see cref="ForgeTable.MinForgeCount"/>'s identity - the same treatment its absent morale
+    /// already gets (D-11, D-47).
+    /// </summary>
+    public int ForgeDefencePercentFor(Player? owner) =>
+        ForgeTable.DefencePercentage(owner is Player player ? ForgeCountFor(player) : ForgeTable.MinForgeCount);
 
     private MoraleState MoraleOf(Player player) => player == HumanPlayer ? _humanMorale : _aiMorale;
 
