@@ -321,6 +321,11 @@ public sealed class AiBrain : IPlayerBrain
 
         var allBases = match.Bases;
 
+        // This player's own forge term (FR-3) is the same for every source and every target it
+        // considers this decision - nothing inside the loops changes ownership - so it is derived
+        // once rather than per candidate.
+        var ownForgeAttackPercent = match.ForgeAttackPercentFor(Player);
+
         foreach (var source in sources)
         {
             var targets = new List<Base>();
@@ -371,7 +376,7 @@ public sealed class AiBrain : IPlayerBrain
                 var defenderMoralePercent = target.Owner is Player targetOwner
                     ? MoraleTable.DefencePercentage(match.MoraleFor(targetOwner).Level)
                     : 100;
-                var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent, match.ForgeAttackPercentFor(Player));
+                var attackerIndex = CombatResolver.ComposeAttackerIndex(attackerMoralePercent, ownForgeAttackPercent);
                 var defenderIndex = CombatResolver.ComposeDefenderIndex(
                     target.DefencePercentage,
                     defenderMoralePercent,
