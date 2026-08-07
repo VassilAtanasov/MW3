@@ -307,18 +307,30 @@ public class AiForgeBrainTests
     // --- Determinism and the zero-forge baseline ---
 
     /// <summary>
-    /// <b>The zero-forge baseline is bit-identical.</b> An injected six-base layout (D-44) where the
-    /// human pre-owns two of the four neutrals, capping the AI at three producers - its own start
-    /// plus at most the other two - for the entire match, however long it runs. Three divided by
+    /// <b>The zero-forge baseline is bit-identical.</b> An injected six-base layout (D-44) with only
+    /// three <see cref="BaseType.Producer"/> slots on the whole map - the human start, the AI start,
+    /// and one neutral - and three <see cref="BaseType.Tower"/> neutrals filling the rest. The AI's
+    /// producer count is capped at three by <i>type</i>, permanently, however the match plays out,
+    /// even in the limit where it captures every base on the map: <see cref="AiBrain"/> never
+    /// converts a tower into a producer (no such command exists in <c>TryConvert</c>'s vocabulary -
+    /// it only ever turns a producer into a forge or a tower), so there are simply never more than
+    /// three producer-typed bases in existence to own. Three divided by
     /// <see cref="ForgeTable.ProducersPerForge"/> (integer division) is zero, so
-    /// <c>ForgeCountFor(ai) &lt; producerCount / ProducersPerForge</c> can never hold: this is a
-    /// structural guarantee that the ratio gate never fires, not a lucky tick count that happens not
-    /// to reach it (contrast <c>ForgeCompositionTests</c>' own scenario, which the ratio gate does
-    /// reach and which was re-authored to say so). With the gate permanently closed, clause 3 always
-    /// falls through to <c>TryConvertToTower</c> - byte-for-byte the pre-FR-6 <c>TryConvert</c> body -
-    /// and clause 1's forge/non-forge split is vacuous with no forge ever on the board, reducing to
-    /// the pre-FR-6 <c>TryDefend</c> exactly. No base of either player's ever becomes a
-    /// <see cref="BaseType.Forge"/> for the life of the match.
+    /// <c>ForgeCountFor(ai) &lt; producerCount / ProducersPerForge</c> can never hold - a type-level
+    /// guarantee independent of ownership or outcome, not a lucky tick count that happens not to
+    /// reach it (contrast <c>ForgeCompositionTests</c>' own scenario, which the ratio gate does reach
+    /// and which was re-authored to say so). An earlier version of this test tried to enforce the cap
+    /// by pre-assigning two neutrals to the human instead, leaving four producer-typed bases on the
+    /// map in total (both starts plus two neutrals) - <see cref="Base.Type"/> never changed hands,
+    /// only <see cref="Base.Owner"/>, so once the passive, brainless human was eventually eliminated
+    /// the AI was free to capture all four; that it never actually reached four owned producers even
+    /// so was a coincidence of clause 3's own conversion cadence draining producer count back down,
+    /// not the structural bound this test claimed - caught in review. With the gate permanently
+    /// closed, clause 3 always falls through to <c>TryConvertToTower</c> - byte-for-byte the pre-FR-6
+    /// <c>TryConvert</c> body - and clause 1's forge/non-forge split is vacuous with no forge ever on
+    /// the board, reducing to the pre-FR-6 <c>TryDefend</c> exactly. No base of either player's ever
+    /// becomes a <see cref="BaseType.Forge"/> for the life of the match, played out to a decisive
+    /// outcome rather than cut off at an arbitrary tick.
     /// </summary>
     [Fact]
     public void ZeroForgeBaseline_WhenTheAiCanStructurallyNeverReachFourProducers_NoBaseEverBecomesAForge()
@@ -327,30 +339,27 @@ public class AiForgeBrainTests
         {
             new MapSlot(new MapPoint(0.12, 0.50), MapSlotKind.HumanStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
             new MapSlot(new MapPoint(0.88, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
-            new MapSlot(new MapPoint(0.35, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
-            new MapSlot(new MapPoint(0.35, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
-            new MapSlot(new MapPoint(0.65, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Tower, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Tower, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.65, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Tower, LevelTable.MinLevel),
             new MapSlot(new MapPoint(0.65, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
         };
 
         var match = new Match(slots);
-        var human = match.HumanPlayer;
-
-        // Pre-own two of the four neutrals for the human - the AI can reach at most its own start
-        // plus the other two, three producers total, never four.
-        SetOwner(match.Bases[2], human);
-        SetOwner(match.Bases[3], human);
-
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
-        for (var elapsed = 0L; elapsed < 5000 && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)
+        // Play to a decisive outcome, not an arbitrary cutoff: the cap is on producer count, not on
+        // ownership or elapsed time, so it must hold even once one side has taken everything.
+        var maxTicks = 200_000L;
+        for (var elapsed = 0L; elapsed < maxTicks && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)
         {
             runner.Advance(MatchRunner.DecisionIntervalTicks);
         }
 
+        Assert.NotEqual(MatchOutcome.InProgress, match.Outcome);
         Assert.DoesNotContain(match.Bases, b => b.Type == BaseType.Forge);
         Assert.Equal(0, match.ForgeCountFor(match.AiPlayer));
-        Assert.Equal(0, match.ForgeCountFor(human));
+        Assert.Equal(0, match.ForgeCountFor(match.HumanPlayer));
         Assert.True(OwnBases(match, match.AiPlayer).Count(b => b.Type == BaseType.Producer) <= 3);
     }
 
