@@ -42,15 +42,20 @@ public sealed class Match
     private int _nextArmyId;
     private int _nextSendId;
 
+    /// <summary>
+    /// Defaults to <see cref="MapCatalog.Small"/>, the regression anchor - a documented test
+    /// convenience only (FR-2). The running application never uses this constructor: every match now
+    /// comes from a map the player or <c>--map</c> chose explicitly.
+    /// </summary>
     public Match()
-        : this(MapLayout.Slots)
+        : this(MapCatalog.Small)
     {
     }
 
     /// <summary>
-    /// Builds a match from an explicit layout (D-44) rather than the shipped <see cref="MapLayout"/>.
-    /// A test can construct a layout containing a neutral forge - or any other slot combination - and
-    /// prove FR-2's rules before the shipped map itself changes. Delegates to the
+    /// Builds a match from an explicit layout (D-44) rather than a named <see cref="MapCatalog"/>
+    /// entry. A test can construct a layout containing a neutral forge - or any other slot
+    /// combination - and prove a rule before the shipped map itself changes. Delegates to the
     /// <see cref="MapDefinition"/>-taking constructor with an obstacle-free definition, so there is
     /// exactly one bases-building code path (D-44, FR-1).
     /// </summary>

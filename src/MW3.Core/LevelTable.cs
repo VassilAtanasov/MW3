@@ -159,9 +159,10 @@ public static class LevelTable
         private static readonly int[] _defencePercentages = { 140, 170, 190, 200 };
 
         // 100/110/125/140% of a level-1 anchor of 0.20 (MW2-RULES.md §2.3's published radius
-        // *ratios* applied to an MW3-chosen base, parity G-22) - normalized map units, D-2. Every
-        // value stays at or below 0.30 (the map's closest base-to-base distance) and below 0.34 (a
-        // home base to its nearest neutral), asserted against the real map in LevelTableTests.
+        // *ratios* applied to an MW3-chosen base, parity G-22) - normalized map units, D-2. No range
+        // at any level reaches a start base on any of the three shipped maps (asserted in
+        // LevelTableTests and MapCatalogTests); the closest base-to-base distance among them is
+        // Big's tower-to-forge pair at 0.18 (MapCatalogTests.Big_EachNeutralTower_CoversTheNeutralForge_AtLevelOne).
         private static readonly double[] _rangeUnits = { 0.20, 0.22, 0.25, 0.28 };
 
         // MW3's own numbers (parity G-13): MW2 never publishes tower damage or rate of fire, and

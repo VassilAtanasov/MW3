@@ -59,7 +59,7 @@ public class ForgeCombatTests
     [Fact]
     public void TheCount_TracksConversionCaptureAndLoss_WithinOneMatch()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var neutralForge = match.Bases.Single(b => b.Type == BaseType.Forge && b.Owner is null);
 
@@ -97,7 +97,7 @@ public class ForgeCombatTests
     [Fact]
     public void ANeutralForge_CountsForNobody_AndDefendsAtIdentity()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var neutralForge = match.Bases.Single(b => b.Type == BaseType.Forge && b.Owner is null);
 
         Assert.Equal(0, match.ForgeCountFor(match.HumanPlayer));
@@ -112,7 +112,7 @@ public class ForgeCombatTests
     [Fact]
     public void CountingAllocatesNothing()
     {
-        var match = new Match();
+        var match = new Match(LayoutWithForgeSlots(1));
         GiveForgesTo(match, match.HumanPlayer, 1);
 
         // Warm up so JIT-time allocation is not measured.

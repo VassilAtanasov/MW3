@@ -2,9 +2,8 @@ namespace MW3.Core;
 
 /// <summary>
 /// The fixed set of three maps a match can be built from (FR-1, D-49) - a lookup, not a registry
-/// that can be added to at runtime. Slots 0-5 are identical across all three and identical to the
-/// first six slots of <see cref="MapLayout.Slots"/>, so any test or script keyed on those six bases
-/// stays valid on every map.
+/// that can be added to at runtime. Slots 0-5 are identical across all three, so any test or script
+/// keyed on those six bases stays valid on every map.
 /// </summary>
 public static class MapCatalog
 {

@@ -30,7 +30,7 @@ public class NeutralForgeAndTowerTests
             new MapSlot(new MapPoint(0.35, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
         };
         var withoutTower = new Match(towerFreeLayout);
-        var withTower = new Match(); // the shipped layout, carrying the neutral tower from tick 0
+        var withTower = new Match(PhaseSixEightSlotFixture.Slots); // the shipped layout, carrying the neutral tower from tick 0
 
         var method = typeof(AiBrain).GetMethod("TotalExpectedTowerLoss", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 
@@ -51,7 +51,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void NeutralTower_Fires_AtAHumanArmyInRange()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var base3 = match.Bases.Single(b => b.Id == 3); // 0.158 from the neutral tower - inside level-1 range
 
@@ -68,7 +68,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void NeutralTower_Fires_AtAnAiArmyInRange()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.Bases.Single(b => b.Owner == match.AiPlayer);
         var base5 = match.Bases.Single(b => b.Id == 5); // 0.158 from the neutral tower - inside level-1 range
 
@@ -89,7 +89,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void NeutralTower_NeverFires_AtAnArmyWithNoOwner()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var base3 = match.Bases.Single(b => b.Id == 3);
 
@@ -120,7 +120,7 @@ public class NeutralForgeAndTowerTests
             new MapSlot(new MapPoint(0.88, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
         };
         var towerFree = new Match(towerFreeLayout);
-        var shipped = new Match();
+        var shipped = new Match(PhaseSixEightSlotFixture.Slots);
 
         var hasAnyOwnedTower = typeof(Match).GetMethod("HasAnyOwnedTower", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 
@@ -136,7 +136,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void NeutralTowerKill_ChargesTheVictim_AwardsNobody()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var base3 = match.Bases.Single(b => b.Id == 3);
 
@@ -154,7 +154,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void CapturedNeutralTower_AwardsItsNewOwner_OnTheSameTermsAsAConvertedTower()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var tower = NeutralTower(match);
         SetGarrison(tower, 1); // low enough to survive the tower's own self-fire during approach and still be captured
@@ -188,7 +188,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void CapturingTheNeutralForge_Awards200_ChargesNobody()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var forge = NeutralForge(match);
         SetGarrison(forge, 5); // below the 8-unit single-wave ceiling's capture threshold
@@ -234,7 +234,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void CapturingTheNeutralTower_Awards80()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var tower = NeutralTower(match);
         SetGarrison(tower, 1); // low enough to survive the tower's own self-fire during approach and still be captured
@@ -253,7 +253,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void CapturedNeutralForge_RemainsAForge()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var forge = NeutralForge(match);
         SetGarrison(forge, 5); // below the 8-unit single-wave ceiling's capture threshold
@@ -272,7 +272,7 @@ public class NeutralForgeAndTowerTests
     [Fact]
     public void CapturedNeutralTower_RemainsATower_AndFiresImmediatelyForItsNewOwner()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
         var tower = NeutralTower(match);
         SetGarrison(tower, 1); // low enough to survive the tower's own self-fire during approach and still be captured

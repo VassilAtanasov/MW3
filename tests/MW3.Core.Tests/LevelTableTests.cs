@@ -313,17 +313,19 @@ public class LevelTableTests
     }
 
     /// <summary>
-    /// Exactly bases 3 (0.35, 0.75) and 5 (0.65, 0.75) fall inside the neutral tower's level-1 range
-    /// of 0.20, at 0.158 each - both the inclusions and the exclusions are asserted, so a later
-    /// tuning change to a range or a position cannot silently alter which bases the centre is taxing
-    /// (FR-2).
+    /// Re-derived at FR-2 against <see cref="MapCatalog.Big"/>, which replaced the phase-6 shipped
+    /// board's single neutral tower with two, and moved the neutral forge to the map's centre: the
+    /// bottom neutral tower's level-1 range of 0.20 now covers three bases - its own two flank
+    /// neutrals, 3 (0.35, 0.75) and 5 (0.65, 0.75) at 0.16553 each, plus the centre forge, base 8, at
+    /// 0.18 - both the inclusions and the exclusions are asserted, so a later tuning change to a
+    /// range or a position cannot silently alter which bases it is taxing.
     /// </summary>
     [Fact]
     public void NeutralTower_LevelOneRange_CoversExactlyTheTwoBottomFlankNeutrals()
     {
-        var match = new Match();
+        var match = new Match(MapCatalog.Big);
         var bases = match.Bases;
-        var neutralTower = bases.Single(b => b.Type == BaseType.Tower && b.Owner is null);
+        var neutralTower = bases.Single(b => b.Type == BaseType.Tower && b.Position.Y > 0.5);
         var range = LevelTable.Tower.RangeUnits(LevelTable.MinLevel);
 
         var covered = new List<int>();
@@ -336,28 +338,15 @@ public class LevelTableTests
         }
 
         covered.Sort();
-        Assert.Equal(new[] { 3, 5 }, covered);
+        Assert.Equal(new[] { 3, 5, 8 }, covered);
     }
 
-    /// <summary>
-    /// A level-1 tower converted at base 2 (0.35, 0.25) or base 4 (0.65, 0.25) covers the neutral
-    /// forge slot, 0.158 away - so a forge holder can guard it with a flank tower, symmetrically for
-    /// both players (FR-2).
-    /// </summary>
-    [Fact]
-    public void LevelOneTower_AtEitherTopFlankNeutral_CoversTheNeutralForgeSlot()
-    {
-        var match = new Match();
-        var bases = match.Bases;
-        var neutralForge = bases.Single(b => b.Type == BaseType.Forge);
-        var range = LevelTable.Tower.RangeUnits(LevelTable.MinLevel);
-
-        var base2 = bases.Single(b => b.Id == 2);
-        var base4 = bases.Single(b => b.Id == 4);
-
-        Assert.True(Distance(base2.Position, neutralForge.Position) <= range);
-        Assert.True(Distance(base4.Position, neutralForge.Position) <= range);
-    }
+    // LevelOneTower_AtEitherTopFlankNeutral_CoversTheNeutralForgeSlot, phase 6's claim that a
+    // player-converted flank tower guards the neutral forge, does not survive FR-2's geometry: Big
+    // moves the forge from (0.50, 0.20) - 0.158 from a top flank neutral, inside a level-1 tower's
+    // 0.20 range - to the map's dead centre (0.50, 0.50), 0.2915 from the same flank, outside even a
+    // level-4 tower's 0.28 range. No replacement claim exists; the neutral towers Big ships instead
+    // cover the forge themselves (MapCatalogTests.Big_EachNeutralTower_CoversTheNeutralForge_AtLevelOne).
 
     private static double Distance(MapPoint a, MapPoint b)
     {

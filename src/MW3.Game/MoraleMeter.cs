@@ -15,7 +15,8 @@ namespace MW3.Game;
 /// The human meter anchors bottom-left and the AI meter top-right (matching the owner colors
 /// <see cref="MatchScreen"/> already uses), but neither literally touches its corner: both rows
 /// are inset far enough to clear <see cref="SendStrengthSelector"/>'s bottom-left button column and
-/// every base slot in <see cref="MapLayout"/>, which sit no closer than 0.12 to any edge.
+/// every base slot on every <see cref="MapCatalog"/> map, none of which sit closer than 0.12 to any
+/// edge.
 /// </summary>
 internal static class MoraleMeter
 {

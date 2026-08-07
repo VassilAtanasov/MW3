@@ -10,10 +10,14 @@ public class MatchTests
         Assert.Equal(50, Match.TickDurationMilliseconds);
     }
 
+    /// <summary>
+    /// Pinned against the phase-6 shipped board (D-49), preserved as a fixture - the parameterless
+    /// constructor now defaults to <see cref="MapCatalog.Small"/>, six bases (FR-2).
+    /// </summary>
     [Fact]
     public void Constructor_CreatesExactlyEightBasesAtTheAgreedPositions()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
 
         Assert.Equal(8, match.Bases.Count);
 
@@ -58,7 +62,7 @@ public class MatchTests
     [Fact]
     public void Constructor_HumanAndAiBasesAreOwnedWithGarrisonTen_OriginalNeutralsAreOwnerlessWithGarrisonFive_NewNeutralsWithGarrisonTen()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
 
         var humanBase = Assert.Single(match.Bases, b => b.Owner == match.HumanPlayer);
         var aiBase = Assert.Single(match.Bases, b => b.Owner == match.AiPlayer);
@@ -120,7 +124,7 @@ public class MatchTests
     // neutral base.
     public void Advance_NeutralBases_NeverProduceEvenAfterOneThousandTicks()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
 
         match.Advance(1000);
 
