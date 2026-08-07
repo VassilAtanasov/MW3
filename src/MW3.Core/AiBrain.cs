@@ -7,6 +7,12 @@ namespace MW3.Core;
 /// identical to the human's rule, so the AI can express nothing a human could not. No lookahead
 /// beyond one decision and no randomness
 /// (D-15): every clause is a fresh, deterministic read of the match as it stands right now.
+/// <para>
+/// Phase 6 FR-6 (<b>G-21</b>) adds a forge rule to clause 1 (a threatened forge outranks any
+/// non-forge) and to clause 3 (a forge is built before a tower whenever one is owed). No source
+/// describes how MW2's AI plays, so both rules - like every other heuristic in this class - are
+/// MW3's own original design, never a port of MW2's AI.
+/// </para>
 /// </summary>
 public sealed class AiBrain : IPlayerBrain
 {
@@ -63,23 +69,48 @@ public sealed class AiBrain : IPlayerBrain
     /// that can arrive before the earliest threatening army does. Yields nothing if no base is
     /// threatened, if the sole candidate already has an AI army in flight to it (no
     /// double-targeting), or if no source can arrive in time.
+    /// <para>
+    /// Phase 6 FR-6 (G-21): a threatened <see cref="BaseType.Forge"/> is selected ahead of any
+    /// threatened non-forge, whatever their ids - a forge's loss weakens its owner everywhere on
+    /// the map, not just locally, and costs <see cref="MoraleTable"/>'s forge capture-loss on top.
+    /// Among forges, and among non-forges, the lowest-id order is unchanged.
+    /// </para>
     /// </summary>
     private BrainDecision TryDefend(Match match, List<Base> ownBases)
     {
         var currentTick = match.ElapsedTicks;
 
-        Base? threatened = null;
-        var earliestArrival = 0L;
+        // ownBases is ascending by id, so the first threatened candidate found in each group (forge,
+        // non-forge) is that group's lowest id - null-coalescing below never overwrites it.
+        Base? threatenedForge = null;
+        var forgeEarliestArrival = 0L;
+        Base? threatenedOther = null;
+        var otherEarliestArrival = 0L;
 
         foreach (var candidate in ownBases)
         {
-            if (TryGetThreatenedEarliestArrival(match, candidate, currentTick, out var candidateEarliestArrival))
+            if (!TryGetThreatenedEarliestArrival(match, candidate, currentTick, out var candidateEarliestArrival))
             {
-                threatened = candidate;
-                earliestArrival = candidateEarliestArrival;
-                break;
+                continue;
+            }
+
+            if (candidate.Type == BaseType.Forge)
+            {
+                if (threatenedForge is null)
+                {
+                    threatenedForge = candidate;
+                    forgeEarliestArrival = candidateEarliestArrival;
+                }
+            }
+            else if (threatenedOther is null)
+            {
+                threatenedOther = candidate;
+                otherEarliestArrival = candidateEarliestArrival;
             }
         }
+
+        var threatened = threatenedForge ?? threatenedOther;
+        var earliestArrival = threatenedForge is not null ? forgeEarliestArrival : otherEarliestArrival;
 
         if (threatened is null || AlreadyTargetedByOwnArmy(match, threatened.Id))
         {
@@ -227,15 +258,18 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// Clause 3 (FR-7): with an owned Producer saturated past <see cref="LevelTable.ConversionCost"/>
-    /// and nothing to defend or upgrade, convert the front - the own base closest to any base it does
-    /// not own, the same distance rule <see cref="TryConsolidate"/> uses to find its front - to a
-    /// tower. Skipped when the AI owns fewer than two bases (converting its only base would remove
-    /// its sole source of new units) or when no candidate qualifies (see
-    /// <see cref="IsConvertCandidate"/>: owned, a Producer, not under construction, garrison at or
-    /// above the conversion cost, and no enemy army in flight to it - the same threatened-base guard
-    /// <see cref="IsUpgradeCandidate"/> already uses, since the cost is paid immediately while the
-    /// type change lands 100 ticks later, D-30).
+    /// Clause 3 (FR-7, phase 6 FR-6/G-21): with nothing to defend or upgrade, first checks whether a
+    /// forge is owed - <see cref="Match.ForgeCountFor"/> below <c>producerCount / ForgeTable.ProducersPerForge</c>
+    /// (integer division, MW2's own published ratio, <c>MW2-RULES.md</c> §2.4), where
+    /// <c>producerCount</c> is how many of <paramref name="ownBases"/> are still
+    /// <see cref="BaseType.Producer"/> - and if so converts the rear-most candidate to a forge via
+    /// <see cref="TryConvertToForge"/>, without ever falling through to a tower conversion on that
+    /// same decision. A forge is never owed twice for the same producers: converting one drops
+    /// <c>producerCount</c> by one and raises the forge count by one in the same command, so the same
+    /// integer division cannot immediately re-trigger (no oscillation). Only when no forge is owed
+    /// does this fall through to <see cref="TryConvertToTower"/>, unchanged since FR-7. Skipped
+    /// entirely when the AI owns fewer than two bases (converting its only base would remove its
+    /// sole source of new units).
     /// </summary>
     private BrainDecision TryConvert(Match match, List<Base> ownBases)
     {
@@ -244,6 +278,70 @@ public sealed class AiBrain : IPlayerBrain
             return BrainDecision.None;
         }
 
+        var producerCount = 0;
+        foreach (var candidate in ownBases)
+        {
+            if (candidate.Type == BaseType.Producer)
+            {
+                producerCount++;
+            }
+        }
+
+        if (match.ForgeCountFor(Player) < producerCount / ForgeTable.ProducersPerForge)
+        {
+            return TryConvertToForge(match, ownBases);
+        }
+
+        return TryConvertToTower(match, ownBases);
+    }
+
+    /// <summary>
+    /// Builds a forge at the rear-most convert candidate - the own base whose
+    /// <see cref="NearestNotOwnedDistance"/> is <b>greatest</b>, ties broken by lowest id - the same
+    /// distance rule <see cref="TryUpgrade"/> already uses for "safest" (D-31: one distance rule, now
+    /// three readers). A forge produces nothing and fires at nothing, so nothing is lost by building
+    /// it as far from any front as possible. Candidacy is <see cref="IsConvertCandidate"/>, unchanged
+    /// - which already excludes an owned <see cref="BaseType.Forge"/>, since it requires
+    /// <see cref="BaseType.Producer"/>.
+    /// </summary>
+    private BrainDecision TryConvertToForge(Match match, List<Base> ownBases)
+    {
+        Base? best = null;
+        var bestDistance = -1.0;
+
+        foreach (var candidate in ownBases)
+        {
+            if (!IsConvertCandidate(match, candidate))
+            {
+                continue;
+            }
+
+            var nearestNotOwnedDistance = NearestNotOwnedDistance(match, candidate);
+
+            // ownBases is ascending by id, so a strictly-greater distance is the only way to
+            // replace the current pick - an equal distance leaves the lower id in place.
+            if (nearestNotOwnedDistance > bestDistance)
+            {
+                best = candidate;
+                bestDistance = nearestNotOwnedDistance;
+            }
+        }
+
+        return best is null
+            ? BrainDecision.None
+            : BrainDecision.Converting(new ConvertCommand(Player, best.Id, BaseType.Forge));
+    }
+
+    /// <summary>
+    /// Converts the front - the own base closest to any base it does not own, the same distance rule
+    /// <see cref="TryConsolidate"/> uses to find its front - to a tower. Unchanged since FR-7: yields
+    /// nothing when no candidate qualifies (see <see cref="IsConvertCandidate"/>: owned, a Producer,
+    /// not under construction, garrison at or above the conversion cost, and no enemy army in flight
+    /// to it - the same threatened-base guard <see cref="IsUpgradeCandidate"/> already uses, since
+    /// the cost is paid immediately while the type change lands 100 ticks later, D-30).
+    /// </summary>
+    private BrainDecision TryConvertToTower(Match match, List<Base> ownBases)
+    {
         Base? best = null;
         var bestDistance = double.MaxValue;
 
