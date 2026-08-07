@@ -263,27 +263,32 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Forges** (`docs/forges/`, wf `3900095949a7`), discovered 05-08-2026 — see its
-  own bullet below. No board and no issues yet; `/kickoff` creates the board at the first feature.
-  A second level-2 project, **Branding** (wf `6080284b9dcc`), was seeded the same day for the IP
-  layer and is **not** discovered; it gates hero *content*, never mechanics, so it blocks neither
-  phase 6 nor 7. Phases 1–5 are all complete and merged.
+- Active project: **Maps** (`docs/maps/`, wf `3f7156d826aa`), discovered 07-08-2026 — see its own
+  bullet below. No board and no issues yet; `/kickoff` creates the board at the first feature.
+  A level-2 project, **Branding** (wf `6080284b9dcc`), was seeded 05-08-2026 for the IP
+  layer and is **not** discovered; it gates hero *content*, never mechanics, so it blocks no
+  phase. Phases 1–6 are all complete and merged.
   Phase-by-phase: **phase 1** (Welcome screen, board 18) complete, FR-4's APK artifact
   shipped as #21. **Phase 2** (Core gameplay loop, board 19) complete — #8, #9, #13, #14, #20, #24,
   #25. **Phase 3** (Base upgrades and types, board 20) complete — FR-1 #30, FR-2 #32, FR-3 #34,
   FR-3a #38, FR-3b #39, FR-3c #40, FR-4 #36 (PR #45), FR-5 #48 (PR #50), FR-6 #49 (PR #51),
   FR-7 #55, with the retrospective recorded at `423f054`. **Phase 4** (Sending armies the MW2 way,
   board 21) complete — see the next bullet. **Phase 5** (Morale, board 22) complete — see its own
-  bullet. Apart from phase 6's own **#82** (FR-1), **#83** (FR-4), **#86** (FR-2), **#87**
-  (FR-3), **#89** (FR-5) and **#93** (FR-6), every open issue is `follow-up`-labelled and so is
-  never auto-built. Open as of 07-08-2026 are **#76** (`qa/scripts/victory.txt` no longer reaches
+  bullet. **Phase 6** (Forges, board 23) complete — see its own bullet. As of 07-08-2026 **every
+  open issue is `follow-up`-labelled** and so is never auto-built; phase 7 has no issues yet.
+  Open are **#76** (`qa/scripts/victory.txt` no longer reaches
   `HumanVictory`, stale since phase 5 FR-2 changed the combat formula), **#81**
   (`AiBrain.TryAttack`'s full-equality tiebreak fallback lacks a regression test), **#90** (three
   `qa/scripts` convert-to-tower taps went stale when FR-1 added a second convert entry), **#91**
-  (re-derive `morale-forge-capture.txt`'s expectations against the eight-base map) and **#95**
+  (re-derive `morale-forge-capture.txt`'s expectations against the eight-base map — **note that phase
+  7 retires the eight-base map entirely**, so whoever takes this should re-derive against Big's nine
+  slots or Small's six, whichever the script belongs on) and **#95**
   (`AiBrain.TryConvert` can convert the AI's last producer into a tower — its `ownBases.Count < 2`
   guard counts bases, not producers; found at FR-6's kickoff, pre-existing since phase 3 FR-7, and
-  explicitly out of FR-6's scope because the forge branch's ratio gate cannot reach it). Two more were
+  explicitly out of FR-6's scope because the forge branch's ratio gate cannot reach it). **#94**
+  (reduce base shape sizes by about half on both heads) is also open and still `follow-up`-labelled,
+  but is **no longer a loose follow-up**: `/discover Maps` folded it into phase 7 as **FR-5**, so it
+  is kicked off as that feature rather than picked up on its own. Two more were
   filed earlier in the phase sequence and have since been closed: **#56** (FR-7's determinism test
   doesn't confirm the tower-aware attack branch actually fired) and **#60** (is snaking's 2,2,1
   count sequence an acceptable demo, or should tuning change?).
@@ -326,15 +331,14 @@ These run without a human gate and never block or reopen a feature:
   and invisible against a table nobody checks by eye). Energy (**G-5**), heroes (**G-4**) and Rush
   Mode (**G-16**) were deliberately held back to a phase 6: energy has no sink until abilities
   exist, so shipping it here would mean a number that accumulates and is spent on nothing.
-- **Phase 6, "Forges" (`docs/forges/`, wf `3900095949a7`) — the active project.** Discovered
-  05-08-2026; board **23**, created at FR-1's kickoff the same day, with FR-1 as issue **#82**.
-  Closes parity **G-6** and completes **G-7**, the combat formula, which has stood open
-  since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. Six
-  features on board **23**, and **every one of them is now kicked off and carries an issue**.
-  **FR-1 (#82), FR-4 (#83), FR-2 (#86) and FR-3 (#87) are merged** — PRs #84, #85, #88 and #92 — so
-  a forge exists, is contested on the shipped map, moves morale, and buys its owner the published
-  global buff. **FR-5 is issue #89** (kicked off 06-08-2026) and **FR-6 is issue #93** (kicked off
-  07-08-2026); both are unblocked, FR-2 having merged. FR-3's kickoff settled that the **cap is proven headlessly**
+- **Phase 6, "Forges" (`docs/forges/`, wf `3900095949a7`) — complete.** Discovered
+  05-08-2026, closed 07-08-2026; board **23**, created at FR-1's kickoff the same day, is fully
+  drained. Closes parity **G-6** and completes **G-7**, the combat formula, which had stood open
+  since phase 3 FR-3b built it and which phase 5 FR-2 left resting on the forge term alone. All six
+  features merged: **FR-1 (#82), FR-4 (#83), FR-2 (#86) and FR-3 (#87)** — PRs #84, #85, #88 and
+  #92 — so a forge exists, is contested on the shipped map, moves morale, and buys its owner the
+  published global buff; then **FR-5 (#89, PR #96)** drew it and **FR-6 (#93, PR #97)** taught the
+  AI to build, contest and defend one. FR-3's kickoff settled that the **cap is proven headlessly**
   rather than by a `qa/scripts/` scenario (five forges in real play means five captures and 150 units
   of conversion cost), which amends `docs/forges/ARCHITECTURE.md` §2a, and fixed `--dump-state`'s one
   new line as `Forges: Human=<n> HumanAtk=<%> HumanDef=<%> Ai=<n> AiAtk=<%> AiDef=<%>`. **FR-5 was
@@ -378,6 +382,34 @@ These run without a human gate and never block or reopen a feature:
   attacker and that is recorded rather than corrected). Watch **D-45**: the forge term must enter
   `CombatResolver.WouldCapture` on both the resolve and prediction paths — the third occurrence of
   the desync follow-up #68 closed against building defence and phase 5 patched against morale.
+- **Phase 7, "Maps" (`docs/maps/`, wf `3f7156d826aa`) — the active project.** Discovered
+  07-08-2026. No board and no issues yet; `/kickoff` creates the board at FR-1. Partly closes parity
+  **G-18**, and adds `MW2-PARITY.md`'s first **§4.1** entry. Six features, and for once the FR
+  numbering **is** the dependency order. Ships **three two-player maps** — Small (2 starts, 4
+  neutrals; bit-identical to the phases 2–5 board, which makes it the regression anchor), Medium
+  (2 starts, 6 neutrals, one central obstacle) and Big (2 starts, 4 neutrals, **2 neutral towers with
+  a forge between them** — 9 slots) — chosen from three home-screen buttons. Four things were settled
+  with the user in discovery and are binding, not build-mode calls. **Armies route around obstacles**
+  (D-55), chosen over the cheaper "refuse a blocked send" with the roughly doubled phase cost stated
+  first; it is a **deliberate divergence from MW2**, whose movement is straight-line with no
+  pathfinding (`MW2-RULES.md` §1) and whose terrain behaviour is unpublished (§10) — never describe
+  MW3's routing as a port. **Player count stays at two on every map**, which is what keeps
+  `Match.HumanPlayer`/`AiPlayer`, `MatchOutcome.HumanVictory`/`HumanDefeat` and the two `MoraleState`
+  fields untouched (~33 call sites and ~40 test files this phase does **not** refactor); PvP and 3–4
+  players stay with the Multiplayer server project. **A `--map <small|medium|big>` flag** (D-56) is
+  the phase's one new command-line flag, and it exists because all 50 committed `qa/scripts/` open by
+  tapping a Play button this phase deletes — the flag re-homes them instead of re-coordinating them,
+  on the condition that the buttons themselves are still verified by scripts that tap them. And
+  **follow-up #94 is folded in as FR-5**, sequenced after the drawing feature so the radius is
+  re-derived once against the final nine-element board. Two structural notes for build mode: `Army`
+  stores **no path** today — its position is a pure function of two base positions — so D-51 gives it
+  one, locked at submission like D-39's speed; and D-52's tie-break is a **correctness** requirement,
+  because on a symmetric map with a centred obstacle the routes above and below are *exactly* equal,
+  so the tie is guaranteed rather than merely possible. Also **D-49** (maps are C#, no file format —
+  deferred to the Campaigns project), **D-50** (obstacles are axis-aligned rectangles), **D-53**
+  (`TravelTimeCalculator` takes path length, one calculator shared by resolver and AI — the #68/D-45
+  pattern, and what makes FR-6 small) and **D-54** (obstacles block movement only). Watch the
+  compatibility break: **the shipped eight-slot map is retired**, surviving only as a test fixture.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -420,6 +452,7 @@ These run without a human gate and never block or reopen a feature:
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Forges | `3900095949a7` | `docs/forges/` | 23 | `PVT_kwHOANIl2M4BfdZf` | Status `PVTSSF_lAHOANIl2M4BfdZfzhZwJAo` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Maps | `3f7156d826aa` | `docs/maps/` | — | — | board created by `/kickoff` at FR-1 |
 | Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
@@ -487,7 +520,7 @@ Phase 6 features, in dependency order (`/kickoff` one at a time), discovered 05-
 | 3 | Forge count buffs attack and defence globally, capped at four | `8554c22a4421` (issue #87) |
 | 4 | Morale gains and losses for capturing and losing forges | `eb92138da99f` (issue #83) |
 | 5 | Forges drawn on both heads, with per-type convert labels and a count | `06341f0fa15b` (issue #89) |
-| 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` (issue #93) |
+| 6 | The AI opponent builds, contests, and defends forges | `b78d24560dd7` (issue #93, merged) |
 
 **The build order is FR-1 → FR-4 → FR-2 → FR-3 → FR-5 → FR-6**, not the FR numbering above. FR-4 was
 resequenced ahead of FR-2 at its kickoff (05-08-2026): FR-2 puts a capturable forge on the shipped
@@ -499,6 +532,23 @@ renumbered, exactly as phase 3's FR-3a/3b/3c were; `docs/forges/REQUIREMENTS.md`
 
 **FR-2 sits last in Workflowy, not second** — `append-outline` only appends and Ivan never moves a
 node, the same treatment phase 3's FR-3a/3b/3c got. This table carries the real dependency order.
+
+Phase 7 features, in dependency order (`/kickoff` one at a time), discovered 07-08-2026:
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Three named maps and obstacles as core map data | `da7ae6122744` |
+| 2 | Home screen offers three maps, plus a `--map` flag | `475b7d607239` |
+| 3 | Armies detour around obstacles on a computed path | `c4bd0f438bd1` |
+| 4 | Obstacles and detoured paths drawn on both heads | `377dd9b78a0e` |
+| 5 | Base shapes shrink by about half on both heads | `d3b78a2ca229` (folds in issue #94) |
+| 6 | The AI opponent routes and weighs threats around obstacles | `e3277c8adba6` |
+
+**This time the FR numbering is the build order** — the Workflowy order, this table and the
+dependency order all agree, unlike phases 3, 4 and 6. FR-5 is the one placement worth defending: it
+could sit anywhere after FR-1, and it goes fifth so the base radius is re-derived **once**, against
+the final board (nine elements plus a drawn obstacle), rather than before FR-4 adds a shape and again
+after. FR-6's new `qa/scripts/` files then get authored at the final size.
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it
