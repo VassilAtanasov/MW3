@@ -306,6 +306,54 @@ public class AiForgeBrainTests
 
     // --- Determinism and the zero-forge baseline ---
 
+    /// <summary>
+    /// <b>The zero-forge baseline is bit-identical.</b> An injected six-base layout (D-44) where the
+    /// human pre-owns two of the four neutrals, capping the AI at three producers - its own start
+    /// plus at most the other two - for the entire match, however long it runs. Three divided by
+    /// <see cref="ForgeTable.ProducersPerForge"/> (integer division) is zero, so
+    /// <c>ForgeCountFor(ai) &lt; producerCount / ProducersPerForge</c> can never hold: this is a
+    /// structural guarantee that the ratio gate never fires, not a lucky tick count that happens not
+    /// to reach it (contrast <c>ForgeCompositionTests</c>' own scenario, which the ratio gate does
+    /// reach and which was re-authored to say so). With the gate permanently closed, clause 3 always
+    /// falls through to <c>TryConvertToTower</c> - byte-for-byte the pre-FR-6 <c>TryConvert</c> body -
+    /// and clause 1's forge/non-forge split is vacuous with no forge ever on the board, reducing to
+    /// the pre-FR-6 <c>TryDefend</c> exactly. No base of either player's ever becomes a
+    /// <see cref="BaseType.Forge"/> for the life of the match.
+    /// </summary>
+    [Fact]
+    public void ZeroForgeBaseline_WhenTheAiCanStructurallyNeverReachFourProducers_NoBaseEverBecomesAForge()
+    {
+        var slots = new[]
+        {
+            new MapSlot(new MapPoint(0.12, 0.50), MapSlotKind.HumanStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.88, 0.50), MapSlotKind.AiStart, StartingGarrison: 10, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.35, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.65, 0.25), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+            new MapSlot(new MapPoint(0.65, 0.75), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
+        };
+
+        var match = new Match(slots);
+        var human = match.HumanPlayer;
+
+        // Pre-own two of the four neutrals for the human - the AI can reach at most its own start
+        // plus the other two, three producers total, never four.
+        SetOwner(match.Bases[2], human);
+        SetOwner(match.Bases[3], human);
+
+        var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
+
+        for (var elapsed = 0L; elapsed < 5000 && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)
+        {
+            runner.Advance(MatchRunner.DecisionIntervalTicks);
+        }
+
+        Assert.DoesNotContain(match.Bases, b => b.Type == BaseType.Forge);
+        Assert.Equal(0, match.ForgeCountFor(match.AiPlayer));
+        Assert.Equal(0, match.ForgeCountFor(human));
+        Assert.True(OwnBases(match, match.AiPlayer).Count(b => b.Type == BaseType.Producer) <= 3);
+    }
+
     [Fact]
     public void ForgeAwareDecisions_ReplayedTwice_ProduceIdenticalOutcomes()
     {
