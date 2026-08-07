@@ -50,21 +50,28 @@ public sealed class Match
     /// <summary>
     /// Builds a match from an explicit layout (D-44) rather than the shipped <see cref="MapLayout"/>.
     /// A test can construct a layout containing a neutral forge - or any other slot combination - and
-    /// prove FR-2's rules before the shipped map itself changes. The parameterless constructor
-    /// delegates here with <see cref="MapLayout.Slots"/> so there is exactly one bases-building code
-    /// path (D-44).
+    /// prove FR-2's rules before the shipped map itself changes. Delegates to the
+    /// <see cref="MapDefinition"/>-taking constructor with an obstacle-free definition, so there is
+    /// exactly one bases-building code path (D-44, FR-1).
     /// </summary>
     public Match(IReadOnlyList<MapSlot> layout)
+        : this(new MapDefinition(layout ?? throw new ArgumentNullException(nameof(layout)), Array.Empty<MapObstacle>()))
     {
-        if (layout is null)
+    }
+
+    /// <summary>
+    /// Builds a match from a named map's data (FR-1), extending D-44's injectable-layout seam so a
+    /// caller can build from <see cref="MapCatalog"/> as well as a bare slot list. This is the one
+    /// bases-building code path every other constructor delegates to.
+    /// </summary>
+    public Match(MapDefinition definition)
+    {
+        if (definition is null)
         {
-            throw new ArgumentNullException(nameof(layout));
+            throw new ArgumentNullException(nameof(definition));
         }
 
-        if (layout.Count == 0)
-        {
-            throw new ArgumentException("A match's layout must contain at least one slot.", nameof(layout));
-        }
+        var layout = definition.Slots;
 
         HumanPlayer = new Player(Id: 1, PlayerControllerKind.Human);
         AiPlayer = new Player(Id: 2, PlayerControllerKind.Ai);
@@ -82,6 +89,8 @@ public sealed class Match
 
             _bases.Add(new Base(id: i, slot.Position, slot.StartingGarrison, owner, slot.Type, slot.Level));
         }
+
+        Obstacles = definition.Obstacles;
     }
 
     public Player HumanPlayer { get; }
@@ -102,6 +111,12 @@ public sealed class Match
     public long ElapsedTicks { get; private set; }
 
     public IReadOnlyList<Base> Bases => _bases;
+
+    /// <summary>
+    /// The obstacles of the map this match was built from (FR-1). Nothing in <c>MW3.Core</c> reads
+    /// this yet - it is here for FR-3 (blocking) and FR-4 (drawing) to consume.
+    /// </summary>
+    public IReadOnlyList<MapObstacle> Obstacles { get; } = Array.Empty<MapObstacle>();
 
     /// <summary>
     /// Armies currently in flight. Read-only view over <see cref="Match"/>'s internal state; an
