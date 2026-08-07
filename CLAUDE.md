@@ -383,7 +383,19 @@ These run without a human gate and never block or reopen a feature:
   `CombatResolver.WouldCapture` on both the resolve and prediction paths — the third occurrence of
   the desync follow-up #68 closed against building defence and phase 5 patched against morale.
 - **Phase 7, "Maps" (`docs/maps/`, wf `3f7156d826aa`) — the active project.** Discovered
-  07-08-2026. No board and no issues yet; `/kickoff` creates the board at FR-1. Partly closes parity
+  07-08-2026; board **24**, created at FR-1's kickoff the same day, with FR-1 as issue **#98**.
+  **FR-1's kickoff corrected two of discovery's own layout proposals**, both caught by checking them
+  against `LevelTable.Tower.RangeUnits` — worth repeating for the maps still to be kicked off: Big's
+  towers at (0.50, 0.20)/(0.50, 0.80) sat **0.30** from a centre forge, beyond even a level-4 tower's
+  **0.28**, so they would never have guarded it (moved to y 0.32/0.68, giving 0.18); and Medium as
+  "three neutrals per flank" put a slot **0.23** from a start base, letting a level-4 tower
+  permanently shell a home base and breaking `Tower_NoRangeAtAnyLevel_ReachesEitherStartBase`.
+  The fix produced the phase's best property: **all three maps share slots 0–5**, identical to
+  today's first six, so any script or test keyed on bases 0–5 is valid on every map. FR-1 is
+  **deliberately invisible** — `MapLayout` and the default board are untouched and all 50
+  `qa/scripts/` pass unedited, so the entire compatibility break lands in FR-2 rather than leaking
+  across two features; it is therefore the rare feature that adds **no** `qa/scripts/` file, stated
+  as a decision in the issue rather than left silent. Partly closes parity
   **G-18**, and adds `MW2-PARITY.md`'s first **§4.1** entry. Six features, and for once the FR
   numbering **is** the dependency order. Ships **three two-player maps** — Small (2 starts, 4
   neutrals; bit-identical to the phases 2–5 board, which makes it the regression anchor), Medium
@@ -452,7 +464,7 @@ These run without a human gate and never block or reopen a feature:
 | Sending armies the MW2 way | `6557880e12f5` | `docs/army-sending/` | 21 | `PVT_kwHOANIl2M4Be15u` | Status `PVTSSF_lAHOANIl2M4Be15uzhZNIk0` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Forges | `3900095949a7` | `docs/forges/` | 23 | `PVT_kwHOANIl2M4BfdZf` | Status `PVTSSF_lAHOANIl2M4BfdZfzhZwJAo` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Maps | `3f7156d826aa` | `docs/maps/` | — | — | board created by `/kickoff` at FR-1 |
+| Maps | `3f7156d826aa` | `docs/maps/` | 24 | `PVT_kwHOANIl2M4BfuDq` | Status `PVTSSF_lAHOANIl2M4BfuDqzhZ--GA` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
@@ -537,7 +549,7 @@ Phase 7 features, in dependency order (`/kickoff` one at a time), discovered 07-
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Three named maps and obstacles as core map data | `da7ae6122744` |
+| 1 | Three named maps and obstacles as core map data | `da7ae6122744` (issue #98) |
 | 2 | Home screen offers three maps, plus a `--map` flag | `475b7d607239` |
 | 3 | Armies detour around obstacles on a computed path | `c4bd0f438bd1` |
 | 4 | Obstacles and detoured paths drawn on both heads | `377dd9b78a0e` |

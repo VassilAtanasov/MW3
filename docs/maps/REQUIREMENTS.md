@@ -88,12 +88,30 @@ One entry per Workflowy level-3 feature, in dependency order. Acceptance criteri
 `/kickoff <feature>` and written into the GitHub issue, which is the contract; the criteria are
 deliberately **not** duplicated here.
 
-**FR-1 (wf: `da7ae6122744`): three named maps and obstacles as core map data.**
-A `MapDefinition` — named slots plus obstacles — and a `MapCatalog` holding exactly Small, Medium and
-Big. `Match` takes a definition rather than a bare slot list, extending D-44's injectable-layout seam.
-The obstacle is **data only** here: nothing reads it for movement until FR-3, so Medium ships briefly
-with an inert obstacle that armies fly straight through. That is the same separable-regression
-ordering phases 5 and 6 used, and it is invisible because nothing draws an obstacle until FR-4.
+**FR-1 (wf: `da7ae6122744`): three named maps and obstacles as core map data.** Kicked off
+07-08-2026 as **issue #98** on board **24**, which carries the full acceptance criteria.
+A `MapDefinition` — slots plus obstacles — a `MapCatalog` holding exactly Small, Medium and Big, a
+`MapId` naming them, and `MapObstacle` as an axis-aligned rectangle. `Match` takes a definition
+rather than a bare slot list, extending D-44's injectable-layout seam. The obstacle is **data only**
+here: nothing reads it for movement until FR-3, so Medium ships briefly with an inert obstacle that
+armies fly straight through.
+
+Settled at kickoff: the feature is **deliberately invisible**. `MapLayout.Slots` and `Match`'s
+parameterless constructor are untouched, both heads still boot to today's eight-slot board, and all
+50 committed `qa/scripts/` pass unedited — the whole compatibility break stays inside FR-2 rather
+than leaking across two features. It therefore adds **no new `qa/scripts/` file**, deliberately:
+nothing it adds is reachable from the running app until FR-2 wires selection, so a new script could
+only re-prove the board the existing 50 already cover. That exception is stated in the issue so a
+later reader knows it was decided rather than forgotten.
+
+The criteria are grouped as: the types and their validation; the three maps' exact slots; **the
+geometry, asserted for all three maps** (§5); `Match` taking a definition while keeping one
+bases-building code path; and a "nothing else changes" group requiring every existing test to pass
+*unchanged* rather than edited.
+
+**All three maps share slots 0–5**, identical to today's first six — the append-don't-insert
+discipline phase 6 FR-2 established, which is what makes any script or test keyed on bases 0–5 valid
+on every map, and most of what FR-2 has to re-home.
 
 **FR-2 (wf: `475b7d607239`): the home screen offers three maps, plus a `--map` flag.**
 Three buttons replace the single `Play` button; `MatchScreen` runs the chosen map. The desktop head
@@ -127,14 +145,32 @@ deleted by name rather than left to rot.
 Settled per feature at `/kickoff` and routed through a table there, never written inline at a call
 site (D-22). This phase owes at least:
 
+**Settled at FR-1's kickoff (07-08-2026)** — all three layouts. Slots 0–5 are shared by every map and
+are today's first six, unchanged:
+
+| Slot | Position | Kind | Garrison | Type |
+|---|---|---|---|---|
+| 0 | (0.12, 0.50) | HumanStart | 10 | Producer, L1 |
+| 1 | (0.88, 0.50) | AiStart | 10 | Producer, L1 |
+| 2 | (0.35, 0.25) | Neutral | 5 | Producer, L1 |
+| 3 | (0.35, 0.75) | Neutral | 5 | Producer, L1 |
+| 4 | (0.65, 0.25) | Neutral | 5 | Producer, L1 |
+| 5 | (0.65, 0.75) | Neutral | 5 | Producer, L1 |
+
+| Map | Adds | Obstacles |
+|---|---|---|
+| **Small** | nothing — exactly slots 0–5 | none |
+| **Medium** | 6: (0.50, 0.15) and 7: (0.50, 0.85), neutral producers, garrison 5 — the gates | one: x 0.42–0.58, y 0.30–0.70 |
+| **Big** | 6: (0.50, 0.32) Tower L1, 7: (0.50, 0.68) Tower L1, 8: (0.50, 0.50) Forge — all neutral, garrison 10 | none |
+
+Medium's gates carry an ordinary neutral's 5, not 10: phase 6 reserved the doubled garrison for
+centre-line *prizes*, and a gate is a producer in a contested spot rather than a prize.
+
+Still owed:
+
 | Value | Owed by | Notes |
 |---|---|---|
-| Small's 6 slot positions and garrisons | FR-1 | Must reproduce the phases 2–5 layout exactly — this is a copy, not a redesign |
-| Medium's 8 slot positions and garrisons | FR-1 | New layout; 3 neutral producers per flank is the shape to beat |
-| Medium's obstacle rectangle | FR-1 | Centre, and large enough that flank routes are meaningfully longer |
-| Big's 9 slot positions and garrisons | FR-1 | Proposal: towers at (0.50, 0.20) and (0.50, 0.80) — today's centre-line positions — forge at (0.50, 0.50) |
-| Big's new tower and forge starting garrisons | FR-1 | Phase 6 set the centre-line prizes at 10, double an ordinary neutral's 5 |
-| Corner inset for routing nodes | FR-3 | How far outside a corner a waypoint sits, so paths do not graze the obstacle |
+| Corner inset for routing nodes | FR-3 | How far outside a corner a waypoint sits, so paths do not graze the obstacle. About 0.02 gives Medium's start-to-start detour a length of 0.912 against a straight line's 0.760 — 20% longer, 92 ticks against 76 |
 | Base radius fraction | FR-5 | Currently `0.15` of the viewport's smaller dimension; #94 says confirm, don't assume `0.075` |
 | Action-menu arc radius and step | FR-5 | Measured off the base radius, so it moves with it |
 
@@ -153,6 +189,32 @@ site (D-22). This phase owes at least:
   `MW3.Core` types, never engine geometry (D-2).
 - Small must stay a **bit-for-bit** reproduction of today's six-base behaviour. A test or script
   weakened to pass rather than re-authored is a defect — the standing rule since phase 3 FR-3a.
+
+### Geometry every shipped map must satisfy
+
+Settled at FR-1's kickoff and asserted there for **all three** maps, because two of discovery's own
+layout proposals turned out to violate them:
+
+1. **No tower range at any level reaches a start base.** Ranges are 0.20 / 0.22 / 0.25 / 0.28
+   (`LevelTable.Tower.RangeUnits`), and on every map the nearest non-start slot to a start is
+   **0.3397**. This is the one invariant phase 6 FR-2 kept when it retired its two weaker siblings,
+   and it exists so no player can park an upgraded tower that permanently shells a home base.
+   *Discovery's Medium sketch — three neutral producers per flank — violated it*: a neutral at
+   (0.35, 0.50) is 0.23 from the human start, inside a level-4 tower's 0.28.
+2. **No slot sits closer than 0.12 to any map edge.** `MoraleMeter` and `MoraleMeterTests` already
+   depend on this, but only as an observation about `MapLayout`; from FR-1 it is asserted of every
+   shipped map.
+3. **A map's own claims about coverage are asserted with the range read from `LevelTable`,** never
+   with a literal — so changing the range ladder fails a map's test rather than silently un-guarding
+   what it was meant to guard. *Discovery's Big proposal violated the spirit of this*: towers at
+   (0.50, 0.20) and (0.50, 0.80) sit 0.30 from a centre forge, beyond even a level-4 tower's 0.28, so
+   the "two towers guarding a forge" design would have shipped as two towers that never fire in its
+   defence. Corrected to y 0.32 / 0.68, giving 0.18.
+
+These bind **shipped** maps only. Test-injected layouts stay unvalidated on purpose — four existing
+test files inject deliberately extreme boards (a slot at (0.20, 0.95), starts 0.20 apart) and must
+keep working, so the constructor validates only obstacle well-formedness and the slot-inside-obstacle
+rule.
 
 ## 6. Out of scope
 
