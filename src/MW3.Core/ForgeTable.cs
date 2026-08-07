@@ -22,6 +22,15 @@ public static class ForgeTable
     /// </summary>
     public const int MaxContributingForges = 4;
 
+    /// <summary>
+    /// MW2's published rule of thumb for how many producers justify another forge
+    /// (<c>MW2-RULES.md</c> §2.4: "one forge per four unit-producing buildings"). Read by
+    /// <see cref="AiBrain"/>'s convert clause to decide whether a forge is owed right now; equal to
+    /// <see cref="MaxContributingForges"/> by coincidence only - one is a build ratio, the other a
+    /// buff cap, and neither call site names the other's literal (D-22).
+    /// </summary>
+    public const int ProducersPerForge = 4;
+
     /// <summary>The count at which the forge term is identity - no forges held, no buff.</summary>
     public const int MinForgeCount = 0;
 

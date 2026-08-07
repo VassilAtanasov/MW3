@@ -1,0 +1,30 @@
+# Phase 6 FR-6 (issue #93, G-21): tap Play, then the human issues no command at all - no other
+# down, no up - while the AI plays uninterrupted for a long time-scaled run. The AI's own clause 4
+# (TryAttack) already prices the shipped map's neutral forge (base 6) via PredictedMoraleSwing's
+# existing tiebreak (CaptureGain(Forge, level 1, false) = 200, dwarfing any neutral producer's 40),
+# so it reaches for the forge on its own without any new logic. Run with --time-scale 50 so the
+# multi-hundred-tick wait fits in a handful of scripted frames, exactly the shape ai-upgrades.txt
+# already uses for the same reason.
+#
+# --dump-state should show base 6 with Owner=Ai and Type=Forge, and the Forges: line reading Ai=1 -
+# the AI capturing and holding the map's neutral forge entirely on its own initiative.
+#
+# This feature's other two rules are NOT reachable this cheaply in real play, and are proven
+# headlessly instead (see AiForgeBrainTests.cs):
+#  - The ratio-gated conversion (clause 3, TryConvert building a Forge instead of a Tower) needs
+#    the AI to already own four producers - many minutes of uncontested play even at high
+#    time-scale, and fragile to pin exactly since which four bases it owns by then depends on
+#    contested timing. AiForgeBrainTests.TryConvert_FourProducersAndNoForges_ConvertsOneToAForge
+#    and its sibling tests pin the ratio arithmetic and the rear-most selection directly.
+#  - The forge-first defence re-order (clause 1, TryDefend) needs a threatened forge, which the AI
+#    itself does not create fast enough to also threaten in one script; the human doing so would no
+#    longer be "the AI plays uncontested" this script demonstrates.
+#    AiForgeBrainTests.TryDefend_AThreatenedForge_IsPreferredOverAThreatenedNonForge_WhateverTheirIds
+#    pins the ordering directly.
+#
+# This is the same precedent FR-3's forge-buff-decides-an-exchange.txt and FR-4's
+# morale-forge-capture.txt already set: real play proves the reachable end-to-end path, headless
+# tests prove the arithmetic that real play cannot cheaply exercise.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+90 wait

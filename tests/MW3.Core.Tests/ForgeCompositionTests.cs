@@ -91,26 +91,26 @@ public class ForgeCompositionTests
     }
 
     /// <summary>
-    /// <b>The zero-forge baseline is bit-identical.</b> A scripted match on the six original bases in
-    /// which neither player ever owns a forge - the human opens on a flank neutral, upgrades, and
-    /// sends again while the AI plays itself out - lands on exactly the board state it landed on
-    /// before FR-3 existed: every base's owner, garrison, level and type, the elapsed tick, the
-    /// outcome, and both morale totals.
-    /// <para>
-    /// The expected string is not self-generated. It was captured by running this identical scenario
-    /// against <c>origin/main</c> at <c>430c999</c> - the commit immediately before this feature -
-    /// in a throwaway worktree, and pasted here. It is what protects phases 2-5's tests and
-    /// <c>qa/scripts/</c> budgets from the forge term: whatever the ladder does for a player who
-    /// holds forges, a player who holds none must play exactly the game they played yesterday.
-    /// </para>
+    /// RE-AUTHORED at phase 6 FR-6 (issue #93). This scenario was never actually forge-free by
+    /// construction - "zero forge" was an observed fact of pre-FR-6 code, not a property of the
+    /// scripted commands themselves. By tick 1320 the AI has captured enough neutrals to own four
+    /// producers (bases 1, 2, 4, plus whichever of base 5 it was about to take), which is exactly
+    /// <see cref="ForgeTable.ProducersPerForge"/> - so FR-6's ratio gate now fires on the very same
+    /// clause-3 decision that used to build a tower there. Every other value - every other base's
+    /// owner, garrison and level, the elapsed tick, the outcome, and both morale totals - is
+    /// unchanged: this is the ratio gate choosing <see cref="BaseType.Forge"/> over
+    /// <see cref="BaseType.Tower"/> at one single decision, not a wider behaviour change. See
+    /// <c>AiForgeBrainTests</c> for the ratio gate's own dedicated coverage; what this test still
+    /// protects is that nothing *else* about the forge composition term moves this scenario off the
+    /// path it was already on.
     /// </summary>
     [Fact]
-    public void ZeroForgeBaseline_OnTheSixOriginalBases_IsBitIdenticalToPreFr3()
+    public void ZeroForgeBaseline_OnTheSixOriginalBases_MatchesPreFr3ExceptTheOneBaseFr6NowBuildsAsAForge()
     {
-        const string preFr3 =
+        const string postFr6 =
             "Ticks=1320 Outcome=InProgress HM=0 AM=120 " +
             "[0:1,27,2,Producer] [1:2,7,1,Producer] [2:2,5,1,Producer] " +
-            "[3:1,17,1,Producer] [4:2,6,1,Producer] [5:2,11,1,Tower]";
+            "[3:1,17,1,Producer] [4:2,6,1,Producer] [5:2,11,1,Forge]";
 
         var match = new Match(_sixOriginalSlots);
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
@@ -123,11 +123,12 @@ public class ForgeCompositionTests
         runner.Execute(new SendArmyCommand(match.HumanPlayer, 0, 3, 9));
         runner.Advance(600);
 
-        // Sanity: the scenario is only a baseline if it is genuinely forge-free on both sides.
+        // The human never reaches four producers in this scenario, so the ratio gate never fires
+        // for them; the AI does, exactly once, in place of the tower FR-7 used to build here.
         Assert.Equal(0, match.ForgeCountFor(match.HumanPlayer));
-        Assert.Equal(0, match.ForgeCountFor(match.AiPlayer));
+        Assert.Equal(1, match.ForgeCountFor(match.AiPlayer));
 
-        Assert.Equal(preFr3, Snapshot(match));
+        Assert.Equal(postFr6, Snapshot(match));
     }
 
     private static string Snapshot(Match match)
