@@ -3,6 +3,52 @@
 Short notes on the C#/.NET concepts each merged feature actually introduced, tied to this
 project's stack (MonoGame 3.8.5 on .NET 10). Written by `/learning-coach`, never gates a feature.
 
+## 2026-08-08 — #98 FR-1: Three named maps and obstacles as core map data
+Concepts: constructor chaining with `: this(...)`, `readonly struct` vs `sealed class` for validated value types, switch expressions with a throwing default arm, overload ambiguity with `null`
+- **Constructor chaining (`: this(...)`)** — one constructor calling another on the same type before
+  its own body runs. Why here: `Match(IReadOnlyList<MapSlot>)` now delegates to
+  `Match(MapDefinition)` (`src/MW3.Core/Match.cs:57-60`), wrapping the slot list in an obstacle-free
+  `MapDefinition` — this keeps exactly one bases-building code path (D-44) instead of duplicating the
+  loop that turns slots into `Base` instances. Pitfall: the delegated-to constructor's body runs
+  *before* any code after the `: this(...)` line in the delegating constructor, so validation order
+  matters — the null check on `layout` had to happen inline in the `: this(...)` expression itself
+  (`layout ?? throw new ArgumentNullException(...)`) rather than in the constructor body, or a null
+  layout would reach `MapDefinition`'s constructor with a less specific exception.
+- **`readonly struct` for `MapObstacle`, `sealed class` for `MapDefinition`** — both types validate
+  at construction and are immutable afterward, but one is a struct and one is a class
+  (`src/MW3.Core/MapObstacle.cs:8`, `src/MW3.Core/MapDefinition.cs:8`). Why here: an obstacle is four
+  `double`s with no distinguishable identity — cheap to copy, so a `struct` avoids allocation for
+  something a `MapDefinition` may hold several of. A `MapDefinition` holds two collections instead,
+  where copying doesn't help, so it's a `class`. Pitfall: `MapCatalog.Small`, `.Medium`, and `.Big`
+  are `static readonly MapDefinition` fields (a `class`) — reference-equal every time they're read,
+  which is what makes `MapCatalogTests.Get_ReturnsTheMatchingDefinition_ForEachId` able to use
+  `Assert.Same` rather than `Assert.Equal`. If `MapDefinition` were a struct that assertion would
+  need to change, since each read would box or copy a new value.
+- **Switch expression with a throwing default arm** — `MapCatalog.Get` (`src/MW3.Core/MapCatalog.cs:52-58`)
+  maps `MapId` to its definition with `id switch { MapId.Small => Small, ... , _ => throw new
+  ArgumentOutOfRangeException(...) }`. Why here: the acceptance criteria required the lookup to throw
+  for an out-of-range `MapId` rather than silently returning a default map — a switch expression
+  makes "every known case, then an explicit failure" a single readable statement instead of an
+  if/else chain with a trailing throw. Pitfall: `_` catches *any* unmatched value, including a valid
+  enum member you forgot to add a case for — the compiler's exhaustiveness warning only fires when
+  there's no `_` arm at all, so adding a fourth `MapId` later would compile cleanly and only fail at
+  runtime through the `_` arm, not at compile time.
+- **Overload ambiguity when both candidates are reference types** — adding `Match(MapDefinition)`
+  alongside the existing `Match(IReadOnlyList<MapSlot>)` made `new Match(null!)` in
+  `tests/MW3.Core.Tests/MapLayoutInjectionTests.cs:110` a compile error (CS0121): with a bare `null`
+  literal, the compiler has no way to prefer one reference-type overload over another, since neither
+  converts to the other. Why it matters here: this is a general C# gotcha, not specific to this
+  feature — any time a second constructor/method overload is added whose parameter is also a
+  reference type, every existing `null`-literal call site becomes ambiguous and needs an explicit
+  cast (`(IReadOnlyList<MapSlot>)null!`) to say which overload it means. Pitfall: this only surfaces
+  as a compile error, so it's easy to miss in a design review and only catch when the build breaks —
+  worth checking deliberately whenever a new overload is added to a type with existing null-checking
+  tests.
+
+Try next: add a fourth hypothetical `MapId` member without adding a `MapCatalog.Get` case for it, and
+confirm the compiler stays silent while `MapCatalogTests.MapId_HasExactlyThreeMembers` catches the
+drift at test time instead — a concrete demonstration of the switch-expression pitfall above.
+
 ## 2026-07-26 — #1 Solution skeleton with core library, tests, and desktop head that launches
 Concepts: readonly struct, tuple returns, multi-targeting (netstandard2.1 vs net10.0), IDisposable/Dispose(bool) override, xUnit Assert.Throws
 - **`readonly struct`** — a value type whose fields can't be reassigned after construction. Why
