@@ -169,6 +169,27 @@ suite out: **the buttons themselves must still be verified by scripts that tap t
 never proven only by the path no player takes. Phase 6 shipped no new flag and said so; this phase
 ships exactly one and says why.
 
+> **Amended at FR-2's kickoff (07-08-2026).** This decision claimed the flag "re-homes them instead
+> of re-coordinating them". That is half right, and the optimistic half was the important one — the
+> same failure mode phase 6's §2a hit at FR-3's kickoff, recorded here rather than left for build
+> mode to discover. The flag does remove the *coordinate* churn. It does **not** remove the
+> *expectation* churn: today's eight-slot board is retired and neither Small (6 slots) nor Big (9)
+> reproduces it, so every script whose result reflects board-wide state — the AI scripts,
+> victory/defeat, the forge and neutral-tower scripts, anything running past the AI's first decision
+> at tick 40 — has expectations that move whichever map it lands on. Those are re-derived and their
+> headers annotated, never weakened. The user was offered a QA-only fourth "legacy" map that would
+> have preserved roughly 45 scripts byte-for-byte and declined it: it would contradict FR-1's shipped
+> criterion that the catalog holds exactly three, and would leave the suite verifying a board no
+> player can select — precisely the hollowing-out this decision's own obligation guards against.
+>
+> Two mechanics follow, both settled at that kickoff. The flag **pushes the welcome screen and then
+> the match screen**, so the screen stack is identical to a real tap and a `back` still returns home
+> instead of exiting — without which `dismiss-ending.txt` could not use the flag at all. And the
+> bypass **shifts every script's timeline by exactly five frames**, since the match is pushed at
+> frame 0 where the tap pushed it at frame 5; because all 50 scripts open with the identical two
+> lines, the correction is uniform — delete them and subtract 5 from every remaining frame number —
+> and it is proved by a byte-identical dump diff against `main` rather than assumed.
+
 ## 5. Cross-cutting conventions
 
 Everything in the earlier phases' §5 sections stays in force. This phase adds:

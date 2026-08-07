@@ -395,7 +395,17 @@ These run without a human gate and never block or reopen a feature:
   **deliberately invisible** — `MapLayout` and the default board are untouched and all 50
   `qa/scripts/` pass unedited, so the entire compatibility break lands in FR-2 rather than leaking
   across two features; it is therefore the rare feature that adds **no** `qa/scripts/` file, stated
-  as a decision in the issue rather than left silent. Partly closes parity
+  as a decision in the issue rather than left silent. **FR-2's kickoff (07-08-2026, issue #99)
+  amended D-56 itself**: the `--map` flag removes the *coordinate* churn across the 50 scripts but
+  **not** the *expectation* churn, because the retired eight-slot board is reproduced by neither
+  Small (6) nor Big (9) — so every script reflecting board-wide state gets re-derived whichever map
+  it lands on. A QA-only fourth "legacy" map was offered and declined. Two mechanics were settled
+  there and bind the build: `--map` **pushes welcome then match**, so the stack matches a real tap
+  and `back` still returns home; and the bypass **shifts every timeline by exactly five frames**
+  (match pushed at frame 0 where the tap pushed it at frame 5), corrected uniformly by deleting the
+  two opening lines and subtracting 5 from every remaining frame number, proved by a byte-identical
+  dump diff against `main`. The three home-screen buttons stack from today's `y = 0.55`, so
+  **Small sits exactly where `Play` sits today**. Partly closes parity
   **G-18**, and adds `MW2-PARITY.md`'s first **§4.1** entry. Six features, and for once the FR
   numbering **is** the dependency order. Ships **three two-player maps** — Small (2 starts, 4
   neutrals; bit-identical to the phases 2–5 board, which makes it the regression anchor), Medium
@@ -550,7 +560,7 @@ Phase 7 features, in dependency order (`/kickoff` one at a time), discovered 07-
 | # | Feature | wf short id |
 |---|---|---|
 | 1 | Three named maps and obstacles as core map data | `da7ae6122744` (issue #98) |
-| 2 | Home screen offers three maps, plus a `--map` flag | `475b7d607239` |
+| 2 | Home screen offers three maps, plus a `--map` flag | `475b7d607239` (issue #99) |
 | 3 | Armies detour around obstacles on a computed path | `c4bd0f438bd1` |
 | 4 | Obstacles and detoured paths drawn on both heads | `377dd9b78a0e` |
 | 5 | Base shapes shrink by about half on both heads | `d3b78a2ca229` (folds in issue #94) |

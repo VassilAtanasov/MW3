@@ -113,11 +113,39 @@ bases-building code path; and a "nothing else changes" group requiring every exi
 discipline phase 6 FR-2 established, which is what makes any script or test keyed on bases 0–5 valid
 on every map, and most of what FR-2 has to re-home.
 
-**FR-2 (wf: `475b7d607239`): the home screen offers three maps, plus a `--map` flag.**
-Three buttons replace the single `Play` button; `MatchScreen` runs the chosen map. The desktop head
-gains `--map <small|medium|big>`, booting straight into a match. This is the phase's QA-surface
-decision (§5, D-56) and the reason the 50 existing scripts are **re-homed rather than
-re-coordinated**.
+**FR-2 (wf: `475b7d607239`): the home screen offers three maps, plus a `--map` flag.** Kicked off
+07-08-2026 as **issue #99** on board **24**, which carries the full acceptance criteria.
+Three buttons replace the single `Play` button; `MatchScreen` takes a `MapDefinition` instead of
+building its own; `MapLayout` is retired to a test fixture; the desktop head gains
+`--map <small|medium|big>` (D-56).
+
+**This is the phase's compatibility break, and it is atomic.** All 50 committed `qa/scripts/` open
+with the identical line `0 down 0.500000 0.591667` — a tap on the button this feature replaces. A
+branch that changes the home screen without migrating the suite leaves QA red, so the migration
+cannot be split out.
+
+Settled at kickoff:
+
+- **Three name-only buttons**, stacked from today's `y = 0.55 * viewportHeight` using the existing
+  240x64 reference geometry and a 24-unit gap, so **Small occupies exactly the position `Play`
+  occupies today**. Normalized centres are 0.5944 / 0.7167 / 0.8389, stable to within 0.001 at both
+  1280x720 and the MI PAD 4's ~1808x1018, and the stack fits inside both.
+- **`--map` pushes the welcome screen and then the match screen**, so the stack is identical to what
+  a real tap produces and a `back` still returns home rather than exiting. Without this,
+  `dismiss-ending.txt` — which exists to prove dismissal is a real pop — could never use the flag.
+- **Scripts are assigned by need**: a script requiring a neutral forge or tower goes to Big
+  (`capture-neutral-forge`, `forge-buff-decides-an-exchange`, `morale-forge-capture`,
+  `neutral-tower-fire`, `ai-contests-forge`); everything else goes to Small, whose slots 0–5 are
+  identical to the board it was authored against.
+- **The timeline shifts by exactly five frames** and is corrected mechanically: delete the two
+  opening tap lines and subtract 5 from every remaining frame number, because `--map` starts the
+  match at frame 0 where the tap started it at frame 5. The equivalence is **proved by a
+  byte-identical `--dump-state` diff against `main`**, not assumed — anything that fails that is
+  re-derived with an annotated header.
+- **Four scripts keep tapping real buttons** and must not use the flag: `play`, `play-then-back`,
+  `press-then-drag-off`, `back-and-forth`. Three new scripts tap each button and assert the base
+  count (6 / 8 / 9), which is D-56's own condition that selection never be verified solely by the
+  path no player takes.
 
 **FR-3 (wf: `c4bd0f438bd1`): armies detour around obstacles on a computed path.**
 Visibility-graph routing over outward-inset obstacle corners; the army carries the polyline it was
@@ -242,6 +270,14 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
   sight, not base placement.
 - **More than one obstacle shape.** Axis-aligned rectangles only (D-50). A map may hold several; they
   are all rectangles.
+- **A fourth, QA-only map.** Offered at FR-2's kickoff as a way to preserve roughly 45 scripts
+  byte-for-byte — a retired-eight-slot board reachable by `--map` but absent from the home screen —
+  and **declined by the user**. It would contradict FR-1's shipped criterion that the catalog holds
+  exactly three, and would leave the suite verifying a board no player can select.
+- **A map preview, thumbnail, or description text on the home screen.** Name-only buttons, settled
+  at FR-2's kickoff; descriptive strings about each board are content the Branding project owns.
+- **Remembering the last chosen map, or any persistence of the choice** (S-9). Every launch opens on
+  the home screen.
 - **Fog of war.** At parity today (`MW2-RULES.md` §1: neither game has it) and untouched.
 - **Domination and King of the Hill objective buildings** (**G-15**). Still a modes phase's job, and
   still not a map concern despite living on maps.
