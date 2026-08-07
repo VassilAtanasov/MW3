@@ -46,7 +46,7 @@ internal sealed class MatchScreen : IScreen
     private static readonly Color _selectionHighlightColor = Color.Gold;
     private static readonly Color _flashBrightenTarget = Color.White;
 
-    private readonly Match _match = new();
+    private readonly Match _match;
     private readonly MatchRunner _runner;
 
     private FixedStepClock _clock = new(Match.TickDurationMilliseconds);
@@ -137,8 +137,10 @@ internal sealed class MatchScreen : IScreen
     private static readonly Color _constructionRingColor = Color.Yellow;
     private const float _constructionRingThicknessFraction = 0.08f;
 
-    public MatchScreen()
+    /// <summary>Builds the match this screen draws from <paramref name="definition"/> (FR-2) - the screen no longer builds its own map.</summary>
+    public MatchScreen(MapDefinition definition)
     {
+        _match = new Match(definition);
         _runner = new MatchRunner(_match, new AiBrain(_match.AiPlayer));
     }
 

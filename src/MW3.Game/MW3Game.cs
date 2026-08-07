@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using MW3.Core;
 
 namespace MW3.Game;
 
@@ -15,6 +16,7 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
     private readonly string? _screenshotPath;
     private readonly string? _dumpStatePath;
     private readonly long _timeScale;
+    private readonly MapId? _bootMap;
     private readonly GraphicsDeviceManager _graphics;
     private readonly ScreenManager _screenManager = new();
     private readonly IInputSource _input;
@@ -22,7 +24,12 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
 
     private SpriteBatch? _spriteBatch;
 
-    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null, long timeScale = 1)
+    /// <summary>
+    /// <paramref name="bootMap"/> is <c>--map</c>'s effect (FR-2, D-56): when set, the welcome screen
+    /// is still pushed first, so the stack and a <c>back</c> from the match behave exactly as a real
+    /// tap would - but a match on that map is pushed immediately after, bypassing the button press.
+    /// </summary>
+    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null, long timeScale = 1, MapId? bootMap = null)
     {
         if (timeScale <= 0)
         {
@@ -33,6 +40,7 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         _screenshotPath = screenshotPath;
         _dumpStatePath = dumpStatePath;
         _timeScale = timeScale;
+        _bootMap = bootMap;
 
         // 1280x720 matches the reference resolution every screen's layout already scales from,
         // and is one of the two resolutions FR-3's non-clipping/non-overlap criterion is checked
@@ -90,6 +98,10 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         // (Pop and ScreenManager.Dispose both call Dispose on them).
 #pragma warning disable CA2000
         _screenManager.Push(new WelcomeScreen());
+        if (_bootMap.HasValue)
+        {
+            _screenManager.Push(new MatchScreen(MapCatalog.Get(_bootMap.Value)));
+        }
 #pragma warning restore CA2000
 
         base.LoadContent();
