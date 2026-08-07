@@ -107,7 +107,7 @@ public class MapLayoutInjectionTests
     [Fact]
     public void LayoutTakingConstructor_RejectsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new Match(null!));
+        Assert.Throws<ArgumentNullException>(() => new Match((IReadOnlyList<MapSlot>)null!));
     }
 
     [Fact]
