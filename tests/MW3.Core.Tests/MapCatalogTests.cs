@@ -311,6 +311,21 @@ public class MapCatalogTests
         Assert.Throws<ArgumentNullException>(() => new Match((MapDefinition)null!));
     }
 
+    /// <summary>FR-2: the parameterless constructor defaults to Small, the regression anchor, as a documented test convenience - the application itself always chooses a map explicitly.</summary>
+    [Fact]
+    public void ParameterlessConstructor_DefaultsToMapCatalogSmall()
+    {
+        var defaultMatch = new Match();
+        var explicitMatch = new Match(MapCatalog.Small);
+
+        Assert.Equal(explicitMatch.Bases.Count, defaultMatch.Bases.Count);
+        for (var i = 0; i < explicitMatch.Bases.Count; i++)
+        {
+            Assert.Equal(explicitMatch.Bases[i].Position, defaultMatch.Bases[i].Position);
+            Assert.Equal(explicitMatch.Bases[i].Type, defaultMatch.Bases[i].Type);
+        }
+    }
+
     [Fact]
     public void Match_FromMapCatalogSmall_IsFieldForFieldIdentical_ToMatchFromTheSharedSixSlots()
     {

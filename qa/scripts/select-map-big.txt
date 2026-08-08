@@ -1,0 +1,6 @@
+# FR-2: taps the Big button (centre of its band, y=0.838889) on the real home screen and proves it
+# starts the 9-slot board - D-56's condition that map selection is never verified only through
+# --map.
+0 down 0.500000 0.838889
+5 up 0.500000 0.838889
+10 wait

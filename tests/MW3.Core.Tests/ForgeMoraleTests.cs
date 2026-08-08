@@ -213,7 +213,8 @@ public class ForgeMoraleTests
 
     /// <summary>
     /// A match in which no forge ever exists produces today's morale numbers exactly - the
-    /// zero-forge baseline the shipped six-base map still is until FR-2.
+    /// zero-forge baseline, now literally true of <see cref="MapCatalog.Small"/> (the parameterless
+    /// constructor's default as of phase 7 FR-2), which carries no forge at all.
     /// </summary>
     [Fact]
     public void ZeroForgeBaseline_ProducesTodaysMoraleNumbersExactly()
@@ -228,8 +229,8 @@ public class ForgeMoraleTests
         var army = match.ArmiesInFlight.Single();
         match.Advance(army.ArrivalTick - match.ElapsedTicks);
 
-        // Neither player owns a forge here - the shipped map's own forge (base 6, FR-2) is neutral
-        // and buffs nobody (D-47) - so both terms are ForgeTable's identity.
+        // Neither player owns a forge here - Small has no forge slot at all - so both terms are
+        // ForgeTable's identity.
         var attackerIndex = CombatResolver.ComposeAttackerIndex(MoraleTable.AttackPercentage(0), ForgeTable.AttackPercentage(ForgeTable.MinForgeCount));
         var defenderIndex = CombatResolver.ComposeDefenderIndex(neutral.DefencePercentage, moraleDefencePercent: 100, ForgeTable.DefencePercentage(ForgeTable.MinForgeCount));
         var result = CombatResolver.Resolve(attackerIndex, defenderIndex, 6, 5);
@@ -240,20 +241,5 @@ public class ForgeMoraleTests
             : 0;
 
         Assert.Equal(MoraleTable.ClampPoints(expectedGain - deathSwing), match.HumanMorale.Points);
-    }
-
-    /// <summary>
-    /// FR-2 grows the layout to 8 slots (a neutral forge and a neutral tower, appended); this test
-    /// now only pins the first six, which stay level-1 producers unchanged. See
-    /// <c>MapLayoutInjectionTests</c> for the full 8-slot layout coverage.
-    /// </summary>
-    [Fact]
-    public void MapLayout_Slots_FirstSixStillLevelOneProducerSlots()
-    {
-        for (var i = 0; i < 6; i++)
-        {
-            Assert.Equal(BaseType.Producer, MapLayout.Slots[i].Type);
-            Assert.Equal(LevelTable.MinLevel, MapLayout.Slots[i].Level);
-        }
     }
 }

@@ -1,3 +1,36 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map big (Big, since this script needs a neutral forge or neutral tower). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 2259
+#   Outcome: InProgress
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=0 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=1 HumanAtk=150 HumanDef=125 Ai=0 AiAtk=100 AiDef=100
+#   Base 0: Owner=Human Garrison=11 Level=1 Cap=none Building=none Type=Forge
+#   Base 1: Owner=Ai Garrison=0 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Neutral Garrison=0 Level=1 Cap=20 Building=none Type=Producer
+#   Base 3: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Ai Garrison=10 Level=2 Cap=40 Building=none Type=Producer
+#   Base 5: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 6: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 7: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 8: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Forge
+#   Army 41: Owner=Ai Source=1 Target=4 Count=1 Launch=2240 Arrival=2274 Send=40 Wave=1/1
+#   Menu: none
+#   Strength: 50
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # RE-AUTHORED at phase 6 FR-3 (issue #87). Two things moved this file's numbers, and neither is a
 # defect in it:
 #
@@ -82,14 +115,12 @@
 # AiDef=100 - Ai's level stays 0 throughout (290 is well under the 500-point level-1 threshold), the
 # same reason both sides' Atk/Def percentages never move off identity. Base 0: Owner=Ai Garrison=3
 # Level=1 Type=Forge. Outcome: HumanDefeat.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.120000 0.500000
-15 up 0.120000 0.500000
-20 down 0.328906 0.416667
-25 up 0.328906 0.416667
-320 down 0.120000 0.500000
-325 up 0.120000 0.500000
-330 down 0.075781 0.416667
-335 up 0.075781 0.416667
-700 wait
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 down 0.328906 0.416667
+20 up 0.328906 0.416667
+315 down 0.120000 0.500000
+320 up 0.120000 0.500000
+325 down 0.075781 0.416667
+330 up 0.075781 0.416667
+695 wait

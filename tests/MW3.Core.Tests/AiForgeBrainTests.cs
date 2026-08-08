@@ -130,7 +130,7 @@ public class AiForgeBrainTests
     [Fact]
     public void TryConvert_CapturedForgesCountTowardTheRatio_HoldingOneForgeAndFourProducersDoesNotBuildASecond()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.AiPlayer;
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var forge = match.Bases[6];
@@ -205,7 +205,7 @@ public class AiForgeBrainTests
     [Fact]
     public void IsConvertCandidate_AnOwnedForge_IsNeverACandidate_EvenAtHighGarrison()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.AiPlayer;
         var forge = match.Bases[6];
         SetOwner(forge, ai);
@@ -221,7 +221,7 @@ public class AiForgeBrainTests
     [Fact]
     public void TryDefend_AThreatenedForge_IsPreferredOverAThreatenedNonForge_WhateverTheirIds()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.AiPlayer;
         var human = match.HumanPlayer;
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
@@ -284,7 +284,7 @@ public class AiForgeBrainTests
     [Fact]
     public void TryAttack_TiedOnExpectedTowerLoss_NeutralForgeVersusNeutralProducer_PrefersTheForge()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.AiPlayer;
         var aiBase = match.Bases.Single(b => b.Owner == ai);
         var forge = match.Bases[6];

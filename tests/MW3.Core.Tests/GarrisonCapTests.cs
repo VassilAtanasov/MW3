@@ -53,7 +53,7 @@ public class GarrisonCapTests
     [Fact]
     public void NeutralBases_NeverProduce_EvenAfterOneThousandTicks()
     {
-        var match = new Match();
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
 
         match.Advance(1000);
 

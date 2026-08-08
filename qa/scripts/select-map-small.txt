@@ -1,0 +1,7 @@
+# FR-2: taps the Small button on the real home screen and proves it starts the 6-slot board -
+# D-56's condition that map selection is never verified only through --map, the path no player
+# takes. Compare this script's --dump-state output (6 Base lines) against map-flag-medium.txt's
+# (8 Base lines) and select-map-big.txt's (9) to see all three selection paths exercised.
+0 down 0.500000 0.591667
+5 up 0.500000 0.591667
+10 wait

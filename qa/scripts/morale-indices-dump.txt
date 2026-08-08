@@ -1,3 +1,8 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # FR-2: proves the Morale: dump line's four new fields (HumanAtk, HumanDef, AiAtk, AiDef) are
 # present and consistent with each player's level, even while morale realistically sits at level 0
 # through a short script (a fully upgraded village is +450 and morale 1 needs 500 - see
@@ -8,10 +13,8 @@
 # AiDef=100 - both players at morale 0, so every ladder percentage (MoraleTable.AttackPercentage(0),
 # MoraleTable.DefencePercentage(0)) is exactly identity (100), appended after the existing four
 # fields in the same name/order/meaning FR-1 shipped (Human=, HumanLevel=, Ai=, AiLevel=).
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.033203 0.670139
-15 up 0.033203 0.670139
-20 down 0.120000 0.500000
-25 up 0.350000 0.250000
-30 wait
+5 down 0.033203 0.670139
+10 up 0.033203 0.670139
+15 down 0.120000 0.500000
+20 up 0.350000 0.250000
+25 wait

@@ -228,7 +228,9 @@ public class AiBrainTests
     [Fact]
     public void TryUpgrade_TiedDistance_BreaksTowardsTheLowerId()
     {
-        var match = new Match();
+        // Needs the phase-6 shipped board's forge and tower (ids 6, 7) as the near-tie distractor
+        // the comment below removes - FR-2's default (MapCatalog.Small) carries neither.
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var ai = match.AiPlayer;
         var aiBase = match.Bases.Single(b => b.Owner == ai); // id 1
         var neutral4 = match.Bases[4];

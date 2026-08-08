@@ -100,7 +100,10 @@ public class MatchRunnerTests
     [Fact]
     public void AiInvestsItsSurplus_ReachingLevelThreeOrBuildingATower_OverALongMatch()
     {
-        var match = new Match();
+        // The phase-6 shipped board's extra forge/tower slots (fixture) give the AI enough
+        // opportunity to reach this outcome within the tick budget; FR-2's default (MapCatalog.Small,
+        // six bases) does not reliably, and the running application never uses the default anyway.
+        var match = new Match(PhaseSixEightSlotFixture.Slots);
         var runner = new MatchRunner(match, new AiBrain(match.AiPlayer));
 
         for (var elapsed = 0L; elapsed < 20_000 && match.Outcome == MatchOutcome.InProgress; elapsed += MatchRunner.DecisionIntervalTicks)

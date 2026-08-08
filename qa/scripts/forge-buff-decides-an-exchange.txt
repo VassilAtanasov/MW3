@@ -1,3 +1,36 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map big (Big, since this script needs a neutral forge or neutral tower). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 927
+#   Outcome: InProgress
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=90 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=0 HumanAtk=100 HumanDef=100 Ai=0 AiAtk=100 AiDef=100
+#   Base 0: Owner=Human Garrison=14 Level=1 Cap=20 Building=none Type=Producer
+#   Base 1: Owner=Ai Garrison=0 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Human Garrison=1 Level=1 Cap=20 Building=none Type=Producer
+#   Base 3: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Ai Garrison=3 Level=1 Cap=20 Building=none Type=Producer
+#   Base 5: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 6: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 7: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 8: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Forge
+#   Army 18: Owner=Ai Source=1 Target=4 Count=1 Launch=920 Arrival=954 Send=16 Wave=1/1
+#   Menu: none
+#   Strength: 100
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # Phase 6 FR-3 (issue #87): the human captures the shipped map's neutral forge and then wins, with
 # the forge's +50% attack and nothing else, an exchange that would have been repelled without it.
 # Run with --time-scale 3 (one frame advances almost exactly one tick, 16.667 ms x 3 = 50.0 ms;
@@ -48,17 +81,15 @@
 # 100 x 100 x 125 (ForgeTable's one-forge defence row) / 100 = 12500 x 3 = 37500, so that attack is
 # repelled too and the forge is left holding 3 - floor(30000 / 12500) = 1. The human also loses
 # base 2, emptied by move 3, to the AI - expected, and irrelevant to the claim above.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-70 wait
-75 down 0.033203 0.670139
-80 up 0.033203 0.670139
-90 down 0.120000 0.500000
-95 up 0.350000 0.250000
-600 wait
-605 down 0.350000 0.250000
-610 up 0.500000 0.200000
-890 wait
-895 down 0.350000 0.250000
-900 up 0.650000 0.250000
-960 wait
+65 wait
+70 down 0.033203 0.670139
+75 up 0.033203 0.670139
+85 down 0.120000 0.500000
+90 up 0.350000 0.250000
+595 wait
+600 down 0.350000 0.250000
+605 up 0.500000 0.200000
+885 wait
+890 down 0.350000 0.250000
+895 up 0.650000 0.250000
+955 wait

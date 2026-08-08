@@ -1,9 +1,12 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # Tap Play, open the human base's action menu (still level 1, starting garrison 10 - below the
 # 30-unit conversion cost), press and release its Convert: Tower button (greyed) - submits nothing
 # and leaves the menu open (FR-5). Button coordinate re-authored for the three-button menu (D-48).
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.120000 0.500000
-15 up 0.120000 0.500000
-20 down 0.202344 0.259722
-25 up 0.202344 0.259722
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 down 0.202344 0.259722
+20 up 0.202344 0.259722

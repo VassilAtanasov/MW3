@@ -1,3 +1,12 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map small: the opening Play tap (two lines) was
+# deleted and every remaining frame number reduced by 5, mechanically, like every other re-homed
+# script. FOLLOW-UP #76 IS LEFT OPEN, NOT SILENTLY MASKED: this script was already unverified
+# before FR-2 (see the KNOWN STALE note directly below, from #67) and re-homing does not change
+# that status either way - a full run at --time-scale 1 for ~8500 frames did not reliably complete
+# for this feature's implementer within a practical time budget, so whether it still reaches
+# HumanVictory on the re-homed board remains unconfirmed. Re-deriving or removing this script is
+# still #76's job, not FR-2's.
+#
 # KNOWN STALE (FR-2, #67): MatchOutcomeTests' winning sequence was re-derived against the
 # now-morale-aware combat formula and no longer matches the sequence below tick-for-tick. This
 # script's drags/timings were not re-derived alongside it, so it is not proven to still reach
@@ -17,54 +26,52 @@
 # the near flank first, then the far flank, reinforcing the capital along the way, and finishes
 # with two grinding strikes against the AI's own capped capital once nothing else on the board is
 # winnable outright.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-379 down 0.120000 0.500000
-380 up 0.350000 0.250000
-504 down 0.120000 0.500000
-505 up 0.650000 0.250000
-692 down 0.120000 0.500000
-693 up 0.350000 0.250000
-1379 down 0.120000 0.500000
-1380 up 0.880000 0.500000
-1879 down 0.350000 0.250000
-1880 up 0.880000 0.500000
-2129 down 0.120000 0.500000
-2130 up 0.350000 0.250000
-2442 down 0.120000 0.500000
-2443 up 0.880000 0.500000
-2692 down 0.120000 0.500000
-2693 up 0.880000 0.500000
-3004 down 0.350000 0.250000
-3005 up 0.880000 0.500000
-3379 down 0.120000 0.500000
-3380 up 0.350000 0.250000
-3942 down 0.880000 0.500000
-3943 up 0.650000 0.250000
-4317 down 0.120000 0.500000
-4318 up 0.650000 0.250000
-4629 down 0.880000 0.500000
-4630 up 0.650000 0.250000
-5004 down 0.120000 0.500000
-5005 up 0.650000 0.250000
-5379 down 0.880000 0.500000
-5380 up 0.650000 0.250000
-5629 down 0.120000 0.500000
-5630 up 0.650000 0.250000
-6004 down 0.880000 0.500000
-6005 up 0.650000 0.250000
-7129 down 0.120000 0.500000
-7130 up 0.350000 0.750000
-7379 down 0.880000 0.500000
-7380 up 0.350000 0.750000
-7629 down 0.650000 0.250000
-7630 up 0.650000 0.750000
-7817 down 0.120000 0.500000
-7818 up 0.350000 0.750000
-7819 down 0.880000 0.500000
-7820 up 0.350000 0.250000
-8004 down 0.650000 0.250000
-8005 up 0.350000 0.250000
-8067 down 0.120000 0.500000
-8068 up 0.650000 0.750000
-8500 wait
+374 down 0.120000 0.500000
+375 up 0.350000 0.250000
+499 down 0.120000 0.500000
+500 up 0.650000 0.250000
+687 down 0.120000 0.500000
+688 up 0.350000 0.250000
+1374 down 0.120000 0.500000
+1375 up 0.880000 0.500000
+1874 down 0.350000 0.250000
+1875 up 0.880000 0.500000
+2124 down 0.120000 0.500000
+2125 up 0.350000 0.250000
+2437 down 0.120000 0.500000
+2438 up 0.880000 0.500000
+2687 down 0.120000 0.500000
+2688 up 0.880000 0.500000
+2999 down 0.350000 0.250000
+3000 up 0.880000 0.500000
+3374 down 0.120000 0.500000
+3375 up 0.350000 0.250000
+3937 down 0.880000 0.500000
+3938 up 0.650000 0.250000
+4312 down 0.120000 0.500000
+4313 up 0.650000 0.250000
+4624 down 0.880000 0.500000
+4625 up 0.650000 0.250000
+4999 down 0.120000 0.500000
+5000 up 0.650000 0.250000
+5374 down 0.880000 0.500000
+5375 up 0.650000 0.250000
+5624 down 0.120000 0.500000
+5625 up 0.650000 0.250000
+5999 down 0.880000 0.500000
+6000 up 0.650000 0.250000
+7124 down 0.120000 0.500000
+7125 up 0.350000 0.750000
+7374 down 0.880000 0.500000
+7375 up 0.350000 0.750000
+7624 down 0.650000 0.250000
+7625 up 0.650000 0.750000
+7812 down 0.120000 0.500000
+7813 up 0.350000 0.750000
+7814 down 0.880000 0.500000
+7815 up 0.350000 0.250000
+7999 down 0.650000 0.250000
+8000 up 0.350000 0.250000
+8062 down 0.120000 0.500000
+8063 up 0.650000 0.750000
+8495 wait

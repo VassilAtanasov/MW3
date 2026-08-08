@@ -1,8 +1,11 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # Tap Play, hold long enough for the human base to grow past twice the neutral's garrison, then
 # drag from it to the nearest neutral and hold long enough (~17 ticks) for the army to land and
 # capture it.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-200 down 0.120000 0.500000
-205 up 0.350000 0.250000
-400 wait
+195 down 0.120000 0.500000
+200 up 0.350000 0.250000
+395 wait

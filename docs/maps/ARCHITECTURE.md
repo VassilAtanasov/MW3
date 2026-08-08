@@ -48,24 +48,41 @@ everything there applies verbatim, including the repo-wide `-m:1` build rule and
 
 **This phase changes how a match is reached**, which is the first change to that path since phase 2:
 
-- The home screen shows **three buttons** — Small, Medium, Big — in place of the single `Play`
-  button. There is no longer a default map.
-- The desktop head accepts **`--map <small|medium|big>`**, which boots directly into a match on that
-  map, bypassing the home screen entirely. This is the phase's one new command-line flag, and the
-  reason for it is D-56.
-- Every committed `qa/scripts/` file therefore names a map. Scripts that verify home-screen
-  *selection itself* must not use the flag — they tap a button like a player does.
+- The home screen shows **three buttons** — Small, Medium, Big — stacked from `y = 0.55 *
+  viewportHeight` (Small occupies exactly the position `Play` occupied), in place of the single
+  `Play` button. There is no longer a default map chosen by the application.
+- The desktop head accepts **`--map <small|medium|big>`** (case-insensitive). It does **not** bypass
+  the home screen: it pushes the welcome screen first and then a match on the chosen map, so the
+  screen stack is identical to a real button tap and `back` from the match returns to the welcome
+  screen rather than exiting. An unrecognised or missing value writes the offending value and the
+  three valid ones to stderr and exits 1 before any graphics device is created, mirroring
+  `--time-scale`. `MW3.Android` accepts no CLI args and is unaffected. This is the phase's one new
+  command-line flag; the reason for it, and for pushing welcome first, is D-56.
+- Every committed `qa/scripts/` file therefore names a map, via `--map`, **except** the five scripts
+  that verify home-screen selection itself (`play.txt`, `play-then-back.txt`,
+  `press-then-drag-off.txt`, `back-and-forth.txt`, plus the three new per-button scripts) — those tap
+  a real button, never the flag. `dismiss-ending.txt` uses the flag: the flag preserves the welcome
+  screen beneath the match, which is the property that script depends on.
 
 `--dump-state` gains no new line this phase. A map is not per-tick state, and the chosen map is
 already evident from the base count and composition in the existing output. If a later feature finds
 otherwise, that feature's kickoff fixes the line's shape, exactly as FR-3's did in phase 6.
 
 **The three-map home screen is the compatibility break**, and it is a wider one than phase 6's eight
-bases. All 50 committed scripts open with the identical line `0 down 0.500000 0.591667` — the Play
-button — and none of them will reach a match unchanged. D-56 is what keeps that from becoming 50
-files of re-derived coordinates. A second break rides with FR-5: every tap that was only valid
-because it landed inside the *current, larger* base radius must be re-derived, which #94 already
-calls out. A script weakened to pass rather than re-authored is a defect.
+bases. All 50 committed scripts opened with the identical line `0 down 0.500000 0.591667` — the
+`Play` button. Scripts using `--map` had that line and the following `up` deleted, and every
+remaining frame number reduced by 5 (the match starts at frame 0 under the flag, where a real tap
+started it at frame 5). D-56 is what keeps that from becoming 50 files of re-derived coordinates —
+it removes the *coordinate* churn, not the *expectation* churn: a script whose dump reflects
+board-wide state (AI scripts, victory/defeat, the forge and neutral-tower scripts) still moved,
+because the shipped eight-slot board is retired and neither Small (6 slots) nor Big (9) reproduces
+it. Every re-homed script whose target map's slots 0–5 sufficed to run it unchanged was proved
+byte-identical against its own dump on `main`; the five Big-map scripts (`capture-neutral-forge`,
+`forge-buff-decides-an-exchange`, `morale-forge-capture`, `neutral-tower-fire`, `ai-contests-forge`)
+were not, since Big's composition genuinely differs, and their headers were re-derived instead. A
+second break rides with FR-5: every tap that was only valid because it landed inside the *current,
+larger* base radius must be re-derived, which #94 already calls out. A script weakened to pass
+rather than re-authored is a defect.
 
 ## 3. Project layout
 

@@ -1,3 +1,32 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map small (Small, the regression anchor). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 1759
+#   Outcome: HumanDefeat
+#   Morale: Human=80 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=70 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=0 HumanAtk=100 HumanDef=100 Ai=1 AiAtk=150 AiDef=125
+#   Base 0: Owner=Ai Garrison=1 Level=1 Cap=20 Building=none Type=Producer
+#   Base 1: Owner=Ai Garrison=9 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Ai Garrison=15 Level=1 Cap=none Building=none Type=Forge
+#   Base 3: Owner=Ai Garrison=7 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Ai Garrison=7 Level=1 Cap=20 Building=none Type=Producer
+#   Base 5: Owner=Ai Garrison=10 Level=1 Cap=20 Building=none Type=Producer
+#   Menu: none
+#   Strength: 50
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # RE-AUTHORED at phase 6 FR-3 (issue #87), for two separate reasons - and the first one is a real
 # defect in this script that FR-3 did not cause and does not fix:
 #
@@ -33,14 +62,12 @@
 # of units it lost, times 10, is the swing this script exists to make visible - Human's Morale
 # should read strictly positive, and if Ai has not separately banked points elsewhere in the same
 # run (a capture, an upgrade), the two sides move by matching magnitudes in opposite directions.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.120000 0.500000
-15 up 0.120000 0.500000
-20 down 0.176563 0.281944
-25 up 0.176563 0.281944
-320 down 0.120000 0.500000
-325 up 0.120000 0.500000
-330 down 0.075000 0.281944
-335 up 0.075000 0.281944
-700 wait
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 down 0.176563 0.281944
+20 up 0.176563 0.281944
+315 down 0.120000 0.500000
+320 up 0.120000 0.500000
+325 down 0.075000 0.281944
+330 up 0.075000 0.281944
+695 wait

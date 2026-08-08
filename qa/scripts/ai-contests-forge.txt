@@ -1,3 +1,36 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map big (Big, since this script needs a neutral forge or neutral tower). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 1536
+#   Outcome: InProgress
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=0 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=0 HumanAtk=100 HumanDef=100 Ai=0 AiAtk=100 AiDef=100
+#   Base 0: Owner=Human Garrison=20 Level=1 Cap=20 Building=none Type=Producer
+#   Base 1: Owner=Ai Garrison=0 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 3: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Ai Garrison=15 Level=1 Cap=20 Building=UpgradeToLevel2@1580 Type=Producer
+#   Base 5: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 6: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 7: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Tower
+#   Base 8: Owner=Neutral Garrison=10 Level=1 Cap=none Building=none Type=Forge
+#   Army 24: Owner=Ai Source=1 Target=4 Count=1 Launch=1520 Arrival=1554 Send=24 Wave=1/1
+#   Menu: none
+#   Strength: 50
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # Phase 6 FR-6 (issue #93, G-21): tap Play, then the human issues no command at all - no other
 # down, no up - while the AI plays uninterrupted for a long time-scaled run. The AI's own clause 4
 # (TryAttack) already prices the shipped map's neutral forge (base 6) via PredictedMoraleSwing's
@@ -25,6 +58,4 @@
 # This is the same precedent FR-3's forge-buff-decides-an-exchange.txt and FR-4's
 # morale-forge-capture.txt already set: real play proves the reachable end-to-end path, headless
 # tests prove the arithmetic that real play cannot cheaply exercise.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-90 wait
+85 wait
