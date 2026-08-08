@@ -18,17 +18,22 @@ namespace MW3.Game;
 /// </summary>
 internal sealed class MatchScreen : IScreen
 {
-    private const float _radiusFraction = 0.15f;
-    private const float _armyRadiusFraction = 0.08f;
+    private const float _radiusFraction = 0.075f;
+
+    // FR-5: expressed as multiples of _radiusFraction rather than independent viewport fractions,
+    // so a future base-radius change can never again let an army marker draw larger than a base -
+    // the defect #94 raised. They reproduce the pre-FR-5 ratios: 0.5333 * 0.075 = 0.04 and
+    // 0.2667 * 0.075 = 0.02.
+    private const float _armyRadiusFractionOfBase = 0.5333f;
+    private const float _armyTrailingRadiusFractionOfBase = 0.2667f;
     private const float _selectionHighlightScale = 1.35f;
 
-    // FR-4, D-36: the last wave of a multi-wave send draws at half _armyRadiusFraction. At
-    // 1280x720 that puts a tail marker's diameter (2 * 0.04 * 720 = 57.6px) under the horizontal
-    // wave spacing (0.05 map units * 1280px = 64px) - the worst overlap the kickoff measured no
-    // longer overlaps at all on that axis, and is materially reduced (69% -> 37.5%) on the
-    // vertical one. A single-wave send never reaches this - RadiusFraction returns
-    // _armyRadiusFraction unchanged whenever WaveCount <= 1 (D-36's bit-identical requirement).
-    private const float _armyTrailingRadiusFraction = 0.04f;
+    // FR-4, D-36: the last wave of a multi-wave send draws at half _armyRadiusFractionOfBase. At
+    // 1280x720 with the FR-5 base radius (0.075 * 720 = 54px), a tail marker's diameter
+    // (2 * 0.02 * 720 = 28.8px) is well under the horizontal wave spacing (0.05 map units * 1280px
+    // = 64px), and equally clear of it on the vertical axis. A single-wave send never reaches this
+    // - RadiusFraction returns the lead fraction unchanged whenever WaveCount <= 1 (D-36's
+    // bit-identical requirement).
 
     // The spine (D-36) is a thin line in the owner's tint connecting in-flight waves of one send,
     // drawn beneath their markers - thin enough it never reads as a marker itself.
@@ -727,7 +732,10 @@ internal sealed class MatchScreen : IScreen
             var center = _armyCenterScratch[i];
 
             var radiusFraction = WaveColumnPresentation.RadiusFraction(
-                army.WaveIndex, army.WaveCount, _armyRadiusFraction, _armyTrailingRadiusFraction);
+                army.WaveIndex,
+                army.WaveCount,
+                _armyRadiusFractionOfBase * _radiusFraction,
+                _armyTrailingRadiusFractionOfBase * _radiusFraction);
             var armyRadius = minDimension * radiusFraction;
             var armyDiameter = (int)(armyRadius * 2);
 

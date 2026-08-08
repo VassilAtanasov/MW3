@@ -1,0 +1,9 @@
+# FR-5: --map big, the densest board (9 slots: 2 starts, 4 neutrals, 2 neutral towers, 1 neutral
+# forge). Boots directly into the match (--map starts it at frame 0, D-56), so this script needs no
+# opening Play tap. Press and release on the human start base (0.12, 0.50) to open its action menu
+# (FR-2) - all nine bases, three action-menu buttons, the menu header, both morale meters and both
+# Forges: readouts land on screen at once at the halved (0.075) base radius, proving nothing
+# overlaps at the densest board this phase ships.
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 wait
