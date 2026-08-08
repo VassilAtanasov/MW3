@@ -261,10 +261,52 @@ both `Forges:` readouts on screen at once — plus regenerating `wave-column-leg
 `obstacle-and-spine-medium.png`, which both move because the marker radii do, and a device check
 where the user is the final judge of the size itself.
 
-**FR-6 (wf: `e3277c8adba6`): the AI opponent routes and weighs threats around obstacles.**
+**FR-6 (wf: `e3277c8adba6`): the AI opponent routes and weighs threats around obstacles.** Kicked off
+09-08-2026 as **issue #108** on board **24**, which carries the full acceptance criteria.
 `TowerThreatEstimator` becomes polyline-aware, and the premise in its own doc comment — "the map has
 no pathfinding … so 'routing around' a tower means preferring a different source/target pair" — is
 deleted by name rather than left to rot.
+
+**The "routes" half of this feature was already shipped by FR-3**, which the kickoff confirmed
+against the code: `AiBrain.cs:136` and `:463` both already call `PathCalculator.ComputePath` and feed
+`path.Length` to `TravelTimeCalculator`, exactly where D-53 placed them. The AI is therefore not
+wrong about *when* an army lands. It is still wrong about three things, all straight-line
+measurements on a map where the army flies a polyline — and this is the **fifth** instance of the
+split follow-up **#68**, **D-45**, **D-53** and **FR-4** each closed:
+
+1. `TotalExpectedTowerLoss` (`AiBrain.cs:538`) passes `source.Position, target.Position` into the
+   estimator *three lines after* the same method computed the real path.
+2. `NearestNotOwnedDistance` (`AiBrain.cs:239`) — D-31's one distance rule, read by clause 2, clause
+   3's forge and tower branches, and clause 5. On Medium an enemy base directly across the obstacle
+   is near by that measure and far by every measure that matters.
+3. Clause 4's target ordering (`AiBrain.cs:441`), which decides ties and so decides what is attacked.
+
+Settled at kickoff:
+
+- **Scope covers all three**, not only the tower estimate this entry originally named. Widened on
+  arithmetic rather than taste: with no obstacles, `PathCalculator.ComputePath` returns the
+  two-waypoint straight path whose length is computed identically to `AiBrain.Distance`'s, so route
+  length is **bit-identical** to today's on Small and Big. The whole behavioural blast radius is
+  Medium, and an exact `==` test asserts that identity rather than assuming it.
+- **Chords are summed across segments and floored once**, never floored per segment — per-segment
+  flooring discards each segment's fractional tail and would diverge from
+  `Match.EvaluateTowerFireAtTick`'s continuous model, which is the agreement the estimator's own doc
+  comment claims. The two-point form is **deleted, not kept alongside**, per FR-3's precedent with
+  `TravelTimeCalculator`, and `AiBrain`'s private `Distance` helper loses its last caller and goes.
+- **No shipped map has both an obstacle and a tower** — a fact neither discovery nor this entry
+  noticed, and it shapes verification. Medium is the only map with an obstacle and its slots 6 and 7
+  are neutral *producers*; Big has the two neutral towers and no obstacle. The corrected estimate is
+  reachable in real play only after a **conversion** on Medium. The new script
+  `qa/scripts/ai-tower-detour-medium.txt` therefore builds a human tower beside the obstacle, in
+  range of the AI's detour but not of the straight line, and its header **derives both numbers by
+  hand** — a derived expectation, not an observation of the build under test, which is what
+  follow-up **#56** was filed about.
+- **Giving the AI a *choice* of route is out of scope**, and is named as the boundary an implementer
+  is most likely to cross: the feature's name says "routes around obstacles" and the AI already does,
+  because FR-3 gave it that. `PathCalculator` returns one deterministic shortest path (D-52) and FR-6
+  makes the AI cost *that* route correctly. A threat-weighted second search is a later AI phase.
+- **No new tuning value, no `--dump-state` change, no new flag.** The diff is `AiBrain.cs`,
+  `TowerThreatEstimator.cs` and tests.
 
 ### Tuning values
 
@@ -326,6 +368,12 @@ Nothing is still owed.
 - **Path length is computed in one place** and shared by resolution and AI prediction (D-53). This is
   the pattern follow-up #68 established for capture prediction and D-45 for the forge term: a second
   copy of the arithmetic is how the simulation and the AI quietly come to disagree.
+- **The AI's heuristics are readers of the path too, not just its predictions** (FR-6). The rule above
+  was written about arrival timing, and FR-6 found three more straight-line measurements inside
+  `AiBrain` — the tower-threat estimate, D-31's nearest-not-owned distance and clause 4's target
+  ordering — each measuring a line the army does not fly. After FR-6, nothing in `AiBrain` computes a
+  distance between two `MapPoint`s; it asks `PathCalculator` for the route and reads its length. This
+  is the fourth reader of that one rule, after the resolver, the AI's predictions and the renderer.
 - **A path is immutable once submitted** (D-51), like a send's unit speed (D-39). Every wave in a
   send flies the same route, and capturing an army's source base mid-flight re-routes nothing.
 - The rules layer stays engine-free and headlessly testable (S-2, S-3); obstacles and paths are
@@ -383,6 +431,11 @@ Explicit non-goals for this phase — these are what stop `/autopilot` drifting.
   no slow fields, no damage fields.
 - **Obstacles affecting anything but movement** (D-54): not tower fire, not tower range, not line of
   sight, not base placement.
+- **The AI choosing between alternative routes.** Named at FR-6's kickoff as the boundary an
+  implementer is most likely to cross, because the feature's own name invites it. `PathCalculator`
+  returns one deterministic shortest path (D-52); FR-6 makes the AI cost *that* route correctly. A
+  second, threat-weighted search that deliberately flies longer to dodge a tower is a new mechanic
+  with its own determinism problem, and belongs to a later AI phase.
 - **More than one obstacle shape.** Axis-aligned rectangles only (D-50). A map may hold several; they
   are all rectangles.
 - **A fourth, QA-only map.** Offered at FR-2's kickoff as a way to preserve roughly 45 scripts

@@ -432,6 +432,21 @@ These run without a human gate and never block or reopen a feature:
   (`TravelTimeCalculator` takes path length, one calculator shared by resolver and AI — the #68/D-45
   pattern, and what makes FR-6 small) and **D-54** (obstacles block movement only). Watch the
   compatibility break: **the shipped eight-slot map is retired**, surviving only as a test fixture.
+  **FR-6's kickoff (09-08-2026, issue #108) confirmed D-53's prediction that the feature is small,
+  then widened it anyway.** FR-3 already shipped the "routes" half — `AiBrain.cs:136` and `:463` call
+  `PathCalculator` — so what is left is three *straight-line* measurements the AI still makes:
+  `TotalExpectedTowerLoss` (`:538`, costing tower fire along a segment computed three lines after the
+  real path), D-31's `NearestNotOwnedDistance` (`:239`, four readers) and clause 4's target ordering
+  (`:441`). All three are in scope, on an arithmetic argument rather than taste: with no obstacles
+  `ComputePath` returns a straight path whose length is computed identically to `AiBrain.Distance`'s,
+  so Small and Big are **bit-identical** and the blast radius is Medium alone — asserted by an exact
+  `==` test, not assumed. Two things build mode will get wrong if it skims: chords are summed across
+  segments and floored **once**, never per segment (per-segment flooring drops each tail and diverges
+  from `Match.EvaluateTowerFireAtTick`); and **no shipped map has both an obstacle and a tower** —
+  Medium's slots 6/7 are producers, Big has no obstacle — so the fix is reachable in real play only
+  after a *conversion*, which is what the new `qa/scripts/ai-tower-detour-medium.txt` builds. The
+  named boundary is that FR-6 makes the AI **cost** its one deterministic route correctly; it does
+  **not** give the AI a choice of routes.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -561,10 +576,10 @@ Phase 7 features, in dependency order (`/kickoff` one at a time), discovered 07-
 |---|---|---|
 | 1 | Three named maps and obstacles as core map data | `da7ae6122744` (issue #98) |
 | 2 | Home screen offers three maps, plus a `--map` flag | `475b7d607239` (issue #99) |
-| 3 | Armies detour around obstacles on a computed path | `c4bd0f438bd1` |
-| 4 | Obstacles and detoured paths drawn on both heads | `377dd9b78a0e` |
-| 5 | Base shapes shrink by about half on both heads | `d3b78a2ca229` (folds in issue #94) |
-| 6 | The AI opponent routes and weighs threats around obstacles | `e3277c8adba6` |
+| 3 | Armies detour around obstacles on a computed path | `c4bd0f438bd1` (issue #102, merged) |
+| 4 | Obstacles and detoured paths drawn on both heads | `377dd9b78a0e` (issue #104, merged) |
+| 5 | Base shapes shrink by about half on both heads | `d3b78a2ca229` (issue #105, merged; folds in #94) |
+| 6 | The AI opponent routes and weighs threats around obstacles | `e3277c8adba6` (issue #108) |
 
 **This time the FR numbering is the build order** — the Workflowy order, this table and the
 dependency order all agree, unlike phases 3, 4 and 6. FR-5 is the one placement worth defending: it
