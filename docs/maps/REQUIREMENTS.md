@@ -187,10 +187,45 @@ Settled at kickoff:
 Unlike FR-1, this feature **does** owe a new `qa/scripts/` file: one on `--map medium` showing
 `Arrival − Launch = 92`, paired with the same send costing 76 where nothing intervenes.
 
-**FR-4 (wf: `377dd9b78a0e`): obstacles and detoured paths drawn on both heads.**
-The obstacle rendered, and D-36's shared wave spine following the polyline instead of a straight
-line. Army markers come along for free, since they already draw at whatever position the rules
-report.
+**FR-4 (wf: `377dd9b78a0e`): obstacles and detoured paths drawn on both heads.** Kicked off
+08-08-2026 as **issue #104** on board **24**, which carries the full acceptance criteria.
+The obstacle rendered as a filled rectangle, and D-36's shared wave spine following the polyline
+instead of a straight line.
+
+**This entry previously claimed army markers "come along for free, since they already draw at
+whatever position the rules report". That was wrong, and the kickoff disproved it against the code.**
+`MatchScreen.cs:673` does not read a rules-reported position — it recomputes one by interpolating
+between the source and target base positions, while `Match.cs:651`'s private `PositionAtTick` walks
+`Army.Path` by arc length and is what tower fire resolves against. So since FR-3 merged, an army on
+`--map medium` visibly flies **through** the obstacle while the simulation has it routing around,
+disagreeing by up to the full detour. That is the fourth instance of the split follow-up **#68**,
+**D-45** and **D-53** each closed, this time between the simulation and its own renderer, and it is
+what §5's "never measure a journey in straight-line distance again" exists to forbid. Correcting it
+is FR-4's first criterion rather than a separate follow-up, since FR-4 is the feature that would
+have fixed it regardless.
+
+Settled at kickoff:
+
+- **`Match` exposes the position and the screen stops computing one.** `Match` gains
+  `PositionOf(Army)` and `ProgressOf(Army)` — the clamped-fraction polyline walk it already performs,
+  plus the fraction itself, which the spine needs to know which waypoints lie between two waves.
+  `MatchScreen`'s own interpolation is **deleted, not left alongside**, exactly as FR-3 deleted
+  `TravelTimeCalculator`'s two-point overload. Rejected: moving the arc-length walk onto `ArmyPath`
+  (which hands the screen the tick→fraction arithmetic that caused this bug, and puts behaviour on a
+  value), and duplicating the walk inside `WaveColumnPresentation`.
+- **An obstacle is a solid `SaddleBrown` rectangle**, distinct from every colour already on the match
+  screen at both 1280x720 and the MI PAD 4's ~1808x1018, drawn **first** so terrain hides nothing.
+  Outline-only was rejected: a hollow rectangle reads as a zone, and this phase ships no zones.
+- **The obstacle colour is a presentation constant, not a D-22 tuning value** — the call phase 4 FR-4
+  made for its flash durations and FR-2 made for its button geometry. No "Tuning values" row is owed.
+- **The spine's bend is pure geometry in `WaveColumnPresentation`** (D-25): a new
+  `ComputeSpinePoints` emits the point run and `MatchScreen` draws it with the existing
+  `DrawSpineSegment`, so no new texture is created.
+- **`--dump-state` gains no line and no field**, holding `ARCHITECTURE.md` §2a's claim that this
+  phase adds none. Verification is therefore a screenshot plus a device check: one new script
+  `qa/scripts/obstacle-and-spine-medium.txt` on `--map medium`, a 100% start-to-start send caught at
+  a frame where wave 1 has passed the inset corner at (0.40, 0.28) and wave 2 has not, with its PNG
+  committed.
 
 **FR-5 (wf: `d3b78a2ca229`): base shapes shrink by about half on both heads.**
 Folds in **#94** whole: the radius fraction, `BaseActionMenu`'s arc geometry, the level and
@@ -248,6 +283,12 @@ Still owed:
   centred rectangle, routing above and below the obstacle are *exactly* equal in length, so a tie is
   guaranteed to occur rather than merely possible. It is resolved by an explicit rule, never by
   whatever order a collection happened to enumerate in (D-52).
+- **An army's position is computed in one place too, and presentation is one of its readers** (FR-4).
+  The rule above was written about the AI and the resolver, and FR-4 found the renderer breaking it
+  in exactly the same way — `MatchScreen` interpolating between two base positions while `Match`
+  walked the polyline. From FR-4, `Match.PositionOf`/`ProgressOf` are the only source of an army's
+  drawn position, and nothing outside `Match` derives one from `LaunchTick`, `ArrivalTick` and two
+  base positions. A renderer is not exempt from S-8 because it draws rather than decides.
 - **Path length is computed in one place** and shared by resolution and AI prediction (D-53). This is
   the pattern follow-up #68 established for capture prediction and D-45 for the forge term: a second
   copy of the arithmetic is how the simulation and the AI quietly come to disagree.
