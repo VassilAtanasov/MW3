@@ -189,10 +189,12 @@ public class SendArmyTests
     public void TravelTime_IsNeverLessThanOneTick_HoweverCloseTwoBasesAre()
     {
         // The one hardcoded map has no pair closer than ~17 ticks apart, so the floor can only be
-        // exercised by calling the private computation directly with a near-zero distance.
-        var method = typeof(Match).GetMethod("ComputeTravelTicks", BindingFlags.NonPublic | BindingFlags.Static)!;
+        // exercised by calling the internal computation directly with a zero-length path (FR-3,
+        // D-53: TravelTimeCalculator now takes a path length rather than two points).
+        var travelTimeCalculatorType = typeof(Match).Assembly.GetType("MW3.Core.TravelTimeCalculator")!;
+        var method = travelTimeCalculatorType.GetMethod("ComputeTicks", BindingFlags.NonPublic | BindingFlags.Static)!;
 
-        var ticks = (long)method.Invoke(null, new object[] { new MapPoint(0.5, 0.5), new MapPoint(0.5, 0.5), Match.ArmySpeedUnitsPerTick })!;
+        var ticks = (long)method.Invoke(null, new object[] { 0.0, Match.ArmySpeedUnitsPerTick })!;
 
         Assert.Equal(1, ticks);
     }

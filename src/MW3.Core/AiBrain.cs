@@ -133,7 +133,8 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            var travelTicks = TravelTimeCalculator.ComputeTicks(candidate.Position, threatened.Position, speed);
+            var path = PathCalculator.ComputePath(candidate.Position, threatened.Position, match.Obstacles);
+            var travelTicks = TravelTimeCalculator.ComputeTicks(path.Length, speed);
             if (travelTicks > ticksRemaining)
             {
                 continue;
@@ -459,7 +460,8 @@ public sealed class AiBrain : IPlayerBrain
                 // The AI's own morale (FR-4) - it is the prospective sender, so this is the speed
                 // Match.Execute would lock in for this send were it submitted right now.
                 var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
-                var travelTicks = TravelTimeCalculator.ComputeTicks(source.Position, target.Position, speed);
+                var path = PathCalculator.ComputePath(source.Position, target.Position, match.Obstacles);
+                var travelTicks = TravelTimeCalculator.ComputeTicks(path.Length, speed);
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
                 var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position, speed);

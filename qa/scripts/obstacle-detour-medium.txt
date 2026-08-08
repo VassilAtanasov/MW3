@@ -1,0 +1,9 @@
+# FR-3: --map medium. Drags from the human start base (0.12, 0.50) to the AI start base
+# (0.88, 0.50) at the default 50% strength (5 of the starting garrison of 10, a single wave).
+# Dumped mid-flight, well before arrival: the Army line reads Arrival-Launch = 92, PathCalculator's
+# routed length around Medium's central obstacle (0.912 map units) divided by ArmySpeedUnitsPerTick
+# and ceiled - 20% longer than the 76-tick straight-line send obstacle-detour-small.txt pins on the
+# same base pair with no obstacle in the way.
+0 down 0.120000 0.500000
+5 up 0.880000 0.500000
+160 wait
