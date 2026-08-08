@@ -227,11 +227,39 @@ Settled at kickoff:
   a frame where wave 1 has passed the inset corner at (0.40, 0.28) and wave 2 has not, with its PNG
   committed.
 
-**FR-5 (wf: `d3b78a2ca229`): base shapes shrink by about half on both heads.**
-Folds in **#94** whole: the radius fraction, `BaseActionMenu`'s arc geometry, the level and
-construction rings, morale-meter and `Forges:` readout clearance, a `qa/scripts/` tap sweep, and a
-device check. #94 explicitly warns against assuming "half" means exactly `0.075` — the fraction is a
-kickoff decision.
+**FR-5 (wf: `d3b78a2ca229`): base shapes shrink by about half on both heads.** Kicked off
+08-08-2026 as **issue #105** on board **24**, which carries the full acceptance criteria.
+Folds in **#94** whole. `MatchScreen._radiusFraction` goes from `0.15` of the viewport's smaller
+dimension to **`0.075`** — exactly half, which #94 warned against assuming and this kickoff
+confirmed. Presentation only: no rule, no tick, no `--dump-state` line, and `MW3.Core` untouched.
+
+**Three of #94's own scope bullets did not survive being checked against the code**, and the
+corrections are recorded on the issue and commented back onto #94, because two of them would send
+build mode looking for work that does not exist and one is work #94 never mentions:
+
+- **The army markers are what actually breaks.** `_armyRadiusFraction` (`0.08`) and
+  `_armyTrailingRadiusFraction` (`0.04`) are viewport fractions independent of the base radius, so at
+  `0.075` an in-flight army would draw *larger than the base it launched from*. They halve too, and
+  are re-expressed as multiples of the base radius — lead `0.5333 ×`, wave tail `0.2667 ×` — so a
+  future radius change can never silently invert them again.
+- **`BaseActionMenu` is not measured off the base radius**, contrary to #94's second bullet: arc
+  `0.24`, button `0.24 × 0.075`, a fixed 70° step, all off `minDimension`. No button moves and its
+  non-overlap test is radius-independent. The tempting inverse — shrinking the arc so the menu stays
+  tethered to a smaller base — is **forbidden by arithmetic**: adjacent buttons are
+  `2 × (0.24 × 720) × sin 35° = 198px` apart against a `173px` button at 1280x720, 25px of clearance,
+  and halving the arc gives 98px, reintroducing the overlap phase 6 FR-5 fixed.
+- **No `qa/scripts/` tap depends on the drawn radius**, so #94's tap sweep finds nothing. Selection
+  resolves through `HitTester.SelectionThresholdUnits` (a normalized `0.1` in Core) and menu taps
+  through `GetButtonRect`. That constant is deliberately left alone: a touch target larger than its
+  visual target is correct on a tablet, and changing it would turn a presentation feature into a
+  rules change with a 50-script blast radius, after the phase has already spent its one atomic
+  compatibility break at FR-2.
+
+Verification is one new script, `qa/scripts/base-size-big-with-menu.txt` on `--map big` with the
+action menu open on the human start — nine bases, three buttons, the header, both morale meters and
+both `Forges:` readouts on screen at once — plus regenerating `wave-column-legible.png` and FR-4's
+`obstacle-and-spine-medium.png`, which both move because the marker radii do, and a device check
+where the user is the final judge of the size itself.
 
 **FR-6 (wf: `e3277c8adba6`): the AI opponent routes and weighs threats around obstacles.**
 `TowerThreatEstimator` becomes polyline-aware, and the premise in its own doc comment — "the map has
@@ -270,12 +298,18 @@ centre-line *prizes*, and a gate is a producer in a contested spot rather than a
 |---|---|---|
 | Corner inset for routing nodes | **0.02** | How far outside a corner a waypoint sits, so paths do not graze the obstacle. Confirms the estimate this row carried: Medium's start-to-start detour is 0.912 against a straight line's 0.760 — 20% longer, 92 ticks against 76. Medium's inset corners land at (0.40, 0.28), (0.40, 0.72), (0.60, 0.28), (0.60, 0.72), inside 0..1 and no nearer than 0.07 to any slot |
 
-Still owed:
+**Settled at FR-5's kickoff (08-08-2026)** — the two rows that feature owed, plus one #94 did not
+know it needed. These are presentation constants living in `MatchScreen`, not simulation numbers;
+they are tabled here because this section committed to the rows, and the D-22 routing rule still
+applies — none appears twice, and nothing derives a size from a literal at a call site:
 
-| Value | Owed by | Notes |
+| Value | Setting | Notes |
 |---|---|---|
-| Base radius fraction | FR-5 | Currently `0.15` of the viewport's smaller dimension; #94 says confirm, don't assume `0.075` |
-| Action-menu arc radius and step | FR-5 | Measured off the base radius, so it moves with it |
+| Base radius fraction | **0.075** | Exactly half of `0.15`. 54px radius at 1280x720, 76px on the MI PAD 4's ~1808x1018. #94 warned against assuming exactly half; confirmed rather than assumed |
+| Army marker radii | **0.5333 ×** and **0.2667 ×** the base radius | Lead and wave tail, evaluating to `0.04` and `0.02` of the smaller dimension. Expressed relative to the base radius rather than as viewport fractions of their own, because as absolute fractions they would have exceeded the halved base — the defect that made this row necessary |
+| Action-menu arc radius and step | **unchanged** — `0.24` and 70° | *Not* measured off the base radius, contrary to #94's assumption, so nothing moves. Shrinking the arc is forbidden: adjacent buttons are `2 × (0.24 × 720) × sin 35° = 198px` apart against a `173px` button at 1280x720, and halving it gives 98px, reintroducing phase 6 FR-5's overlap |
+
+Nothing is still owed.
 
 ## 5. Non-functional requirements
 
