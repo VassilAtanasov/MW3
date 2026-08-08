@@ -108,6 +108,7 @@ internal sealed class MatchScreen : IScreen
     // via WaveColumnPresentation.ComputeSpineSegments, never allocated per frame.
     private readonly List<Vector2> _armyCenterScratch = new();
     private readonly List<(int FromIndex, int ToIndex)> _spineSegmentScratch = new();
+    private readonly List<MapPoint> _spinePointScratch = new();
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
@@ -459,6 +460,8 @@ internal sealed class MatchScreen : IScreen
             return;
         }
 
+        DrawObstacles(spriteBatch, viewport);
+
         var radius = Math.Min(viewport.Width, viewport.Height) * _radiusFraction;
         var diameter = (int)(radius * 2);
         var bases = _match.Bases;
@@ -641,12 +644,41 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
+    /// Every <see cref="Match.Obstacles"/> entry as a filled <see cref="Color.SaddleBrown"/>
+    /// rectangle (FR-4), drawn first - before a base, army marker, spine, action menu, strength
+    /// selector, morale meter or <c>Forges:</c> readout, so nothing already on screen is ever hidden
+    /// under terrain. Reuses the shared 1x1 <see cref="_buttonTexture"/>, the same stretch-by-
+    /// Rectangle trick the spine and range ring already use, so this needs no texture of its own. A
+    /// map with no obstacles (Small, Big) issues no draw call here.
+    /// </summary>
+    private void DrawObstacles(SpriteBatch spriteBatch, Viewport viewport)
+    {
+        if (_buttonTexture is null)
+        {
+            return;
+        }
+
+        var obstacles = _match.Obstacles;
+        for (var i = 0; i < obstacles.Count; i++)
+        {
+            var obstacle = obstacles[i];
+            var minX = (int)(obstacle.MinX * viewport.Width);
+            var minY = (int)(obstacle.MinY * viewport.Height);
+            var maxX = (int)(obstacle.MaxX * viewport.Width);
+            var maxY = (int)(obstacle.MaxY * viewport.Height);
+            var destination = new Rectangle(minX, minY, maxX - minX, maxY - minY);
+            spriteBatch.Draw(_buttonTexture, destination, Color.SaddleBrown);
+        }
+    }
+
+    /// <summary>
     /// Each in-flight army is a filled circle smaller than a base, tinted by owner, positioned by
-    /// interpolating source-&gt;target between its launch and arrival ticks - sitting exactly on the
-    /// source at launch and exactly on the target at arrival (FR-5). A multi-wave send (FR-4, D-36)
-    /// additionally draws a spine beneath the markers connecting its in-flight waves, and each
-    /// wave's own radius tapers toward the tail so consecutive waves overlap less; a single-wave
-    /// send draws bit-identically to before this feature (WaveCount == 1: no taper, no spine).
+    /// <see cref="Match.PositionOf"/> - the polyline walk the rules themselves resolve tower range
+    /// against for the same army and tick, so the drawn marker can never disagree with where the
+    /// simulation says it is (FR-4). A multi-wave send (FR-4, D-36) additionally draws a spine
+    /// beneath the markers connecting its in-flight waves along that same path, and each wave's own
+    /// radius tapers toward the tail so consecutive waves overlap less; a single-wave send draws
+    /// bit-identically to before this feature (WaveCount == 1: no taper, no spine).
     /// </summary>
     private void DrawArmiesInFlight(SpriteBatch spriteBatch, Viewport viewport)
     {
@@ -661,22 +693,8 @@ internal sealed class MatchScreen : IScreen
         _armyCenterScratch.Clear();
         for (var i = 0; i < armies.Count; i++)
         {
-            var army = armies[i];
-            var source = FindBase(army.SourceBaseId);
-            var target = FindBase(army.TargetBaseId);
-            if (source is null || target is null)
-            {
-                _armyCenterScratch.Add(Vector2.Zero);
-                continue;
-            }
-
-            var span = army.ArrivalTick - army.LaunchTick;
-            var fraction = span > 0 ? (double)(_match.ElapsedTicks - army.LaunchTick) / span : 1.0;
-            fraction = Math.Clamp(fraction, 0.0, 1.0);
-
-            var x = source.Position.X + ((target.Position.X - source.Position.X) * fraction);
-            var y = source.Position.Y + ((target.Position.Y - source.Position.Y) * fraction);
-            _armyCenterScratch.Add(new Vector2((float)(x * viewport.Width), (float)(y * viewport.Height)));
+            var position = _match.PositionOf(armies[i]);
+            _armyCenterScratch.Add(new Vector2((float)(position.X * viewport.Width), (float)(position.Y * viewport.Height)));
         }
 
         WaveColumnPresentation.ComputeSpineSegments(armies, _spineSegmentScratch);
@@ -684,8 +702,23 @@ internal sealed class MatchScreen : IScreen
         for (var i = 0; i < _spineSegmentScratch.Count; i++)
         {
             var (fromIndex, toIndex) = _spineSegmentScratch[i];
-            DrawSpineSegment(
-                spriteBatch, _armyCenterScratch[fromIndex], _armyCenterScratch[toIndex], spineThickness, GetOwnerColor(armies[fromIndex].Owner));
+            var fromArmy = armies[fromIndex];
+            var toArmy = armies[toIndex];
+            var color = GetOwnerColor(fromArmy.Owner);
+
+            WaveColumnPresentation.ComputeSpinePoints(
+                fromArmy.Path, _match.ProgressOf(fromArmy), _match.ProgressOf(toArmy), _spinePointScratch);
+
+            var previous = _armyCenterScratch[fromIndex];
+            var lastPointIndex = _spinePointScratch.Count - 1;
+            for (var p = 1; p <= lastPointIndex; p++)
+            {
+                var current = p == lastPointIndex
+                    ? _armyCenterScratch[toIndex]
+                    : new Vector2((float)(_spinePointScratch[p].X * viewport.Width), (float)(_spinePointScratch[p].Y * viewport.Height));
+                DrawSpineSegment(spriteBatch, previous, current, spineThickness, color);
+                previous = current;
+            }
         }
 
         for (var i = 0; i < armies.Count; i++)

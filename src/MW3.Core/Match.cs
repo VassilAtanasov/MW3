@@ -640,6 +640,40 @@ public sealed class Match
     }
 
     /// <summary>
+    /// <paramref name="army"/>'s normalized-space position right now, at <see cref="ElapsedTicks"/>
+    /// (FR-4) - the same arc-length polyline walk <see cref="EvaluateTowerFireAtTick"/> already
+    /// resolves tower range against for the same army and tick, exposed so a renderer is not exempt
+    /// from S-8 (D-45's pattern, applied to drawing rather than prediction): <c>MatchScreen</c> reads
+    /// an army's position here instead of recomputing one from the two base positions it flew
+    /// between.
+    /// </summary>
+    public MapPoint PositionOf(Army army)
+    {
+        if (army is null)
+        {
+            throw new ArgumentNullException(nameof(army));
+        }
+
+        return PositionAtTick(army, ElapsedTicks);
+    }
+
+    /// <summary>
+    /// <paramref name="army"/>'s clamped 0..1 flight fraction right now, at <see cref="ElapsedTicks"/>
+    /// (FR-4) - the same fraction <see cref="PositionOf"/> walks its path by, exposed on its own so a
+    /// caller (the wave spine) can tell which waypoints of a shared <see cref="ArmyPath"/> lie between
+    /// two waves without re-deriving the tick arithmetic itself.
+    /// </summary>
+    public double ProgressOf(Army army)
+    {
+        if (army is null)
+        {
+            throw new ArgumentNullException(nameof(army));
+        }
+
+        return FractionAtTick(army, ElapsedTicks);
+    }
+
+    /// <summary>
     /// An army's normalized-space position at <paramref name="tick"/> (FR-4, FR-3): a pure function
     /// of its <see cref="Army.Path"/> and its own launch/arrival ticks, recomputed fresh every time
     /// rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to an
@@ -656,11 +690,19 @@ public sealed class Match
             return default;
         }
 
+        return PositionAlongPath(army.Path, FractionAtTick(army, tick));
+    }
+
+    /// <summary>
+    /// <paramref name="army"/>'s clamped 0..1 flight fraction at <paramref name="tick"/> - the one
+    /// place launch/arrival ticks are turned into a fraction, shared by <see cref="PositionAtTick"/>
+    /// and <see cref="ProgressOf"/> so the two can never disagree.
+    /// </summary>
+    private static double FractionAtTick(Army army, long tick)
+    {
         var span = army.ArrivalTick - army.LaunchTick;
         var fraction = span > 0 ? (double)(tick - army.LaunchTick) / span : 1.0;
-        fraction = Math.Clamp(fraction, 0.0, 1.0);
-
-        return PositionAlongPath(army.Path, fraction);
+        return Math.Clamp(fraction, 0.0, 1.0);
     }
 
     /// <summary>

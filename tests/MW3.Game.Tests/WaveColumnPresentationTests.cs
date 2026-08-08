@@ -157,4 +157,82 @@ public class WaveColumnPresentationTests
         Assert.Equal(2, armies[segment.FromIndex].WaveIndex);
         Assert.Equal(3, armies[segment.ToIndex].WaveIndex);
     }
+
+    // --- ComputeSpinePoints ---
+
+    [Fact]
+    public void ComputeSpinePoints_TwoWaypointPath_YieldsExactlyTwoPoints()
+    {
+        var path = new ArmyPath(new[] { new MapPoint(0.0, 0.0), new MapPoint(1.0, 0.0) }, length: 1.0);
+        var output = new List<MapPoint>();
+
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 0.8, toProgress: 0.3, output);
+
+        Assert.Equal(2, output.Count);
+        Assert.Equal(new MapPoint(0.8, 0.0), output[0]);
+        Assert.Equal(new MapPoint(0.3, 0.0), output[1]);
+    }
+
+    [Fact]
+    public void ComputeSpinePoints_WavesStraddlingACorner_BendsAtTheCorner()
+    {
+        // A right-angle corner at x=0.5: 0..0.5 covers half the total length (1.0), 0.5..1.0 the
+        // other half. Lead progress 0.9 sits past the corner; trailing progress 0.3 sits before it.
+        var path = new ArmyPath(
+            new[] { new MapPoint(0.0, 0.0), new MapPoint(0.5, 0.0), new MapPoint(0.5, 0.5) },
+            length: 1.0);
+        var output = new List<MapPoint>();
+
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 0.9, toProgress: 0.3, output);
+
+        Assert.True(output.Count >= 3, "expected the spine to bend at the corner waypoint");
+        Assert.Equal(new MapPoint(0.5, 0.0), output[1]); // the corner, strictly between the two fractions
+        Assert.Equal(new MapPoint(0.5, 0.4), output[0]); // fromProgress 0.9 -> 0.5 along the second leg
+        Assert.Equal(new MapPoint(0.5, 0.0) with { X = 0.3 }, output[^1]); // toProgress 0.3 -> along the first leg
+    }
+
+    [Fact]
+    public void ComputeSpinePoints_CalledWithFractionsReversed_ProducesTheReversedRun()
+    {
+        var path = new ArmyPath(
+            new[] { new MapPoint(0.0, 0.0), new MapPoint(0.5, 0.0), new MapPoint(0.5, 0.5) },
+            length: 1.0);
+
+        var forward = new List<MapPoint>();
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 0.9, toProgress: 0.3, forward);
+
+        var reversed = new List<MapPoint>();
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 0.3, toProgress: 0.9, reversed);
+
+        Assert.Equal(forward.Count, reversed.Count);
+        for (var i = 0; i < forward.Count; i++)
+        {
+            Assert.Equal(forward[i], reversed[reversed.Count - 1 - i]);
+        }
+    }
+
+    [Fact]
+    public void ComputeSpinePoints_SameSegmentBothProgresses_YieldsExactlyOneStraightSegment()
+    {
+        var path = new ArmyPath(
+            new[] { new MapPoint(0.0, 0.0), new MapPoint(0.5, 0.0), new MapPoint(1.0, 0.0) },
+            length: 1.0);
+        var output = new List<MapPoint>();
+
+        // Both fractions land on the first leg (0..0.5 of length 1.0 => progress 0..0.5).
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 0.4, toProgress: 0.1, output);
+
+        Assert.Equal(2, output.Count);
+    }
+
+    [Fact]
+    public void ComputeSpinePoints_ClearsOutputFirst()
+    {
+        var path = new ArmyPath(new[] { new MapPoint(0.0, 0.0), new MapPoint(1.0, 0.0) }, length: 1.0);
+        var output = new List<MapPoint> { new(9.0, 9.0), new(9.0, 9.0), new(9.0, 9.0) };
+
+        WaveColumnPresentation.ComputeSpinePoints(path, fromProgress: 1.0, toProgress: 0.0, output);
+
+        Assert.Equal(2, output.Count);
+    }
 }

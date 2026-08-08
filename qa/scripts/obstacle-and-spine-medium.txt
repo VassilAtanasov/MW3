@@ -1,0 +1,20 @@
+# FR-4: --map medium. Selects 100% strength, then drags a 100%-strength send (10 units) from the
+# human start base (0.12, 0.50) to the AI start base (0.88, 0.50) - splitting into two waves
+# (SendWaveCalculator: 8, then the 2-unit remainder), launched 5 ticks apart. PathCalculator routes
+# both waves through the D-52 tie-break's low-Y corner (0.40, 0.28), at arc-length distance 0.35609
+# of the path's 0.912 total length (fraction 0.3905).
+#
+# The send is accepted at ElapsedTicks=5 (submission tick), giving wave 1 Launch=5 Arrival=97 and
+# wave 2 Launch=10 Arrival=102 - both spans 92, PathCalculatorTests' pinned Medium figure. Wave 1's
+# fraction of flight is (E-5)/92, wave 2's is (E-10)/92; wave 1 has passed the corner once E > 41
+# and wave 2 has not yet reached it while E < 46, so ElapsedTicks 42..45 is the exact window both
+# conditions hold at once. This script waits to frame 124, dumping ElapsedTicks=43 (confirmed via
+# --dump-state): wave 1 (Count=8) sits at fraction 0.413 - past the corner, on the second leg
+# heading toward the AI base - while wave 2 (Count=2) sits at fraction 0.359 - still on the first
+# leg, short of the corner - so the spine drawn between them bends at (0.40, 0.28) rather than
+# cutting through the obstacle rectangle.
+0 down 0.033203 0.670139
+5 up 0.033203 0.670139
+10 down 0.120000 0.500000
+15 up 0.880000 0.500000
+124 wait
