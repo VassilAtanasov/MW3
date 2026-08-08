@@ -2,17 +2,17 @@ namespace MW3.Core;
 
 /// <summary>
 /// An army in flight between two bases (D-12). Its position is a pure function of
-/// <see cref="LaunchTick"/>, <see cref="ArrivalTick"/>, and the two bases it travels between -
-/// recomputed each tick, never accumulated. Constructed only by <see cref="Match"/>; its
-/// <see cref="UnitCount"/> - its current strength, which can now be lower than what it launched
-/// with - changes only through <see cref="Match.Advance"/>, which removes it from
-/// <see cref="Match.ArmiesInFlight"/> the moment that reaches zero (destroyed, never arriving) or
-/// its arrival tick resolves (D-13). Capturing its source base still does not change its owner,
-/// redirect it, or recall it - only an owned tower within range can reduce it (FR-4).
+/// <see cref="LaunchTick"/>, <see cref="ArrivalTick"/>, and its <see cref="Path"/> - recomputed each
+/// tick, never accumulated. Constructed only by <see cref="Match"/>; its <see cref="UnitCount"/> -
+/// its current strength, which can now be lower than what it launched with - changes only through
+/// <see cref="Match.Advance"/>, which removes it from <see cref="Match.ArmiesInFlight"/> the moment
+/// that reaches zero (destroyed, never arriving) or its arrival tick resolves (D-13). Capturing its
+/// source base still does not change its owner, redirect it, or recall it - only an owned tower
+/// within range can reduce it (FR-4).
 /// </summary>
 public sealed class Army
 {
-    internal Army(int id, Player owner, int sourceBaseId, int targetBaseId, int unitCount, long launchTick, long arrivalTick, int sendId, int waveIndex, int waveCount)
+    internal Army(int id, Player owner, int sourceBaseId, int targetBaseId, int unitCount, long launchTick, long arrivalTick, int sendId, int waveIndex, int waveCount, ArmyPath path)
     {
         Id = id;
         Owner = owner;
@@ -24,6 +24,7 @@ public sealed class Army
         SendId = sendId;
         WaveIndex = waveIndex;
         WaveCount = waveCount;
+        Path = path ?? throw new ArgumentNullException(nameof(path));
     }
 
     public int Id { get; }
@@ -61,4 +62,11 @@ public sealed class Army
     /// The total number of waves in this send (FR-3). A single-arrival send has <see cref="WaveCount"/> = 1.
     /// </summary>
     public int WaveCount { get; }
+
+    /// <summary>
+    /// The route this army flies (FR-3), computed once by <see cref="PathCalculator"/> at the send's
+    /// submission tick and shared, unchanged, by every wave of that send (D-51). Never recomputed
+    /// after submission - capturing the source or target base mid-flight does not re-route it.
+    /// </summary>
+    public ArmyPath Path { get; }
 }

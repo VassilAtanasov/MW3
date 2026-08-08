@@ -193,10 +193,11 @@ public sealed class Match
 
         source.GarrisonCount -= command.UnitCount;
 
-        // Speed is read once, here, from the sender's morale at the submission tick, and baked into
-        // every wave's precomputed ArrivalTick below - never re-read live or per-wave (D-39).
+        // Speed and the path are both read/computed once, here, at the submission tick, and baked
+        // into every wave below - never re-read live or recomputed per-wave (D-39, D-51).
         var speed = EffectiveArmySpeedUnitsPerTick(MoraleOf(command.IssuingPlayer).Level);
-        var travelTicks = ComputeTravelTicks(source.Position, target.Position, speed);
+        var path = PathCalculator.ComputePath(source.Position, target.Position, Obstacles);
+        var travelTicks = TravelTimeCalculator.ComputeTicks(path.Length, speed);
         var sendId = _nextSendId++;
         var waveCount = SendWaveCalculator.WaveCount(command.UnitCount);
         var submissionTick = ElapsedTicks;
@@ -218,7 +219,8 @@ public sealed class Match
                 arrivalTick,
                 sendId,
                 waveIndex,
-                waveCount);
+                waveCount,
+                path);
 
             if (waveIndex == 1)
             {
@@ -638,17 +640,18 @@ public sealed class Match
     }
 
     /// <summary>
-    /// An army's normalized-space position at <paramref name="tick"/> (FR-4): a pure function of its
-    /// source and target base positions and its own launch/arrival ticks, recomputed fresh every
-    /// time rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to
-    /// an endpoint rather than extrapolating past it. Returns the source's own position (fraction 0)
-    /// if either base is somehow unknown, which cannot happen for a live army on the hardcoded map.
+    /// An army's normalized-space position at <paramref name="tick"/> (FR-4, FR-3): a pure function
+    /// of its <see cref="Army.Path"/> and its own launch/arrival ticks, recomputed fresh every time
+    /// rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to an
+    /// endpoint rather than extrapolating past it. Walks the polyline at uniform speed: at elapsed
+    /// fraction <c>f</c> of the flight, the army sits at arc-length <c>f * Path.Length</c> along the
+    /// waypoints. Returns the source base's own position (fraction 0) if it is somehow unknown, which
+    /// cannot happen for a live army on the hardcoded map.
     /// </summary>
     private MapPoint PositionAtTick(Army army, long tick)
     {
         var source = FindBase(army.SourceBaseId);
-        var target = FindBase(army.TargetBaseId);
-        if (source is null || target is null)
+        if (source is null)
         {
             return default;
         }
@@ -657,10 +660,51 @@ public sealed class Match
         var fraction = span > 0 ? (double)(tick - army.LaunchTick) / span : 1.0;
         fraction = Math.Clamp(fraction, 0.0, 1.0);
 
-        var x = source.Position.X + ((target.Position.X - source.Position.X) * fraction);
-        var y = source.Position.Y + ((target.Position.Y - source.Position.Y) * fraction);
+        return PositionAlongPath(army.Path, fraction);
+    }
 
-        return new MapPoint(x, y);
+    /// <summary>
+    /// The point at arc-length fraction <paramref name="fraction"/> (0..1) along
+    /// <paramref name="path"/>'s waypoints. At 0 this is exactly the first waypoint and at 1 exactly
+    /// the last, regardless of accumulated floating-point drift along the way.
+    /// </summary>
+    private static MapPoint PositionAlongPath(ArmyPath path, double fraction)
+    {
+        var waypoints = path.Waypoints;
+        if (fraction <= 0.0)
+        {
+            return waypoints[0];
+        }
+
+        if (fraction >= 1.0)
+        {
+            return waypoints[waypoints.Count - 1];
+        }
+
+        var targetDistance = fraction * path.Length;
+        var accumulated = 0.0;
+
+        for (var i = 1; i < waypoints.Count; i++)
+        {
+            var segmentStart = waypoints[i - 1];
+            var segmentEnd = waypoints[i];
+            var dx = segmentEnd.X - segmentStart.X;
+            var dy = segmentEnd.Y - segmentStart.Y;
+            var segmentLength = Math.Sqrt((dx * dx) + (dy * dy));
+
+            if (accumulated + segmentLength >= targetDistance || i == waypoints.Count - 1)
+            {
+                var remaining = targetDistance - accumulated;
+                var segmentFraction = segmentLength > 0.0 ? Math.Clamp(remaining / segmentLength, 0.0, 1.0) : 0.0;
+                return new MapPoint(
+                    segmentStart.X + (dx * segmentFraction),
+                    segmentStart.Y + (dy * segmentFraction));
+            }
+
+            accumulated += segmentLength;
+        }
+
+        return waypoints[waypoints.Count - 1];
     }
 
     private Base? FindBase(int id)
@@ -1206,9 +1250,6 @@ public sealed class Match
         var state = MoraleOf(player);
         state.Points = MoraleTable.ClampPoints(state.Points + delta);
     }
-
-    private static long ComputeTravelTicks(MapPoint from, MapPoint to, double speedUnitsPerTick) =>
-        TravelTimeCalculator.ComputeTicks(from, to, speedUnitsPerTick);
 
     /// <summary>
     /// Decides <see cref="Outcome"/> from the current elimination state, evaluated once per tick

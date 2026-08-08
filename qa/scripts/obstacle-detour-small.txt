@@ -1,0 +1,8 @@
+# FR-3 companion to obstacle-detour-medium.txt: the identical send (human start (0.12, 0.50) to AI
+# start (0.88, 0.50), default 50% strength) on --map small, which has no obstacle in the way. The
+# Army line reads Arrival-Launch = 76 - the straight-line distance (0.760 map units) divided by
+# ArmySpeedUnitsPerTick and ceiled - proving the 92-vs-76 gap obstacle-detour-medium.txt shows is the
+# detour's cost, not noise from a different base pair or strength.
+0 down 0.120000 0.500000
+5 up 0.880000 0.500000
+160 wait
