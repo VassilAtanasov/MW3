@@ -3,6 +3,40 @@
 Short notes on the C#/.NET concepts each merged feature actually introduced, tied to this
 project's stack (MonoGame 3.8.5 on .NET 10). Written by `/learning-coach`, never gates a feature.
 
+## 2026-08-08 — #99 FR-2: Home screen offers three maps, plus a --map flag
+Concepts: nullable value type as an optional-parameter sentinel, local static functions, value-tuple arrays, enum-driven switch expression for parsing
+- **`MapId?` as "no boot map given"** — `MW3Game`'s constructor takes `MapId? bootMap = null`
+  (`src/MW3.Game/MW3Game.cs:25`) rather than adding a separate `bool hasBootMap` flag. Why here: `MapId`
+  is a value type (an enum), so it can't natively represent absence the way a reference type's `null`
+  can — wrapping it in `Nullable<MapId>` gets a real "did the caller pass one" without a second
+  parameter that could disagree with the first. Pitfall: `.Value` on a `null` nullable throws
+  `InvalidOperationException` at the access site, not at assignment - `MW3Game.cs` guards every read
+  with `_bootMap.HasValue` first (`if (_bootMap.HasValue) { ... MapCatalog.Get(_bootMap.Value) }`), and
+  skipping that check is a bug that only surfaces when a caller actually omits the flag.
+- **A local `static` function for parsing** — `Program.cs`'s `TryParseMapId` (`src/MW3.Desktop/Program.cs`)
+  is declared `static bool TryParseMapId(string raw, out MapId mapId)` inside the same top-level-statements
+  file as the argument loop that calls it. Why here: `static` on a local function stops it from capturing
+  any enclosing variable (like `args` or `bootMap`) by mistake - the compiler enforces that this parser only
+  ever sees what's passed as parameters, which matters here because the file has several mutable outer
+  locals (`bootMap`, `timeScale`, `scriptPath`) a non-static local function could otherwise reach into
+  accidentally. Pitfall: a local function's `static` keyword is opt-in, not the default - the same bug
+  class (an inner function silently reading/mutating an outer variable) compiles cleanly without it.
+- **A `switch` over a `string` mapped to an `enum` `out` parameter** — `TryParseMapId`'s body
+  (`case "small": mapId = MapId.Small; return true;` for each of the three names, `default: mapId =
+  default; return false;`) is the `TryParse` idiom applied by hand, matching `long.TryParse` used two
+  lines above it for `--time-scale`. Why here: consistency with the existing validation pattern in the
+  same file rather than introducing a dictionary lookup or `Enum.TryParse` (which would accept any
+  member name case-insensitively, including ones this phase doesn't want exposed as CLI values, like a
+  future non-selectable `MapId`). Pitfall: `default: mapId = default;` sets `mapId` to `MapId.Small`
+  (the enum's zero value) even on the *failure* path, because `default` on an enum is its first member -
+  harmless here since callers are required to check the `bool` return before reading `mapId`, but easy
+  to trip over if a future edit reads `mapId` without checking `TryParseMapId`'s result first.
+
+Try next: add a fourth hypothetical CLI value (e.g. `--map legacy`) to `TryParseMapId`'s `switch` without
+adding a matching `MapId` member, and see the compiler accept it silently - a concrete demonstration of
+why `TryParseMapId` hand-writes cases instead of using `Enum.TryParse<MapId>` (which would have required
+the reverse mistake, a new enum member nobody added a CLI case for, to go equally unnoticed).
+
 ## 2026-08-08 — #98 FR-1: Three named maps and obstacles as core map data
 Concepts: constructor chaining with `: this(...)`, `readonly struct` vs `sealed class` for validated value types, switch expressions with a throwing default arm, overload ambiguity with `null`
 - **Constructor chaining (`: this(...)`)** — one constructor calling another on the same type before
