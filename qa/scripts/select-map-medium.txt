@@ -1,0 +1,8 @@
+# FR-2: taps the Medium button (centre of its band, y=0.716667) on the real home screen and proves
+# it starts the 8-slot board - D-56's condition that map selection is never verified only through
+# --map. Run with --map medium and diff dumps against this script (after deleting its two tap lines
+# and subtracting 5 from the remaining frame, per the standard transform) to prove the flag and the
+# button produce byte-identical boards.
+0 down 0.500000 0.716667
+5 up 0.500000 0.716667
+10 wait

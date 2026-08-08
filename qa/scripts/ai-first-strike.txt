@@ -1,5 +1,10 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output matches
+# its own output on main exactly, aside from the two centre-line slots (bases 6, 7) the retired
+# eight-slot board carried and Small does not, and a one-tick difference in ElapsedTicks from
+# the push-timing gap between a real tap and the flag - immaterial here, since this script's own
+# claim rests on a threshold comfortably wider than one tick.
 # Tap Play, then press nothing - hold just long enough for the AI's first decision (tick 20) to
 # fire, so its dump shows the AI's first army in flight and nothing from the human.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-160 wait
+155 wait

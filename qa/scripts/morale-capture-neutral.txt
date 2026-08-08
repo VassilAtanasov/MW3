@@ -1,3 +1,8 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # Tap Play, select 100% on the strength control, then drag from the human base to the nearest
 # neutral - the same 100% send as send-wave-column.txt, which splits the starting garrison of 10
 # into an 8-unit wave 1 and a 2-unit wave 2 (SendWaveCalculator.WaveSizeUnits = 8).
@@ -13,10 +18,8 @@
 # Expected dump: Morale: Human=0 HumanLevel=0 Ai=0 AiLevel=0 - the clamp floors the loss exactly
 # at the point ceiling's opposite bound (MoraleTable.PointFloor), which is itself worth pinning:
 # starting from 0, a net -10 event clamps to 0 rather than going negative.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.033203 0.670139
-15 up 0.033203 0.670139
-20 down 0.120000 0.500000
-25 up 0.350000 0.250000
-40 wait
+5 down 0.033203 0.670139
+10 up 0.033203 0.670139
+15 down 0.120000 0.500000
+20 up 0.350000 0.250000
+35 wait

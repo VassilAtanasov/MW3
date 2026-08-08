@@ -1,0 +1,8 @@
+# FR-2, D-56: run with --map medium. No tap - the flag pushes welcome then match itself, so the
+# board exists from frame 0. Compare this dump's Base lines against select-map-medium.txt's (whose
+# tap resolves five frames later, at frame 5, before its own frame-10 dump): both list the same
+# 8 bases, same owners, types, and garrisons - production and the AI's decision interval are both
+# far slower than a handful of frames, so the small tick-count difference between the two dumps
+# changes nothing about board composition. This proves the flag selects the same map the button
+# does.
+0 wait

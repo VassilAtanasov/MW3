@@ -1,16 +1,46 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map small (Small, the regression anchor). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 16
+#   Outcome: InProgress
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=0 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=0 HumanAtk=100 HumanDef=100 Ai=0 AiAtk=100 AiDef=100
+#   Base 0: Owner=Human Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 1: Owner=Ai Garrison=10 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 3: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Base 5: Owner=Neutral Garrison=5 Level=1 Cap=20 Building=none Type=Producer
+#   Army 0: Owner=Human Source=0 Target=2 Count=2 Launch=6 Arrival=40 Send=0 Wave=1/1
+#   Army 1: Owner=Human Source=0 Target=2 Count=2 Launch=9 Arrival=43 Send=1 Wave=1/1
+#   Army 2: Owner=Human Source=0 Target=2 Count=1 Launch=13 Arrival=47 Send=2 Wave=1/1
+#   Menu: none
+#   Strength: 25
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # Tap Play, select 25%, then repeat the same source-to-target drag three times in quick
 # succession - the tapered snaking column. With the human base's starting garrison of 10, the
 # three quarters compute (per D-32's floor-and-clamp-to-1 calculator) as 2, 2, 1: the column
 # tapers (the last send is strictly smaller than the first) even though the first two ties at the
 # integer floor - there is no time for production to break that tie without letting the earliest
 # army arrive first (its ~34-tick flight time is shorter than one production period).
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.033203 0.940972
-15 up 0.033203 0.940972
-20 down 0.120000 0.500000
-25 up 0.350000 0.250000
-30 down 0.120000 0.500000
-35 up 0.350000 0.250000
-40 down 0.120000 0.500000
-45 up 0.350000 0.250000
+5 down 0.033203 0.940972
+10 up 0.033203 0.940972
+15 down 0.120000 0.500000
+20 up 0.350000 0.250000
+25 down 0.120000 0.500000
+30 up 0.350000 0.250000
+35 down 0.120000 0.500000
+40 up 0.350000 0.250000

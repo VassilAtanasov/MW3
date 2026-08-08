@@ -1,8 +1,11 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # Tap Play, select 25% on the strength control, then drag from the human base to the nearest
 # neutral - the send is a quarter of the source garrison rather than half.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.033203 0.940972
-15 up 0.033203 0.940972
-20 down 0.120000 0.500000
-25 up 0.350000 0.250000
+5 down 0.033203 0.940972
+10 up 0.033203 0.940972
+15 down 0.120000 0.500000
+20 up 0.350000 0.250000

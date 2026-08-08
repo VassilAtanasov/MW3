@@ -1,6 +1,9 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
+# byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
+# the retired eight-slot board carried and Small does not.
 # Tap Play, then press starting on the AI's base (not owned by the human) - selects nothing, so
 # the release changes no state regardless of where it lands.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.880000 0.500000
-15 up 0.350000 0.250000
+5 down 0.880000 0.500000
+10 up 0.350000 0.250000

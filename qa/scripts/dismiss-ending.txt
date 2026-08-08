@@ -1,6 +1,11 @@
-# Tap Play, press nothing until well past defeat (run with --time-scale 125, same as defeat.txt),
-# then press back - proves dismissal is a real pop back to welcome, not a redrawn lookalike.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-155 wait
-160 back
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map small. Uses the flag deliberately - the flag
+# preserves the welcome screen beneath the match, which is exactly the property this script
+# depends on. The opening Play tap was deleted and the remaining frames reduced by 5. Verified by
+# a real run: defeat is still reached comfortably before frame 150 on Small (fewer neutrals for the
+# AI to take than the retired eight-slot board, if anything faster), and back still pops to the
+# welcome screen rather than exiting.
+#
+# Press nothing until well past defeat (run with --time-scale 125, same as defeat.txt), then press
+# back - proves dismissal is a real pop back to welcome, not a redrawn lookalike.
+150 wait
+155 back

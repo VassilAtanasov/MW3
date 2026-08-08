@@ -1,18 +1,46 @@
+# RE-HOMED at FR-2 (issue #99, D-56) onto --map small (Small, the regression anchor). The opening
+# Play tap (two lines) was deleted and every remaining frame number reduced by 5, since the
+# flag starts the match at frame 0 where the tap started it at frame 5.
+#
+# ANY step-by-step derivation below this note describes the pre-FR-2 run and is RETIRED, not
+# weakened: the board this script now runs against genuinely differs (a different base count
+# and/or composition than the retired eight-slot board), so the AI's decisions - and
+# everything downstream of them - diverge from that derivation past its first few ticks. This
+# mirrors the precedent phase 6 FR-3 set for morale-forge-capture.txt.
+#
+# OBSERVED END STATE (this build, re-homed). Read as an OBSERVATION, not a derived
+# expectation - captured from the build under test, so it cannot itself catch a future
+# regression; it records what this run currently does, for a reader to compare against.
+#   ElapsedTicks: 1219
+#   Outcome: InProgress
+#   Morale: Human=0 HumanLevel=0 HumanAtk=100 HumanDef=100 Ai=100 AiLevel=0 AiAtk=100 AiDef=100
+#   Forges: Human=1 HumanAtk=150 HumanDef=125 Ai=0 AiAtk=100 AiDef=100
+#   Base 0: Owner=Human Garrison=11 Level=1 Cap=none Building=none Type=Forge
+#   Base 1: Owner=Ai Garrison=4 Level=1 Cap=20 Building=none Type=Producer
+#   Base 2: Owner=Ai Garrison=22 Level=2 Cap=40 Building=none Type=Producer
+#   Base 3: Owner=Ai Garrison=6 Level=1 Cap=20 Building=none Type=Producer
+#   Base 4: Owner=Ai Garrison=7 Level=1 Cap=20 Building=none Type=Producer
+#   Base 5: Owner=Ai Garrison=6 Level=1 Cap=20 Building=none Type=Producer
+#   Army 21: Owner=Ai Source=1 Target=2 Count=4 Launch=1200 Arrival=1259 Send=21 Wave=1/1
+#   Menu: Base=0 Garrison=11/none Upgrade=AlreadyAtMaxLevel Cost=0 Convert:Producer=GarrisonBelowCost@30 Convert:Tower=GarrisonBelowCost@30
+#   Strength: 50
+#
+# ---------------------------------------------------------------------------------------------
+# RETIRED (accurate for the pre-FR-2 board only):
+#
 # Tap Play, upgrade the human base to level 2 (cap rises to 40, production speeds up), wait for
 # production to clear the 30-unit conversion cost, press Convert: Forge (the third button, D-48) -
 # deducts 30 immediately and starts the 100-tick / 5 s build - then advance well past completion and
 # confirm through --dump-state that the base is a forge with no garrison cap whose garrison does not
 # grow (phase 6 FR-1). Run with --time-scale 10 (see convert-pending.txt for why).
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.120000 0.500000
-15 up 0.120000 0.500000
-20 down 0.328906 0.416667
-25 up 0.328906 0.416667
-320 down 0.120000 0.500000
-325 up 0.120000 0.500000
-330 down 0.075781 0.416667
-335 up 0.075781 0.416667
-360 wait
-370 down 0.120000 0.500000
-375 up 0.120000 0.500000
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 down 0.328906 0.416667
+20 up 0.328906 0.416667
+315 down 0.120000 0.500000
+320 up 0.120000 0.500000
+325 down 0.075781 0.416667
+330 up 0.075781 0.416667
+355 wait
+365 down 0.120000 0.500000
+370 up 0.120000 0.500000

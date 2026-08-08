@@ -1,3 +1,10 @@
+# FR-2 (D-56): re-homed onto --map small. The opening Play tap (two lines) was deleted and
+# every remaining frame number reduced by 5, since the flag starts the match at frame 0 where
+# the tap started it at frame 5. Proved, not assumed: this script's --dump-state output matches
+# its own output on main exactly, aside from the two centre-line slots (bases 6, 7) the retired
+# eight-slot board carried and Small does not, and a one-tick difference in ElapsedTicks from
+# the push-timing gap between a real tap and the flag - immaterial here, since this script's own
+# claim rests on a threshold comfortably wider than one tick.
 # FR-3 (paired with morale-decay-late.txt): tap Play, open the human base's action menu, and press
 # Upgrade - no SendArmyCommand is ever issued in this run, so LastSendTick stays at the match's own
 # start tick (0) and the human is idle from the very beginning (D-38). Dump shortly after the
@@ -9,10 +16,8 @@
 # this path. Compare against morale-decay-late.txt's later dump of the same setup: same commands,
 # waited much further with no send in between, showing Human strictly lower - the bleed, with
 # nothing else happening in between to explain the drop.
-0 down 0.500000 0.591667
-5 up 0.500000 0.591667
-10 down 0.120000 0.500000
-15 up 0.120000 0.500000
-20 down 0.230813 0.303389
-25 up 0.230813 0.303389
-460 wait
+5 down 0.120000 0.500000
+10 up 0.120000 0.500000
+15 down 0.230813 0.303389
+20 up 0.230813 0.303389
+455 wait
