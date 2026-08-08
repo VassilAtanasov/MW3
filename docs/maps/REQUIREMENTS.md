@@ -147,10 +147,45 @@ Settled at kickoff:
   count (6 / 8 / 9), which is D-56's own condition that selection never be verified solely by the
   path no player takes.
 
-**FR-3 (wf: `c4bd0f438bd1`): armies detour around obstacles on a computed path.**
+**FR-3 (wf: `c4bd0f438bd1`): armies detour around obstacles on a computed path.** Kicked off
+08-08-2026 as **issue #102** on board **24**, which carries the full acceptance criteria.
 Visibility-graph routing over outward-inset obstacle corners; the army carries the polyline it was
 given at submission; `TravelTimeCalculator` returns path length rather than straight-line distance.
 Tower fire is untouched — it reads an army's current position, not its line.
+
+Settled at kickoff:
+
+- **The corner inset is 0.02**, confirming the tuning table's own estimate. Medium's start-to-start
+  send is 0.912 routed against 0.760 straight — 92 ticks against 76 — and the 92-vs-76 pair is what
+  makes the detour externally observable at all.
+- **`--dump-state` gains no new line and no new field.** Appending the waypoints to the existing
+  `Army …` line was offered and **declined by the user**. The consequence is recorded in the issue
+  rather than left implicit: a verifier can confirm the detour's *cost* from `Launch=`/`Arrival=`,
+  but **not which side of the obstacle was taken**, until FR-4 draws it. D-52's tie-break is
+  therefore proven by unit test only, by decision. This preserves §2a's claim that the phase adds
+  no dump-state change.
+- **D-52's tie-break is stated concretely enough to assert**: nodes are `from`, `to`, then each
+  obstacle's four inset corners in the order `(minX,minY)`, `(minX,maxY)`, `(maxX,minY)`,
+  `(maxX,maxY)`, obstacles in map-definition order; exact ties resolve to the lexicographically
+  smaller sequence of node indices. On Medium that is `[0, 2, 4, 1]` — the lower-y route via
+  (0.40, 0.28) and (0.60, 0.28). The tie there is *guaranteed*, not merely possible.
+- **The crossing test uses the obstacle's strict interior**, so a segment that only touches a
+  boundary edge or corner is not blocked. Without this the inset corner nodes would themselves
+  register as blocked on a graze and the graph would have no usable nodes.
+- **A blocked send is never rejected**, and no `SendArmyOutcome` value is added: an unroutable pair —
+  reachable only from a test-injected layout that walls a base in, never from a shipped map — falls
+  back to the straight two-waypoint path. Refusing blocked sends is the alternative the user rejected
+  on 07-08-2026 (§1).
+- **`TravelTimeCalculator`'s two-point overload is deleted, not kept alongside** the length-taking
+  one, per §5's "never measure a journey in straight-line distance again".
+- **Both `AiBrain` travel-time sites** (`AiBrain.cs:136` and `:462`) move to `PathCalculator` here
+  rather than at FR-6, which is where D-53 places them, with a test pinning the AI's predicted
+  arrival tick to the one `Match` actually assigns for the same send on Medium.
+  `TowerThreatEstimator` stays untouched and is named out of scope, so it is not helpfully corrected
+  early.
+
+Unlike FR-1, this feature **does** owe a new `qa/scripts/` file: one on `--map medium` showing
+`Arrival − Launch = 92`, paired with the same send costing 76 where nothing intervenes.
 
 **FR-4 (wf: `377dd9b78a0e`): obstacles and detoured paths drawn on both heads.**
 The obstacle rendered, and D-36's shared wave spine following the polyline instead of a straight
@@ -194,11 +229,16 @@ are today's first six, unchanged:
 Medium's gates carry an ordinary neutral's 5, not 10: phase 6 reserved the doubled garrison for
 centre-line *prizes*, and a gate is a producer in a contested spot rather than a prize.
 
+**Settled at FR-3's kickoff (08-08-2026)** — the one value that feature owed:
+
+| Value | Setting | Notes |
+|---|---|---|
+| Corner inset for routing nodes | **0.02** | How far outside a corner a waypoint sits, so paths do not graze the obstacle. Confirms the estimate this row carried: Medium's start-to-start detour is 0.912 against a straight line's 0.760 — 20% longer, 92 ticks against 76. Medium's inset corners land at (0.40, 0.28), (0.40, 0.72), (0.60, 0.28), (0.60, 0.72), inside 0..1 and no nearer than 0.07 to any slot |
+
 Still owed:
 
 | Value | Owed by | Notes |
 |---|---|---|
-| Corner inset for routing nodes | FR-3 | How far outside a corner a waypoint sits, so paths do not graze the obstacle. About 0.02 gives Medium's start-to-start detour a length of 0.912 against a straight line's 0.760 — 20% longer, 92 ticks against 76 |
 | Base radius fraction | FR-5 | Currently `0.15` of the viewport's smaller dimension; #94 says confirm, don't assume `0.075` |
 | Action-menu arc radius and step | FR-5 | Measured off the base radius, so it moves with it |
 
