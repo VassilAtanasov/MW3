@@ -89,4 +89,112 @@ internal static class WaveColumnPresentation
     /// </summary>
     public static bool IsFlashing(long elapsedTicks, long? eventTick, int durationTicks) =>
         eventTick is long tick && elapsedTicks - tick < durationTicks;
+
+    /// <summary>
+    /// Fills <paramref name="output"/> with the point run a spine segment between two waves of one
+    /// send should draw (FR-4): <paramref name="fromProgress"/>'s point on <paramref name="path"/>,
+    /// then every waypoint strictly between the two fractions' arc-length distances (in path order -
+    /// the order <see cref="ArmyPath.Waypoints"/> already carries, source to target), then
+    /// <paramref name="toProgress"/>'s point - always at least two points, more where the two
+    /// fractions straddle a corner. A caller following <see cref="ComputeSpineSegments"/>'s own
+    /// (From, To) pairing passes the lead wave's (higher) progress as <paramref name="fromProgress"/> and the trailing wave's
+    /// (lower) progress as <paramref name="toProgress"/>; calling with the two swapped produces the
+    /// exact reversed run rather than an empty or wrong one, since which fraction is larger decides
+    /// direction, not argument position. Clears <paramref name="output"/> first and never allocates
+    /// (docs/CONVENTIONS.md) - callers reuse the same list every call, matching
+    /// <see cref="ComputeSpineSegments"/>.
+    /// </summary>
+    public static void ComputeSpinePoints(ArmyPath path, double fromProgress, double toProgress, List<MapPoint> output)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(output);
+
+        output.Clear();
+
+        var waypoints = path.Waypoints;
+        var length = path.Length;
+        var fromDistance = Math.Clamp(fromProgress, 0.0, 1.0) * length;
+        var toDistance = Math.Clamp(toProgress, 0.0, 1.0) * length;
+
+        output.Add(PointAtDistance(waypoints, fromDistance));
+
+        var lowerBound = Math.Min(fromDistance, toDistance);
+        var upperBound = Math.Max(fromDistance, toDistance);
+
+        if (toDistance >= fromDistance)
+        {
+            var cumulative = 0.0;
+            for (var i = 0; i < waypoints.Count; i++)
+            {
+                if (i > 0)
+                {
+                    cumulative += WaypointDistance(waypoints[i - 1], waypoints[i]);
+                }
+
+                if (cumulative > lowerBound && cumulative < upperBound)
+                {
+                    output.Add(waypoints[i]);
+                }
+            }
+        }
+        else
+        {
+            var cumulative = length;
+            for (var i = waypoints.Count - 1; i >= 0; i--)
+            {
+                if (i < waypoints.Count - 1)
+                {
+                    cumulative -= WaypointDistance(waypoints[i], waypoints[i + 1]);
+                }
+
+                if (cumulative > lowerBound && cumulative < upperBound)
+                {
+                    output.Add(waypoints[i]);
+                }
+            }
+        }
+
+        output.Add(PointAtDistance(waypoints, toDistance));
+    }
+
+    /// <summary>
+    /// The point at arc-length <paramref name="distance"/> along <paramref name="waypoints"/>,
+    /// mirroring <c>Match.PositionAlongPath</c>'s own arithmetic but keyed by distance rather than a
+    /// 0..1 fraction, since a spine segment's two ends are not always the whole path's endpoints.
+    /// </summary>
+    private static MapPoint PointAtDistance(IReadOnlyList<MapPoint> waypoints, double distance)
+    {
+        if (distance <= 0.0)
+        {
+            return waypoints[0];
+        }
+
+        var accumulated = 0.0;
+        for (var i = 1; i < waypoints.Count; i++)
+        {
+            var segmentStart = waypoints[i - 1];
+            var segmentEnd = waypoints[i];
+            var segmentLength = WaypointDistance(segmentStart, segmentEnd);
+
+            if (accumulated + segmentLength >= distance || i == waypoints.Count - 1)
+            {
+                var remaining = distance - accumulated;
+                var segmentFraction = segmentLength > 0.0 ? Math.Clamp(remaining / segmentLength, 0.0, 1.0) : 0.0;
+                return new MapPoint(
+                    segmentStart.X + ((segmentEnd.X - segmentStart.X) * segmentFraction),
+                    segmentStart.Y + ((segmentEnd.Y - segmentStart.Y) * segmentFraction));
+            }
+
+            accumulated += segmentLength;
+        }
+
+        return waypoints[waypoints.Count - 1];
+    }
+
+    private static double WaypointDistance(MapPoint a, MapPoint b)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        return Math.Sqrt((dx * dx) + (dy * dy));
+    }
 }
