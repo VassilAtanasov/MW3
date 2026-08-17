@@ -38,8 +38,14 @@
 # WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Only expectation 1 is
 # observable in this dump. The tower this script builds influences no line of it: the AI's send runs
 # base 5 to base 0 on the NORTHERN detour, which never enters the tower's range, and the pair the
-# tower does tax - base 1 to base 0 - is not winnable at the dumped state (base 1 holds 10 against
-# base 0's 6 at level 2, and 100/110 of half of 10 does not take 6). Deleting the conversion would
+# tower does tax - base 1 to base 0 - is not winnable at the dumped state. Note WHY, because the
+# obvious reason is the wrong one: base 1 holds 10, so its half-garrison is 5, but the AI's attack
+# index here is 150 and not 100 (the Forges line above reads AiAtk=150), and 150/110 of 5 against
+# base 0's 6 at level 2 is floor(6.8) = 6 - an exact tie, one forge short of taking it. What
+# actually rules the attack out is the toll itself: clause 4 subtracts the expected tower loss
+# BEFORE testing winnability, and 5 - 6 = -1 attacking units can capture nothing. The estimate this
+# feature corrected is what forecloses that attack, which is the opposite of the tower being
+# irrelevant - it is simply not a difference the dump can show. Deleting the conversion would
 # leave both Army lines unchanged. Making the AI CHOOSE differently needs it to hold a full-cap
 # forward base while at least two non-AI bases besides the tower are winnable, and the human cannot
 # reach that board unattended - a conversion costs 30 units, which the human's single start base
