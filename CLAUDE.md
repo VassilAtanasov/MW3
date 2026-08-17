@@ -498,6 +498,22 @@ These run without a human gate and never block or reopen a feature:
   consults an `IPlayerBrain`). Localhost only — **no cloud, no recurring cost** this phase. **The
   hard limit: no gameplay change.** If a match plays differently after this phase, that is a defect,
   and the standard of evidence is a byte-identical `--dump-state` diff, as phase 7 FR-2 set.
+  **FR-2's kickoff (18-08-2026, issue #112)** established that **the client needs no semantic
+  events at all**: `MatchScreen` renders from state and derives its one change-driven animation from a
+  state field (`Base.LastFireTick`), and nothing in `MW3.Game` holds a previous frame to compare
+  against — so the semantic value of events is for FR-6's log and for features that do not yet exist.
+  The shape settled is **complete deltas carrying a semantic label** (**D-70**): every event carries
+  every changed field, so reconstruction is exact, and the kind is derived from *which* fields changed
+  rather than inferred in a way that would let a field be dropped. Where a label is not derivable with
+  certainty it is **not invented** — `ArmyRemoved` carries no arrived-vs-destroyed reason, because the
+  obvious `ArrivalTick <= toTick` rule is wrong for an army dying on exactly its arrival tick. FR-2
+  also closes **D-60** as **D-71**: a banned-API source scan over `MW3.Core` *and* `MW3.Protocol`
+  (D-68 moved position math there) that fails naming file and line, **plus** a golden snapshot hash —
+  neither alone suffices, and the hash must not rest on `string.GetHashCode`, which .NET randomizes
+  per process. Two more things build mode will get wrong if it skims: `diff` must work on
+  **non-adjacent** snapshots, since FR-4 may send below the tick rate, and an implementation quietly
+  assuming adjacency passes every FR-2 test and fails in FR-4; and the sequence number **is the
+  elapsed tick**, not a new counter.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -647,7 +663,7 @@ Phase 8 features, in dependency order (`/kickoff` one at a time), discovered 17-
 | # | Feature | wf short id |
 |---|---|---|
 | 1 | Match snapshot types and a builder in a new `MW3.Protocol` project | `d9c8506314b8` (issue #109) |
-| 2 | Snapshot diffing and applying, the event model | `8336e1854fd3` |
+| 2 | Snapshot diffing and applying, the event model | `8336e1854fd3` (issue #112) |
 | 3 | The client reads a match through a gateway, loopback implementation | `11478629af65` |
 | 4 | `MW3.Server` hosts many matches over WebSocket, desktop plays remotely | `2f0804afb96f` |
 | 5 | The Android head connects to a server and falls back to local | `38ffe9924312` |

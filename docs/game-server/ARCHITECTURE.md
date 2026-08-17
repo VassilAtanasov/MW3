@@ -240,6 +240,37 @@ presentation state under D-26 and are not part of the match — that this bounda
 itself evidence the snapshot's scope is right. The cost is that a feature scoped as pure foundation
 now edits a client file; that is accepted, and it is the first instalment of FR-3's job.
 
+**D-70: an event is a complete delta carrying a semantic label.** Settled at FR-2's kickoff on a
+finding about what the client actually consumes: `MatchScreen` renders from state and derives its one
+change-driven animation from a state field (`Base.LastFireTick`), and nothing in `MW3.Game` holds a
+previous frame to compare against. So the client needs an efficient *delta*, not a domain-event
+vocabulary; the semantic value is for FR-6's log and for features that do not exist yet. Considered:
+pure structural field deltas, which are smallest and make the apply invariant nearly trivial, but
+reduce FR-6's log to a stream of "base 3 garrison 4→5" lines that no human or replay tool can read
+without re-inferring meaning. Also considered: rich semantic domain events modelled on what happened
+in the game, which read best but require the differ to *infer* intent from state changes — and any
+event that does not carry every affected field silently breaks `apply(diff(a, b), a) == b`, the one
+property D-58's whole argument rests on. The chosen shape takes both: every event carries every
+changed field of its entity, so reconstruction is exact, and the kind is a label derived from *which*
+fields changed rather than an inference that permits dropping one. Where a label cannot be derived
+with certainty it is **not invented** — `ArmyRemoved` deliberately carries no arrived-vs-destroyed
+reason, because the obvious rule (`ArrivalTick <= toTick`) is wrong for an army whose strength
+reaches zero on exactly its arrival tick.
+
+**D-71: determinism is enforced by a banned-API source scan and a golden snapshot hash, together.**
+This closes D-60, which deferred the mechanism to whichever feature first depended on it — FR-2,
+whose property test only means anything if a run is reproducible. Considered: either half alone. The
+scan alone catches only what it knows to look for and would miss a nondeterministic iteration order
+or a change inside a referenced library; the hash alone catches any divergence whatever its cause but
+reports only "the hash changed", leaving an autonomous build-mode session to bisect unaided. Together
+the scan names the file and line for the common case and the hash backstops everything else. Two
+things the implementation must get right or the test is theatre: the scan covers **`MW3.Protocol` as
+well as `MW3.Core`**, because D-68 moved the position and progress math there; and the hash must not
+be built on `string.GetHashCode` or `object.GetHashCode`, since .NET randomizes string hashing per
+process, so such a hash would differ between two runs on one machine. The hash is defined over a
+canonical serialization and its cross-process stability is asserted by the test rather than assumed.
+It also gives FR-4 a desync detector for free.
+
 ## 5. Cross-cutting conventions
 
 **Every message is versioned.** The protocol carries a version field from FR-1, and a mismatch is a

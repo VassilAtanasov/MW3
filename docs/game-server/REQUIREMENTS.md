@@ -146,6 +146,46 @@ generated match histories, not a handful of examples.
 
 Pure and headless. Explicitly **does not** instrument `Match` to emit events (§5, D-58).
 
+*Settled at kickoff, 18-08-2026 (issue #112).* The kickoff established that **the client does not
+need semantic events** — `MatchScreen` renders from state and derives its one change-driven
+animation from a state field (`Base.LastFireTick`), and nothing in `MW3.Game` holds a previous
+frame to compare against. The semantic value of events is for FR-6's log and for features that do not
+exist yet, so the shape chosen is **complete deltas carrying a semantic label** (**D-70**): every
+event carries every changed field of its entity, and the kind is derived from *which* fields changed
+rather than inferred in a way that would let a field be dropped and break the apply invariant. This
+feature also closes **D-60**, which the phase deferred to whichever feature first depended on
+determinism; the enforcement is two-part and recorded as **D-71**.
+
+- Acceptance: events live in `MW3.Protocol`, are immutable, and each carries every changed field of
+  its entity. Kinds: `BaseCaptured`, `BaseChanged`, `ConstructionStarted`, `ConstructionCompleted`,
+  `ArmyLaunched`, `ArmyChanged`, `ArmyRemoved`, `MoraleChanged`, `ForgeCountChanged`,
+  `AvailableActionsChanged`, `MatchEnded`.
+- Acceptance: `ArmyRemoved` carries **no reason field** — labelling it arrived-vs-destroyed from
+  `ArrivalTick <= toTick` is wrong for an army whose strength reaches zero on exactly its arrival
+  tick, and the issue names the trap explicitly.
+- Acceptance: a batch names its **from-tick and to-tick**; no separate sequence counter exists,
+  because elapsed ticks are already monotonic. Gap detection is `batch.FromTick == currentTick`; the
+  policy on a gap is FR-4's.
+- Acceptance: `diff` works on **non-adjacent** snapshots, since FR-4 may send below the tick rate;
+  `diff(a, a)` is empty; `diff` is deterministic to a byte-identical serialized batch with a
+  documented canonical order; it throws across differing map ids; one event per entity per batch.
+- Acceptance: `apply` mutates neither argument and **throws when the batch's from-tick does not equal
+  the snapshot's elapsed ticks**, naming both.
+- Acceptance: the property test runs complete matches on Small, Medium and Big capturing a snapshot
+  per tick, asserting `apply(diff(a, b), a) == b` for every adjacent pair and for gaps of 2, 5, 20
+  and 100 plus first-to-last, with equality structural over the whole snapshot. The generated
+  histories are asserted to contain a multi-wave send, a detour, a capture, a construction, tower
+  fire, a morale level change and a forge count change, so the test cannot pass on a match where
+  nothing happened.
+- Acceptance: a source scan over `MW3.Core` **and `MW3.Protocol`** fails on `DateTime`,
+  `DateTimeOffset`, `Stopwatch`, `Environment.TickCount`, `Random`, `Guid.NewGuid` and
+  `Math.Pow`/`Sin`/`Cos`/`Tan`/`Exp`/`Log`/`Atan2`/`Cbrt`, **naming the file and line**, and passes
+  against today's tree unchanged.
+- Acceptance: a stable snapshot hash exists in `MW3.Protocol` over a canonical serialization, pinned
+  by a golden-hash test; it does **not** use `string.GetHashCode` or `object.GetHashCode` (.NET
+  randomizes string hashing per process), and the test asserts two separate processes agree.
+- Acceptance: `./gate.ps1` passes; no `qa/scripts/` file changes and all 50 still pass.
+
 **FR-3 (wf: `11478629af65`): the client renders a match it does not own, so that the rules can live
 somewhere else.**
 
