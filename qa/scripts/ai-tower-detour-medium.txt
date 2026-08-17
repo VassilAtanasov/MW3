@@ -19,8 +19,9 @@
 # constants, not read off this build, and it fails if the AI reverts to straight-line arithmetic.
 #
 # DERIVED EXPECTATION 2 - the tower's threat, hand-computed both ways.
-# The pair this tower actually taxes is the AI's own start base 1 (0.88, 0.50) attacking base 0
-# (0.12, 0.50). A level-1 tower has RangeUnits = 0.20 and FirePeriodTicks = 6, so at speed 0.01 an
+# The pair derived here is the AI's own start base 1 (0.88, 0.50) attacking base 0 (0.12, 0.50) -
+# one of several this tower taxes, not the only one; see the note further down on base 4.
+# A level-1 tower has RangeUnits = 0.20 and FirePeriodTicks = 6, so at speed 0.01 an
 # army covers 0.06 units between shots and the estimate is floor(chord / 0.06).
 #   STRAIGHT LINE: y = 0.50 from x 0.88 to x 0.12 runs a constant 0.25 from the tower at
 #   (0.35, 0.25) - outside 0.20 - so the chord is 0 and the OLD two-point estimate is 0. Costing
@@ -42,8 +43,9 @@
 #
 # Nor is the tower demonstrably load-bearing on any OTHER line of this dump, and the temptation to
 # claim otherwise should be resisted. Take the pair expectation 2 derives, base 1 to base 0 (it is
-# not the only taxed pair - base 4 routes to base 0 through the corner 0.058 from the tower and is
-# taxed harder). Clause 4 subtracts the toll before testing winnability: base 1 holds 10, so its
+# not the only taxed pair - base 4 also routes to base 0 through the corner 0.058 from the tower,
+# for a chord of 0.363928 and the same toll of 6). Clause 4 subtracts the toll before testing
+# winnability: base 1 holds 10, so its
 # unclamped half-garrison is 5, and 5 - 6 = -1 attacking units capture nothing at any index, since
 # WouldCapture cross-multiplies and a negative left side loses to any non-negative right side. That
 # is SUFFICIENT on its own - but it is not NECESSARY, which is the part worth stating. Under the
@@ -51,13 +53,17 @@
 # PredictGarrison at arrival, not the garrison now, and base 0 is a level-2 producer whose 30-tick
 # period adds three units across the 92-tick flight, so five attackers face about nine defenders and
 # lose at this state's indices too. Both forms decline that attack, for different reasons.
-# No line of this dump can therefore be attributed to the tower at all.
+# So: no line of this dump has been SHOWN TO DIFFER between the retired form and the corrected one.
+# That is deliberately narrower than "the tower changes nothing" - the pairs checked here are base 5
+# to base 0 and base 1 to base 0, not the whole board - and it is the exact claim this script is
+# entitled to make.
 #
 # Three things earlier drafts of this header asserted are struck rather than quietly edited, because
 # each was checked and none held. It claimed the tower "changes the dump by subtraction" and
 # forecloses base 1's attack: overclaimed, per the paragraph above - the toll is sufficient but not
-# necessary, so the dump would read the same under the retired form and no line is attributable to
-# the tower. It claimed deleting the conversion taps would leave both Army
+# necessary, so that pair reads the same under the retired form. (Note the scope: that is shown for
+# the pairs checked above, not for the whole dump.) It claimed deleting the conversion taps would
+# leave both Army
 # lines unchanged: FALSE, and tested - removing frames 230-236 hands base 0 to the AI and replaces
 # both Army lines. (That experiment does not isolate tower fire either, since it also refunds the
 # 30-unit conversion cost.) And it justified the unwinnable pair with "100/110 of half of 10", on
