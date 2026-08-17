@@ -1,0 +1,237 @@
+# Architecture — Game server (phase 8)
+
+> What **this phase** adds or changes. Everything else defers to the repo-wide
+> `docs/ARCHITECTURE.md` (standing decisions S-1..S-9) and to the earlier phases' files, which
+> remain current. Decisions are numbered continuously across phases; phase 7 ended at **D-56**, so
+> this phase opens at **D-57**.
+
+## 1. Overview
+
+Phase 8 splits the running game into two processes and puts the simulation in the far one. The
+dependency graph gains a fourth library and a second executable:
+
+```
+                    MW3.Desktop ---+
+                                   +--> MW3.Game --------+
+                    MW3.Android ---+    (renderer only)  |
+                                                         +--> MW3.Protocol
+                    MW3.Server ------> MW3.Core ---------+    (snapshot, events, JSON)
+                    (ASP.NET Core)     (rules + AI)
+```
+
+`MW3.Protocol` is the new engine-free, `netstandard2.1` library at the bottom: the serializable
+snapshot of a match, the event types, and the JSON contract. `MW3.Core` gains a builder that produces
+a snapshot from a live `Match`, and a differ/applier pair over snapshots. `MW3.Game` **loses** its
+reference to `MW3.Core` entirely and depends only on `MW3.Protocol` — that is the phase's headline
+structural change and the thing success criterion 3 checks mechanically.
+
+A client reaches a match through one interface with two implementations:
+
+```
+MatchScreen ──> IMatchGateway ──┬── LoopbackMatchGateway  (in-process; owns Match + MatchRunner + AiBrain)
+                                └── RemoteMatchGateway    (WebSocket + JSON to MW3.Server)
+```
+
+Loopback is the default and is what every `qa/scripts/` run and every offline Android session uses.
+Both implementations run the **same** diff/apply pipeline (D-61), so local play is not a shortcut
+around the protocol — it exercises it.
+
+Server-side, one process holds many matches:
+
+```
+MW3.Server
+  WebSocket endpoint  ──> resolves matchId ──> MatchSession
+  MatchSessionRegistry: Dictionary<matchId, MatchSession>
+  TickScheduler (one 50 ms hosted service, walks every live session)
+     MatchSession = Match + MatchRunner + AiBrain + inbox + last snapshot + connections + log
+```
+
+## 2. Stack
+
+Unchanged from `docs/ARCHITECTURE.md` §2 except:
+
+- **New**: `MW3.Server` — ASP.NET Core on `net10.0`, referencing `MW3.Core`. In-box only; no NuGet
+  beyond the framework.
+- **New**: `MW3.Protocol` — `netstandard2.1`, no dependencies, no engine types (S-2).
+- Serialization: **`System.Text.Json`**, in-box on every target. Source-generated contexts, so the
+  Android head stays trimming- and AOT-safe.
+- Transport: **WebSocket** — `ClientWebSocket` on the heads, ASP.NET Core's WebSocket middleware on
+  the server.
+- Data: still none. **No database, no persistence** beyond FR-6's append-only log files.
+- Hosting target: **localhost only** this phase. No cloud, no TLS, no recurring cost.
+
+## 2a. How to run it
+
+`docs/welcome-screen/ARCHITECTURE.md` §2a and every phase's §2a since remain current, including the
+repo-wide `-m:1` build rule, the `down` / `up` / `wait` scripted-input vocabulary, `--smoke`,
+`--screenshot`, `--script`, `--time-scale`, `--dump-state`, and phase 7's `--map`. `qa-verifier`
+follows this section literally.
+
+**This phase is the first where a feature may need two processes.** The default remains one.
+
+Local play — unchanged, and still the default with no flags. This is the loopback path, and it is
+what all 50 committed `qa/scripts/` exercise:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --map small
+```
+
+Start the server (foreground; prints the listening URL and exits non-zero on a port clash):
+
+```powershell
+dotnet run --project src/MW3.Server
+```
+
+Play against it from the desktop head — `--server` is this phase's one new client flag, and it
+composes with every existing flag including `--map`, `--script` and `--dump-state`:
+
+```powershell
+dotnet run --project src/MW3.Desktop -- --server http://localhost:5180 --map small
+```
+
+An unreachable or malformed `--server` value writes the offending value to stderr and exits 1 before
+any graphics device is created, mirroring how `--map` and `--time-scale` already behave.
+
+Android connects to a development host by address rather than by flag (the Android head accepts no
+command-line arguments — phase 7 `docs/maps/ARCHITECTURE.md` §2a); FR-5 settles where that address is
+entered. With no server reachable it falls back to loopback and plays offline.
+
+Many concurrent matches are verified **headlessly**, not by launching many clients — the same
+approach phase 6 FR-3 took for the forge cap. `MW3.Server`'s session registry and scheduler are
+driven directly from a test.
+
+## 3. Project layout
+
+Two new projects; existing ones keep their roles.
+
+| Project | Target | Role | Changes this phase |
+|---|---|---|---|
+| `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, JSON contract | FR-1, FR-2 |
+| `MW3.Core` | `netstandard2.1` | Rules, AI. Gains snapshot building and diff/apply | FR-1, FR-2 |
+| `MW3.Game` | `net10.0;net10.0-android` | **Renderer only.** Loses its `MW3.Core` reference | FR-3, FR-5 |
+| `MW3.Server` | `net10.0` | **New.** ASP.NET Core host, sessions, scheduler, log | FR-4, FR-6 |
+| `MW3.Desktop` | `net10.0` | Head. Gains `--server` | FR-4 |
+| `MW3.Android` | `net10.0-android` | Head. Gains network config and an address | FR-5 |
+
+Tests follow the existing convention: `MW3.Core.Tests` keeps snapshot/diff coverage, and a new
+`MW3.Server.Tests` covers sessions, the scheduler and the wire.
+
+## 4. Key decisions
+
+**D-57: the protocol is its own `netstandard2.1` project, not a folder in `MW3.Core`.** Considered:
+putting the DTOs in `MW3.Core` and letting `MW3.Game` keep referencing it. Chosen because success
+criterion 3 — "the client contains no rules" — is only mechanically checkable if the client *cannot*
+see the rules, and a project reference is the only boundary the compiler enforces. A folder
+convention would be re-litigated by every future feature; a missing reference is a build error.
+`MW3.Protocol` therefore holds data and serialization only: no behaviour, no tables, no `Match`.
+
+**D-58: events are derived by diffing two snapshots, not emitted by `Match`.** Considered:
+instrumenting `Match.Advance` to raise events as state changes, which is what most engines do.
+Rejected on two grounds. `Match` is 1368 lines with mutation spread across production, combat, tower
+fire, capture, construction, morale and forge recomputation, so an emission path would have to be
+threaded through all of it and would be silently incomplete the first time a later phase added a
+mutation without a matching event. And it would create a **second source of truth** that can disagree
+with the state — exactly the resolver/prediction desync class that follow-up #68 closed once for
+building defence, phase 5 patched again for morale, and phase 6 D-45 had to guard a third time for
+forges. Diffing makes the events a *pure function* of the snapshot, so they cannot disagree with it,
+and makes `apply(diff(a, b), a) == b` a property test rather than a hope. The cost is honest: a diff
+is O(bases + armies) per tick and computes changes the emitter would have known for free. At nine
+slots and a few dozen armies that is irrelevant.
+
+**D-59: a command applies when it arrives; there is no prediction, no rollback, and no scheduled
+input delay.** Considered: MW3-side delay-based scheduling (`currentTick + inputDelay`), which is
+what lockstep RTS traditionally does, and client-side prediction with server reconciliation.
+Chosen because with one human and a local server the round trip is invisible, and because a send has
+no immediate visual consequence beyond an army leaving a base — roughly 100 ms before the column
+appears is acceptable for this genre. Both alternatives are real work that buys nothing measurable at
+this phase's scale. **This reopens in the Multiplayer project** if PvP feel demands it; the gateway
+interface is where it would land, so nothing here forecloses it.
+
+**D-60: determinism becomes an enforced property, not an accident.** `MW3.Core` today contains no
+`DateTime`, no `Random`, no wall-clock read, and no floating-point operation outside `+ - * /` and
+`Math.Sqrt` — all of which IEEE-754 requires be correctly rounded, so the simulation is
+bit-reproducible across x64 and ARM. Nothing protects that. This phase adds an enforcement mechanism
+(a banned-API check, an analyzer rule, or a golden-hash test over a fixed command script — the
+feature that first needs it settles which at its kickoff). Considered: leaving it undefended, on the
+grounds that a thin client needs no client-side determinism. Rejected because FR-6's log and the
+Game logs / replays project both depend on it, and the failure mode is a replay that silently
+diverges rather than an error.
+
+**D-61: loopback runs the same diff/apply pipeline as the wire.** Considered: letting the in-process
+gateway hand the renderer a snapshot directly, since it has one and there is no bandwidth to save.
+Rejected because it would make local play a code path the network path does not share, so the 50
+`qa/scripts/`, the Android head and every developer run would all exercise the *easy* path and leave
+the protocol tested only by whatever explicitly targeted it. Running the same pipeline costs one diff
+per tick in-process and buys protocol coverage on every single run of the game. Loopback still skips
+serialization to bytes; it does not skip diff, apply, or the snapshot types.
+
+**D-62: the server owns time.** `--time-scale` becomes a per-session server-side property rather than
+a client one, because the client no longer advances anything. The desktop head's existing flag
+therefore has to reach the session at creation. `Match.TickDurationMilliseconds` stays 50 ms (phase 3
+D-27) and the server does **not** get a tick rate of its own — one clock, one value, one place.
+
+**D-63: one scheduler for all sessions, not a thread or timer per match.** Considered: a task per
+`MatchSession`, which reads more naturally. Rejected because a tick on a nine-slot board is
+microseconds while a context switch is not, so per-match threads would cost more in scheduling than
+the simulation costs in work. A single hosted service walking the registry every 50 ms scales to
+hundreds of sessions in one process before the tick budget binds. This is only true because `Match`
+has **no statics and no ambient clock** — `MapCatalog` and the `*Table` types are read-only data — so
+two sessions share nothing. Horizontal scale, when it is ever needed, is more processes with the
+gateway routing by `matchId`; a session never migrates mid-match, because that would require state
+serialization this phase does not build.
+
+**D-64: WebSocket + JSON, with the codec behind an interface.** Considered: raw TCP with custom
+framing (leanest, but reconnection and handshake are work WebSocket gives free), gRPC bidirectional
+streaming (typed contracts, but HTTP/2 on Android MonoGame is fragile and it adds dependency weight
+this project has avoided), and MessagePack over WebSocket (~4× smaller). Chosen because
+`System.Text.Json` and `ClientWebSocket` are both in-box on all three targets, so **S-5** costs
+nothing, and because a readable payload is worth real money when `qa-verifier` and `code-reviewer`
+have to diagnose a protocol failure unattended — a JSON snapshot is close to what `--dump-state`
+already emits. The codec seam exists so binary can be swapped in without touching the protocol; it is
+explicitly not exercised this phase.
+
+**D-65: the AI runs server-side, and a disconnect substitutes it for the missing player.** `AiBrain`
+is a player, and players are server-side; `MatchRunner` already consults an `IPlayerBrain`, so
+substituting one on disconnect is swapping an interface implementation rather than new machinery.
+This is the cheapest disconnect policy available and it is only cheap because of phase 2's D-16.
+Considered: pausing the match (griefable once PvP exists) and immediate forfeit (hostile to a dropped
+connection). The grace period before substitution is a tuning value settled at FR-4's kickoff.
+
+**D-66: available actions ship in the snapshot and stay authoritative on the server.**
+`Match.AvailableActions` has two callers after this phase: the snapshot builder, so the client can
+grey out menu entries without knowing the rules, and the server's command validation, because a
+client can lie. Same code, two callers — the same shape `CombatResolver.WouldCapture` took when #68
+made it the one shared capture predicate. A command the client believed valid may still be rejected;
+the gateway carries a command result for exactly this reason, and the client must render a rejection
+rather than assume success.
+
+## 5. Cross-cutting conventions
+
+**Every message is versioned.** The protocol carries a version field from FR-1, and a mismatch is a
+clean refusal with both versions named — never a partial parse. There is no compatibility guarantee
+between phases; the requirement is only that a mismatch is diagnosable.
+
+**Snapshots are values.** Everything in `MW3.Protocol` is immutable, has no behaviour, and is
+constructible from JSON alone. Nothing in it may reference `Match`, a `*Table`, or any type in
+`MW3.Core` — that is the direction of the dependency, and it is enforced by there being no reference
+to invert.
+
+**The client never computes a rule, but it does compute geometry.** Army position from path and ticks
+(D-51, D-39), hit-testing, and layout are the client's job and stay there. Anything that decides
+*what is legal or what happens* is the server's. When the boundary is unclear, ask whether two
+clients disagreeing about it would change the match: if yes, it is server-side.
+
+**Validate at the boundary.** Every inbound message is untrusted input, in both directions, and is
+validated where it is deserialized — never cast into shape and used. A malformed or out-of-range
+command closes the connection with a reason; it never reaches `Match`.
+
+**No secret, address, or port is hardcoded in the client.** The server address arrives by flag
+(desktop) or configuration (Android), and defaults to loopback.
+
+**A test that asserts only that a message was sent is hollow** — the standing rule from
+`docs/CONVENTIONS.md`. Protocol tests assert on the reconstructed snapshot, not on the wire traffic.
+
+**Gameplay must not change.** Any behavioural difference between a match played on `main` and the
+same match played through this phase's gateway is a defect. The strongest available evidence is a
+`--dump-state` diff proving byte-identity, and it is the standard phase 7 FR-2 set for a change of
+this kind.
