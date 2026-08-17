@@ -107,13 +107,16 @@ attached MI Pad 4; see follow-up #15 for correcting this repo-wide rather than o
 viewport-derived layout adapts to whatever the real value is regardless, so this doesn't affect
 correctness - only any future arithmetic that assumes the panel's advertised resolution literally.
 
-Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/` (`play.txt`,
-`play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so the commands below are
-reproducible on a clean clone:
+Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/`
+(`select-map-small.txt`, `play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so
+the commands below are reproducible on a clean clone. The first was `play.txt` until issue #111
+retired it into `select-map-small.txt`, which taps the same coordinate with the same two directives
+and now carries its claim; phase 7 FR-2 had already replaced the Play button itself with three map
+buttons, leaving `play.txt` named after a control that no longer exists:
 
 ```powershell
 dotnet run --project src/MW3.Desktop -- --smoke --screenshot welcome.png
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/play.txt --screenshot match.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/select-map-small.txt --screenshot match.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/play-then-back.txt --screenshot back.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/press-then-drag-off.txt --screenshot drag.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/back-and-forth.txt --screenshot cycles.png

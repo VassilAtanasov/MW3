@@ -59,9 +59,10 @@ everything there applies verbatim, including the repo-wide `-m:1` build rule and
   `--time-scale`. `MW3.Android` accepts no CLI args and is unaffected. This is the phase's one new
   command-line flag; the reason for it, and for pushing welcome first, is D-56.
 - Every committed `qa/scripts/` file therefore names a map, via `--map`, **except** the five scripts
-  that verify home-screen selection itself (`play.txt`, `play-then-back.txt`,
-  `press-then-drag-off.txt`, `back-and-forth.txt`, plus the three new per-button scripts) — those tap
-  a real button, never the flag. `dismiss-ending.txt` uses the flag: the flag preserves the welcome
+  that verify home-screen selection itself (`play-then-back.txt`, `press-then-drag-off.txt`,
+  `back-and-forth.txt`, plus the three new per-button scripts) — those tap a real button, never the
+  flag. `play.txt` was a sixth until issue #111 retired it into `select-map-small.txt`, which taps
+  the identical coordinate. `dismiss-ending.txt` uses the flag: the flag preserves the welcome
   screen beneath the match, which is the property that script depends on.
 
 `--dump-state` gains no new line this phase. A map is not per-tick state, and the chosen map is

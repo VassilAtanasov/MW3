@@ -6,6 +6,31 @@
 # Tap Play, hold long enough for the human base to grow past twice the neutral's garrison, then
 # drag from it to the nearest neutral and hold long enough (~17 ticks) for the army to land and
 # capture it.
+#
+# THIS FILE NOW CARRIES THREE CLAIMS, not one (issue #111). Two later scripts were deliberately
+# authored with directives byte-identical to this one's - morale-zero-baseline-matches-army-arrival
+# .txt (phase 5 FR-2, #67) and morale-speed-zero-baseline.txt (phase 5 FR-4, #71) - precisely so
+# that their dumps had to equal this one's. Identical input and identical output meant three runs
+# bought a single observation, so #111 folded them in here rather than deleting them: the redundancy
+# WAS the assertion, and the assertion survives while the duplicate runs do not.
+#
+#   1. PHASE 2's OWN CLAIM: a send transits, arrives, and captures a neutral base.
+#   2. FR-2's MORALE-0 IDENTITY (#67): with both players at morale 0 every composed combat index is
+#      exactly identity, so FR-2's rescale of CombatResolver's indices from percent to basis points -
+#      and of both call sites composing them, Match.ResolveArrival and AiBrain's predictions - must
+#      leave the result below bit-identical.
+#   3. FR-4's MORALE-0 SPEED IDENTITY (#71): with the sender at morale 0,
+#      EffectiveArmySpeedUnitsPerTick is bit-identical to the base ArmySpeedUnitsPerTick constant, so
+#      FR-4 threading a speed multiplier through TravelTimeCalculator.ComputeTicks (both the Match and
+#      AiBrain paths) and TowerThreatEstimator.EstimateUnitsLost must leave the arrival tick alone.
+#
+# What makes claims 2 and 3 checkable from this one run is that the dump states the premise as well
+# as the result. The `Morale: Human=0 ... Ai=0` line is therefore LOAD-BEARING here, not incidental
+# detail: it is what proves the morale-0 precondition actually held, and the `Army` line's
+# Arrival-Launch gap is what proves the unmultiplied speed did. A future change that made either
+# untrue in this scenario would move this dump. If it ever does move, that is a signal the morale-0
+# baseline guarantee in docs/morale/ARCHITECTURE.md was broken - investigate rather than re-baseline
+# (the standing rule since FR-3a).
 195 down 0.120000 0.500000
 200 up 0.350000 0.250000
 395 wait

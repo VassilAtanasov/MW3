@@ -2,6 +2,15 @@
 # D-56's condition that map selection is never verified only through --map, the path no player
 # takes. Compare this script's --dump-state output (6 Base lines) against map-flag-medium.txt's
 # (8 Base lines) and select-map-big.txt's (9) to see all three selection paths exercised.
+#
+# ALSO INHERITS play.txt's CLAIM (issue #111). play.txt was retired here rather than kept: it
+# tapped this exact coordinate (0.500000, 0.591667) with the identical two directives and differed
+# only in lacking the `10 wait` below, so its dump differed from this one's by a single ElapsedTicks
+# count and nothing else - one observation bought with two runs. Its header still described that
+# coordinate as "the Play button", a button phase 7 FR-2 deleted when the home screen became three
+# map buttons, so the name was stale as well as the file redundant. The claim it carried is a real
+# one and is now this script's too: a press and release on a home-screen button MUST push the match
+# screen, so a screenshot taken here is never byte-identical to one of the welcome screen.
 0 down 0.500000 0.591667
 5 up 0.500000 0.591667
 10 wait
