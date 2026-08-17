@@ -452,7 +452,18 @@ These run without a human gate and never block or reopen a feature:
   named boundary is that FR-6 makes the AI **cost** its one deterministic route correctly; it does
   **not** give the AI a choice of routes.
 - **Phase 8, "Game server" (`docs/game-server/`, wf `836033c6cb0a`) — the active project.**
-  Discovered 17-08-2026; no board and no issues yet. The node was created as "Multiplayer server"
+  Discovered 17-08-2026; board **25**, created at FR-1's kickoff the same day, with FR-1 as issue
+  **#109**. **FR-1's kickoff found that `MatchScreen.WriteStateDump` is already a snapshot
+  serializer** in a bespoke text format, writing very nearly the exact field list FR-1 had to define
+  — so FR-1 rewires `--dump-state` to render from the snapshot and requires **byte-identical**
+  output, making all 50 `qa/scripts/` the evidence that the snapshot is complete rather than tests
+  written by the session that defined "complete". `Menu:` and `Strength:` stay screen-owned (D-26),
+  and that the split falls out cleanly is itself evidence the scope is right. Two more settled there:
+  the pure value types **move down** into `MW3.Protocol` rather than being duplicated behind a
+  mapping layer (**D-67**, with "no test file changes except its usings" as the bar), and position
+  and progress become **shared pure functions** `Match.PositionOf`/`ProgressOf` delegate to
+  (**D-68**) — both refusals of the same duplication-drift that #68, phase 5 and D-45 each closed
+  once. `--dump-state`'s rewiring is **D-69**. The node was created as "Multiplayer server"
   and was **renamed at this discovery** when the user reduced the scope: the game stays **one human
   against the AI**, and what moves is *who owns the truth* — `MW3.Core`, `MatchRunner` and `AiBrain`
   run server-side, `MW3.Game` becomes a renderer. Everything the reduction deferred (PvP, N-player,
@@ -530,7 +541,7 @@ These run without a human gate and never block or reopen a feature:
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Forges | `3900095949a7` | `docs/forges/` | 23 | `PVT_kwHOANIl2M4BfdZf` | Status `PVTSSF_lAHOANIl2M4BfdZfzhZwJAo` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Maps | `3f7156d826aa` | `docs/maps/` | 24 | `PVT_kwHOANIl2M4BfuDq` | Status `PVTSSF_lAHOANIl2M4BfuDqzhZ--GA` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
-| Game server | `836033c6cb0a` | `docs/game-server/` | — | — | board created by `/kickoff` at FR-1 |
+| Game server | `836033c6cb0a` | `docs/game-server/` | 25 | `PVT_kwHOANIl2M4BgpT6` | Status `PVTSSF_lAHOANIl2M4BgpT6zhfoFSg` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
 | Multiplayer | `98f700a52bf7` | — | — | — | not discovered; split out of Game server 17-08-2026, owns G-17 |
 | Campaigns | `31be9fb8ceb7` | — | — | — | not discovered; owns the map file format (D-49) |
@@ -635,7 +646,7 @@ Phase 8 features, in dependency order (`/kickoff` one at a time), discovered 17-
 
 | # | Feature | wf short id |
 |---|---|---|
-| 1 | Match snapshot types and a builder in a new `MW3.Protocol` project | `d9c8506314b8` |
+| 1 | Match snapshot types and a builder in a new `MW3.Protocol` project | `d9c8506314b8` (issue #109) |
 | 2 | Snapshot diffing and applying, the event model | `8336e1854fd3` |
 | 3 | The client reads a match through a gateway, loopback implementation | `11478629af65` |
 | 4 | `MW3.Server` hosts many matches over WebSocket, desktop plays remotely | `2f0804afb96f` |

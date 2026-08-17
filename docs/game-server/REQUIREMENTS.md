@@ -92,6 +92,49 @@ Deliberately **invisible** — no behaviour change, no client change, no server,
 it is the rare feature that adds no `qa/scripts/` file. That should be stated as a decision in the
 issue rather than left silent.
 
+*Settled at kickoff, 17-08-2026 (issue #109).* The kickoff found that
+`MatchScreen.WriteStateDump` is **already a snapshot serializer** in a bespoke text format — it
+writes very nearly this feature's exact field list, read from `Match`. So FR-1 rewires `--dump-state`
+to render from the snapshot and requires **byte-identical output**, which turns all 50 committed
+`qa/scripts/` into proof that the snapshot is complete and correct instead of resting that claim on
+tests written by the session that defined "complete". The `Menu:` and `Strength:` lines stay
+screen-owned; that the split falls out cleanly is evidence the snapshot's scope is right. Two further
+decisions were settled there: the pure value types **move down** into `MW3.Protocol` rather than
+being duplicated with a mapping layer (**D-67**), and army position and progress become **shared pure
+functions** that `Match.PositionOf`/`ProgressOf` delegate to (**D-68**), so a client and a server
+cannot disagree about where an army is. `--dump-state`'s rewiring is **D-69**.
+
+- Acceptance: `src/MW3.Protocol/MW3.Protocol.csproj` targets `netstandard2.1` with no project and no
+  package reference; `MW3.Core` references it and nothing references back; no type in it touches
+  `Match`, `MatchRunner`, `AiBrain`, `CombatResolver` or any `*Table`.
+- Acceptance: `MapPoint`, `MapObstacle`, `ArmyPath`, `BaseType`, `BaseActionKind`,
+  `BaseActionAvailability`, `MatchOutcome`, `SendStrength` and `PlayerControllerKind` are declared in
+  `MW3.Protocol` and no longer in `MW3.Core`; nothing is declared twice; **no mapping or adapter type
+  exists** between a Core type and a Protocol type; in the diff no test file changes except its using
+  directives.
+- Acceptance: `MatchSnapshot` is immutable, carries a protocol version, and round-trips through a
+  source-generated `System.Text.Json` context to an equal value.
+- Acceptance: the snapshot carries map id, elapsed ticks, outcome and obstacles; per player id,
+  controller kind, morale points/level/attack %/defence % and forge count with its two percentages,
+  as a **list** with the local player named by id; per base every field the client reads today,
+  including cap, upgrade cost, defence %, ring-thickness fraction, production progress, pending
+  construction, last owner change, owner before change and last fire tick; per army its launch data,
+  wave fields and full waypoint path.
+- Acceptance: the snapshot carries available actions for the local player's own bases only, in
+  `Match.AvailableActions` order, and carries **no army position and no army progress**.
+- Acceptance: the builder lives in `MW3.Core`, takes a `Match` and a local `Player`, mutates nothing,
+  and handles multi-wave sends and detoured paths.
+- Acceptance: `Match.PositionOf`/`ProgressOf` delegate to `MW3.Protocol` pure functions and perform
+  no arithmetic of their own; every existing test covering them passes unchanged.
+- Acceptance: `MatchScreen.WriteStateDump` formats every line from the snapshot except `Menu:` and
+  `Strength:` (D-26), and reads no `Match` member.
+- Acceptance: all 50 committed `qa/scripts/` pass unedited with `--dump-state` output
+  **byte-identical** to `main`; the empty diff is quoted in the PR. Final-frame screenshots on Small,
+  Medium and Big are unchanged.
+- Acceptance: the feature adds no `qa/scripts/` file, no script directive and no command-line flag,
+  stated as a decision — the dump diff across 50 existing scripts is stronger evidence than any new
+  script would be. Unit tests cover the round-trip, builder purity and the available-actions rule.
+
 **FR-2 (wf: `8336e1854fd3`): two snapshots can be reduced to an ordered list of events and rebuilt
 from them, so that the wire carries changes rather than whole states.**
 

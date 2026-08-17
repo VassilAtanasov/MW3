@@ -205,6 +205,41 @@ made it the one shared capture predicate. A command the client believed valid ma
 the gateway carries a command result for exactly this reason, and the client must render a rejection
 rather than assume success.
 
+**D-67: the pure value types move down into `MW3.Protocol`; they are not duplicated.** `MapPoint`,
+`MapObstacle`, `ArmyPath`, `BaseType`, `BaseActionKind`, `BaseActionAvailability`, `MatchOutcome`,
+`SendStrength` and `PlayerControllerKind` are data with no rules attached, and the snapshot needs all
+of them. Considered: declaring a parallel set in `MW3.Protocol` and mapping at the builder, which is
+the conventional answer and needs no churn in existing files. Rejected because it is two definitions
+of every enum kept in step by hand plus a mapping layer that must be extended for every future enum
+member — and a value that means one thing on one side of a mapping and another on the other side is
+precisely the drift this repo has already paid to close three times (follow-up #68 for building
+defence, phase 5's `WouldCapture` patch for morale, D-45 for forges). Also considered: leaving them
+in `MW3.Core` and having `MW3.Protocol` reference it, which inverts the dependency D-57 exists to
+create and would let `MW3.Game` reach the rules transitively. The churn objection is largely
+answered by `ImplicitUsings` already being on repo-wide, so `<Using Include="MW3.Protocol" />` absorbs
+the move: the bar set at FR-1 is that **no test file changes except its using directives**.
+
+**D-68: army position and progress are shared pure functions, not duplicated geometry.** They become
+functions of `(path, launch tick, arrival tick, current tick)` in `MW3.Protocol`, and
+`Match.PositionOf`/`ProgressOf` delegate to them. Considered: leaving the math in `Match` and letting
+the client reimplement it at FR-3, which touches nothing now. Rejected for the same reason as D-67 —
+two implementations of one calculation drift, and here the symptom would be armies *drawn* somewhere
+other than where tower range and arrival actually resolve, which is a bug that looks like a rendering
+glitch and isn't. Also considered: putting the position in the snapshot so only the server computes
+it, which was rejected because it discards the phase's cheapest property (launch data alone renders
+an army forever) and would make smooth motion depend on the send rate. Same one-shared-implementation
+shape as `CombatResolver.WouldCapture` after #68 and `TravelTimeCalculator` after D-53.
+
+**D-69: `--dump-state` renders from the snapshot, and must stay byte-identical.** Settled at FR-1's
+kickoff on the finding that `MatchScreen.WriteStateDump` is already a snapshot serializer in a
+bespoke text format, writing very nearly the exact field list FR-1 has to define. Rewiring it makes
+all 50 committed `qa/scripts/` evidence that the snapshot is complete and faithful, which is a far
+stronger standard than unit tests written by the same session that decided what "complete" means.
+The `Menu:` and `Strength:` lines keep coming from the screen, because menu and selected strength are
+presentation state under D-26 and are not part of the match — that this boundary falls out cleanly is
+itself evidence the snapshot's scope is right. The cost is that a feature scoped as pure foundation
+now edits a client file; that is accepted, and it is the first instalment of FR-3's job.
+
 ## 5. Cross-cutting conventions
 
 **Every message is versioned.** The protocol carries a version field from FR-1, and a mismatch is a
