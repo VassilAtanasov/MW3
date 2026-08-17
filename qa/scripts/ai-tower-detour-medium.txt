@@ -36,25 +36,36 @@
 #   first and flooring once, which is the rule this feature pins.
 #
 # WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Only expectation 1 is
-# observable in this dump. The tower this script builds influences no line of it: the AI's send runs
-# base 5 to base 0 on the NORTHERN detour, which never enters the tower's range, and the pair the
-# tower does tax - base 1 to base 0 - is not winnable at the dumped state. Note WHY, because the
-# obvious reason is the wrong one: base 1 holds 10, so its half-garrison is 5, but the AI's attack
-# index here is 150 and not 100 (the Forges line above reads AiAtk=150), and 150/110 of 5 against
-# base 0's 6 at level 2 is floor(6.8) = 6 - an exact tie, one forge short of taking it. What
-# actually rules the attack out is the toll itself: clause 4 subtracts the expected tower loss
-# BEFORE testing winnability, and 5 - 6 = -1 attacking units can capture nothing. The estimate this
-# feature corrected is what forecloses that attack, which is the opposite of the tower being
-# irrelevant - it is simply not a difference the dump can show. Deleting the conversion would
-# leave both Army lines unchanged. Making the AI CHOOSE differently needs it to hold a full-cap
-# forward base while at least two non-AI bases besides the tower are winnable, and the human cannot
-# reach that board unattended - a conversion costs 30 units, which the human's single start base
-# cannot fund until roughly tick 1400, by which time the AI owns every neutral and clause 4 has one
-# target left to order.
+# observable as a two-way comparison: the dumped Army line is base 5 to base 0, which turns at the
+# corner (0.40, 0.72) and never comes closer than 0.3387 to the tower, so both forms score it zero
+# and only its 61-tick flight distinguishes them.
+#
+# The tower is NOT inert, though - it simply changes the dump by SUBTRACTION. The pair it taxes is
+# base 1 to base 0, and clause 4 subtracts the expected tower loss before testing winnability: base
+# 1 holds 10, so its unclamped half-garrison is 5, and 5 - 6 = -1 attacking units capture nothing at
+# any index. Under the retired two-point form that toll was 0, so the attack would instead have been
+# judged on its merits. The corrected estimate therefore forecloses an attack here - but a
+# foreclosed attack is a line that does not appear, and no dump can display one.
+#
+# Two things earlier drafts of this header asserted are struck rather than quietly edited, because
+# both were checked and neither held. It claimed deleting the conversion taps would leave both Army
+# lines unchanged: FALSE, and tested - removing frames 230-236 hands base 0 to the AI and replaces
+# both Army lines. (That experiment does not isolate tower fire either, since it also refunds the
+# 30-unit conversion cost.) It also justified the unwinnable pair with "100/110 of half of 10", on
+# two wrong inputs: the AI's attack index here is 150, not 100 (the Forges line above reads
+# AiAtk=150), CombatResolver.WouldCapture cross-multiplies rather than flooring a ratio, and the
+# defender is PredictGarrison at arrival, not the garrison now. The toll subtraction above is the
+# whole reason and needs none of that arithmetic.
+#
+# Making the AI CHOOSE differently needs it to hold a full-cap forward base while at least two
+# non-AI bases besides the tower are winnable, and the human cannot reach that board unattended - a
+# conversion costs 30 units, which the human's single start base cannot fund until roughly tick
+# 1400, by which time the AI owns every neutral and clause 4 has one target left to order.
 #
 # The tower half is therefore pinned headlessly, and by ONE test rather than by two halves that
-# never meet: AiRouteAwareThreatTests.TryAttack_WithBothAnObstacleAndATower_CostsTheDetourAndAvoids-
-# TaxedTarget is the only place in the repo carrying an obstacle and a tower at once, and it asserts
+# never meet. In AiRouteAwareThreatTests, the test named
+#   TryAttack_WithBothAnObstacleAndATower_CostsTheDetourAndAvoidsTheTaxedTarget
+# is the only place in the repo carrying an obstacle and a tower at once, and it asserts
 # the decision, so it fails if AiBrain ever costs a straight line again however correct
 # TowerThreatEstimator stays in isolation. The estimator's own arithmetic
 # (EstimateUnitsLost_ATowerOnTheDetourButNotOnTheStraightLine_GoesFromZeroToSix) and the route
