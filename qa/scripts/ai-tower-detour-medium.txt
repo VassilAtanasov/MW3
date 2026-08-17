@@ -28,11 +28,11 @@
 #   POLYLINE: the line is blocked, so the route is (0.88, 0.50) - (0.60, 0.28) - (0.40, 0.28) -
 #   (0.12, 0.50), length 0.356090 + 0.20 + 0.356090 = 0.912180. Segment 1 never comes closer than
 #   0.251794. Segment 2 enters range at t = 0.261314 and runs to its end: 0.738686 x 0.20 = 0.147737.
-#   Segment 3 starts inside range and leaves at t = 0.598776: 0.598776 x 0.356090 = 0.213208.
-#   Summed = 0.360945, and floor(0.360945 / 0.06) = floor(6.0157) = 6. The NEW estimate is 6, so
+#   Segment 3 starts inside range and leaves at t = 0.5987755: 0.5987755 x 0.3560899 = 0.213218.
+#   Summed = 0.360955, and floor(0.360955 / 0.06) = floor(6.0159) = 6. The NEW estimate is 6, so
 #   polyline scoring prices that same attack at six units lost and prefers any untaxed target.
 #   Note what the sum does: flooring PER SEGMENT would give floor(0.147737/0.06) = 2 plus
-#   floor(0.213208/0.06) = 3, i.e. 5 - one unit short. 6 is only reachable by summing the chords
+#   floor(0.213218/0.06) = 3, i.e. 5 - one unit short. 6 is only reachable by summing the chords
 #   first and flooring once, which is the rule this feature pins.
 #
 # WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Only expectation 1 is
