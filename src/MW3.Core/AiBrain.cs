@@ -233,8 +233,17 @@ public sealed class AiBrain : IPlayerBrain
 
     /// <summary>
     /// The distance from <paramref name="from"/> to the nearest base this player does not own -
-    /// shared by the consolidate clause (nearest is the front) and the upgrade clause (furthest is
-    /// safest), per D-31: one distance rule, not two.
+    /// shared by the consolidate clause (nearest is the front), the upgrade clause (furthest is
+    /// safest) and clause 3's forge and tower branches, per D-31: one distance rule, not four.
+    /// <para>
+    /// Phase 7 FR-6: the distance measured is the <b>route</b> length
+    /// (<see cref="PathCalculator.ComputePath"/> against the match's obstacles), not the straight
+    /// line between the two positions - §5's "never measure a journey in straight-line distance
+    /// again". On a map with no obstacles the route is the two-waypoint straight path and its length
+    /// is computed identically, so this changes nothing on Small or Big; on Medium an enemy base
+    /// directly across the obstacle stops counting as near. This changes what the one rule measures,
+    /// not how many rules there are.
+    /// </para>
     /// </summary>
     private double NearestNotOwnedDistance(Match match, Base from)
     {
@@ -248,7 +257,7 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            var distance = Distance(from.Position, allBases[i].Position);
+            var distance = PathCalculator.ComputePath(from.Position, allBases[i].Position, match.Obstacles).Length;
             if (distance < nearest)
             {
                 nearest = distance;
@@ -392,7 +401,9 @@ public sealed class AiBrain : IPlayerBrain
 
     /// <summary>
     /// Clause 4 (FR-7, FR-6): considering own bases in descending garrison order, and for each the
-    /// bases it does not own in ascending distance order, among the winnable, untargeted candidates
+    /// bases it does not own in ascending <b>route</b> length order (phase 7 FR-6 - the length of the
+    /// path the army would fly, precomputed once per target before the sort rather than measured
+    /// inside the comparator), among the winnable, untargeted candidates
     /// prefer the one with the lowest <see cref="TotalExpectedTowerLoss"/> - a preference, not a
     /// refusal: the AI still attacks the only winnable target even when it crosses an enemy tower's
     /// range. Winnable means <c>floor(sourceGarrison * 50 / 100)</c> - unclamped, so a source with 0
@@ -404,8 +415,8 @@ public sealed class AiBrain : IPlayerBrain
     /// lowest expected tower loss (FR-6), prefer the highest predicted net morale swing - a second,
     /// separate comparison key, never blended into one score - computed from the same
     /// <see cref="MoraleTable"/> a real capture would use (<see cref="PredictedMoraleSwing"/>). Ties
-    /// on both keys fall back to the existing distance-ascending-then-id order (the order
-    /// <paramref name="ownBases"/>/<c>targets</c> were already sorted in), unchanged from today.
+    /// on both keys fall back to the existing route-length-ascending-then-id order (the order
+    /// <paramref name="ownBases"/>/<c>targets</c> were already sorted in), unchanged in shape.
     /// </summary>
     private BrainDecision TryAttack(Match match, List<Base> ownBases)
     {
@@ -425,21 +436,32 @@ public sealed class AiBrain : IPlayerBrain
         // once rather than per candidate.
         var ownForgeAttackPercent = match.ForgeAttackPercentFor(Player);
 
+        // The AI's own morale (FR-4) - it is the prospective sender of every candidate send below,
+        // so this is the speed Match.Execute would lock in for any of them were it submitted right
+        // now. Constant across both loops: nothing inside them changes the AI's morale.
+        var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
+
         foreach (var source in sources)
         {
-            var targets = new List<Base>();
+            // FR-6: one ComputePath per (source, target) pair, computed here and then reused as the
+            // ordering key, for the arrival tick, and for the tower loss - never recomputed inside
+            // the comparator, which would run it O(n log n) times per target.
+            var targets = new List<TargetRoute>();
             for (var i = 0; i < allBases.Count; i++)
             {
                 if (allBases[i].Owner != Player)
                 {
-                    targets.Add(allBases[i]);
+                    var candidate = allBases[i];
+                    targets.Add(new TargetRoute(
+                        candidate,
+                        PathCalculator.ComputePath(source.Position, candidate.Position, match.Obstacles)));
                 }
             }
 
             targets.Sort((a, b) =>
             {
-                var byDistance = Distance(source.Position, a.Position).CompareTo(Distance(source.Position, b.Position));
-                return byDistance != 0 ? byDistance : a.Id.CompareTo(b.Id);
+                var byRouteLength = a.Path.Length.CompareTo(b.Path.Length);
+                return byRouteLength != 0 ? byRouteLength : a.Target.Id.CompareTo(b.Target.Id);
             });
 
             // Unclamped: a source with 0 or 1 garrison must stay unwinnable, unlike the clamped-to-1
@@ -450,21 +472,19 @@ public sealed class AiBrain : IPlayerBrain
             var bestExpectedTowerLoss = int.MaxValue;
             var bestMoraleSwing = int.MinValue;
 
-            foreach (var target in targets)
+            foreach (var candidate in targets)
             {
+                var target = candidate.Target;
                 if (AlreadyTargetedByOwnArmy(match, target.Id))
                 {
                     continue;
                 }
 
-                // The AI's own morale (FR-4) - it is the prospective sender, so this is the speed
-                // Match.Execute would lock in for this send were it submitted right now.
-                var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(Player).Level);
-                var path = PathCalculator.ComputePath(source.Position, target.Position, match.Obstacles);
+                var path = candidate.Path;
                 var travelTicks = TravelTimeCalculator.ComputeTicks(path.Length, speed);
                 var arrivalTick = currentTick + travelTicks;
                 var predictedGarrison = PredictGarrison(target, currentTick, arrivalTick);
-                var expectedTowerLoss = TotalExpectedTowerLoss(match, source.Position, target.Position, speed);
+                var expectedTowerLoss = TotalExpectedTowerLoss(match, path, speed);
                 var attackingUnitCount = unclampedHalfGarrison - expectedTowerLoss;
 
                 // Mechanical, not judgement (FR-2, and FR-3 for the forge term): feeding the same
@@ -516,13 +536,18 @@ public sealed class AiBrain : IPlayerBrain
     }
 
     /// <summary>
-    /// The sum, over every tower whose range the <paramref name="source"/>-to-<paramref name="target"/>
-    /// segment crosses and that is not the AI's own, of <see cref="TowerThreatEstimator"/>'s estimated
-    /// units lost - a player's armies fly through their own towers untouched (FR-4). Includes an
-    /// unowned tower (FR-2, D-47): the neutral tower fires at any player's army in range, so a route
-    /// crossing it is a real threat and must not be scored as zero.
+    /// The sum, over every tower whose range <paramref name="path"/> crosses and that is not the
+    /// AI's own, of <see cref="TowerThreatEstimator"/>'s estimated units lost - a player's armies fly
+    /// through their own towers untouched (FR-4). Includes an unowned tower (FR-2, D-47): the neutral
+    /// tower fires at any player's army in range, so a route crossing it is a real threat and must
+    /// not be scored as zero.
+    /// <para>
+    /// Phase 7 FR-6: <paramref name="path"/> is the route the evaluating clause already computed for
+    /// its arrival prediction, so the cost of tower fire is charged along the segments the army would
+    /// really fly rather than along a straight line between the two bases.
+    /// </para>
     /// </summary>
-    private int TotalExpectedTowerLoss(Match match, MapPoint source, MapPoint target, double speedUnitsPerTick)
+    private int TotalExpectedTowerLoss(Match match, ArmyPath path, double speedUnitsPerTick)
     {
         var total = 0;
         var allBases = match.Bases;
@@ -535,10 +560,28 @@ public sealed class AiBrain : IPlayerBrain
                 continue;
             }
 
-            total += TowerThreatEstimator.EstimateUnitsLost(source, target, candidate.Position, candidate.Level, speedUnitsPerTick);
+            total += TowerThreatEstimator.EstimateUnitsLost(path, candidate.Position, candidate.Level, speedUnitsPerTick);
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// One candidate target of clause 4 paired with the single <see cref="ArmyPath"/> computed for it
+    /// (FR-6). Exists so the path is computed once per (source, target) pair and then read three
+    /// times - the sort key, the arrival tick, and the tower loss - instead of recomputed at each.
+    /// </summary>
+    private readonly struct TargetRoute
+    {
+        internal TargetRoute(Base target, ArmyPath path)
+        {
+            Target = target;
+            Path = path;
+        }
+
+        internal Base Target { get; }
+
+        internal ArmyPath Path { get; }
     }
 
     /// <summary>
@@ -727,11 +770,4 @@ public sealed class AiBrain : IPlayerBrain
         current is null
         || candidate.GarrisonCount > current.GarrisonCount
         || (candidate.GarrisonCount == current.GarrisonCount && candidate.Id < current.Id);
-
-    private static double Distance(MapPoint a, MapPoint b)
-    {
-        var dx = a.X - b.X;
-        var dy = a.Y - b.Y;
-        return Math.Sqrt((dx * dx) + (dy * dy));
-    }
 }
