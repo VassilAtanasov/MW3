@@ -16,6 +16,9 @@ public class AiRouteAwareThreatTests
     private static void SetGarrison(Base b, int garrison) =>
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
 
+    private static void SetType(Base b, BaseType type) =>
+        typeof(Base).GetProperty(nameof(Base.Type))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { type });
+
     private static void SetOwner(Base b, Player? owner) =>
         typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { owner });
 
@@ -166,6 +169,71 @@ public class AiRouteAwareThreatTests
 
         Assert.True(decision.IsSend);
         Assert.Equal(aroundTheCorner.Id, decision.Command.TargetBaseId);
+    }
+
+    /// <summary>
+    /// The junction the other tests leave open: that <see cref="AiBrain"/> itself hands
+    /// <see cref="TowerThreatEstimator"/> the <b>routed</b> path. The two estimator tests above never
+    /// go through <c>AiBrain</c>, and the two heuristic tests carry no tower, so between them a
+    /// regression that passed a straight two-waypoint path into <c>TotalExpectedTowerLoss</c> would
+    /// go unnoticed. This test is the one layout carrying both an obstacle and a tower.
+    /// <para>
+    /// Medium's real geometry, with the human holding base 0, base 2 as a <b>tower</b>, and base 3;
+    /// the AI attacks from base 4 at (0.65, 0.25). Its three candidate targets:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>base 2 (0.35, 0.25) - 0.30 away, line clear of the obstacle, and the tower is the target
+    /// itself, so both forms score the same <b>3</b>.</item>
+    /// <item>base 3 (0.35, 0.75) - straight-line 0.5831, whose line passes 0.2572 from the tower,
+    /// outside its 0.20 range, so the old form scores <b>0</b>. Its route is blocked and turns at the
+    /// inset corner (0.40, 0.28), 0.0583 from the tower: 0.7244 long, chords 0.150707 + 0.168337 =
+    /// 0.319044, and floor(0.319044 / 0.06) = <b>5</b>.</item>
+    /// <item>base 0 (0.12, 0.50) - 0.5860 straight / 0.6079 routed, scoring 5 and 6.</item>
+    /// </list>
+    /// <para>
+    /// Straight-line scoring therefore orders the targets 2, 3, 0 and picks <b>base 3</b> for costing
+    /// nothing. Route scoring orders them 2, 0, 3 and picks <b>base 2</b>, the cheapest at 3. The
+    /// assertion is base 2: it fails the moment the brain costs a straight line instead of the
+    /// polyline, whatever the estimator itself does correctly in isolation.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TryAttack_WithBothAnObstacleAndATower_CostsTheDetourAndAvoidsTheTaxedTarget()
+    {
+        var match = new Match(MapCatalog.Medium);
+        var ai = match.AiPlayer;
+        var human = match.HumanPlayer;
+
+        foreach (var id in new[] { 1, 4, 5, 6, 7 })
+        {
+            SetOwner(match.Bases[id], ai);
+            SetGarrison(match.Bases[id], 6);
+        }
+
+        SetOwner(match.Bases[2], human);
+        SetType(match.Bases[2], BaseType.Tower);
+        SetGarrison(match.Bases[2], 4);
+        SetOwner(match.Bases[3], human);
+        SetGarrison(match.Bases[3], 4);
+        SetGarrison(match.Bases[0], 30);
+        SetGarrison(match.Bases[4], 20); // the AI's largest, so clause 4 sources from base 4
+
+        var tower = match.Bases[2];
+        var source = match.Bases[4].Position;
+        var taxedTarget = match.Bases[3].Position;
+        var speed = Match.EffectiveArmySpeedUnitsPerTick(match.MoraleFor(ai).Level);
+
+        // The two numbers the decision below turns on, asserted rather than only asserted-by-comment.
+        var straightToBase3 = new ArmyPath(new[] { source, taxedTarget }, 0.0);
+        var routedToBase3 = PathCalculator.ComputePath(source, taxedTarget, match.Obstacles);
+        Assert.Equal(0, TowerThreatEstimator.EstimateUnitsLost(straightToBase3, tower.Position, tower.Level, speed));
+        Assert.Equal(5, TowerThreatEstimator.EstimateUnitsLost(routedToBase3, tower.Position, tower.Level, speed));
+
+        var decision = InvokeClause("TryAttack", new AiBrain(ai), match);
+
+        Assert.True(decision.IsSend);
+        Assert.Equal(match.Bases[4].Id, decision.Command.SourceBaseId);
+        Assert.Equal(match.Bases[2].Id, decision.Command.TargetBaseId);
     }
 
     /// <summary>

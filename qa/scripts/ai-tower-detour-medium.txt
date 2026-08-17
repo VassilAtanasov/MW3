@@ -35,14 +35,25 @@
 #   floor(0.213208/0.06) = 3, i.e. 5 - one unit short. 6 is only reachable by summing the chords
 #   first and flooring once, which is the rule this feature pins.
 #
-# WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Expectation 2's target
-# preference is not observable here: making the AI CHOOSE differently needs it to hold a full-cap
+# WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Only expectation 1 is
+# observable in this dump. The tower this script builds influences no line of it: the AI's send runs
+# base 5 to base 0 on the NORTHERN detour, which never enters the tower's range, and the pair the
+# tower does tax - base 1 to base 0 - is not winnable at the dumped state (base 1 holds 10 against
+# base 0's 6 at level 2, and 100/110 of half of 10 does not take 6). Deleting the conversion would
+# leave both Army lines unchanged. Making the AI CHOOSE differently needs it to hold a full-cap
 # forward base while at least two non-AI bases besides the tower are winnable, and the human cannot
 # reach that board unattended - a conversion costs 30 units, which the human's single start base
 # cannot fund until roughly tick 1400, by which time the AI owns every neutral and clause 4 has one
-# target left to order. The preference flip is therefore pinned headlessly, in
-# AiRouteAwareThreatTests.TryAttack_OnAnObstacleLayout_OrdersTargetsByRouteLengthNotStraightLine and
-# EstimateUnitsLost_ATowerOnTheDetourButNotOnTheStraightLine_GoesFromZeroToSix - the same division
+# target left to order.
+#
+# The tower half is therefore pinned headlessly, and by ONE test rather than by two halves that
+# never meet: AiRouteAwareThreatTests.TryAttack_WithBothAnObstacleAndATower_CostsTheDetourAndAvoids-
+# TaxedTarget is the only place in the repo carrying an obstacle and a tower at once, and it asserts
+# the decision, so it fails if AiBrain ever costs a straight line again however correct
+# TowerThreatEstimator stays in isolation. The estimator's own arithmetic
+# (EstimateUnitsLost_ATowerOnTheDetourButNotOnTheStraightLine_GoesFromZeroToSix) and the route
+# ordering (TryAttack_OnAnObstacleLayout_OrdersTargetsByRouteLengthNotStraightLine) are pinned
+# separately, and neither of those two alone covers the junction. This is the same division
 # ai-contests-forge.txt already draws: real play proves the reachable end-to-end path, headless
 # tests prove the arithmetic real play cannot cheaply exercise.
 #

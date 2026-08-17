@@ -23,10 +23,12 @@ public class MoraleSpeedTests
         typeof(MoraleState).GetProperty(nameof(MoraleState.Points))!.GetSetMethod(nonPublic: true)!.Invoke(state, new object?[] { points });
 
     /// <summary>
-    /// Mirrors <c>TravelTimeCalculator.ComputeTicks</c>'s public-facing formula - that helper is
-    /// internal to <c>MW3.Core</c> and this project has no <c>InternalsVisibleTo</c> into it, so
-    /// tests that need an independent expected travel time compute it here rather than reaching
-    /// past the accessibility boundary.
+    /// Mirrors <c>TravelTimeCalculator.ComputeTicks</c>'s public-facing formula. Phase 7 FR-6 opened
+    /// an <c>InternalsVisibleTo</c> from <c>MW3.Core</c> into this project, so the duplication is no
+    /// longer forced by the accessibility boundary - it is kept deliberately, because these two
+    /// tests exist to check the shipped helper against an <b>independently written</b> expectation.
+    /// Calling the helper here would make them assert that a value equals itself. Nothing else in
+    /// this project should copy Core arithmetic on the old justification.
     /// </summary>
     private static long ComputeTravelTicks(MapPoint from, MapPoint to, double speedUnitsPerTick)
     {
@@ -224,8 +226,10 @@ public class MoraleSpeedTests
         var survived = match.ArmiesInFlight.Any() ? army.UnitCount : 0;
         var lost = sentUnits - survived;
 
-        // TowerThreatEstimator itself is internal to MW3.Core with no InternalsVisibleTo into this
-        // project, so the estimate is reproduced here for this straight-at-the-tower case: the
+        // TowerThreatEstimator is reachable from this project since phase 7 FR-6's
+        // InternalsVisibleTo, but the estimate is reproduced here on purpose: this test's whole
+        // claim is that the simulation agrees with an independently derived number, and calling the
+        // estimator would collapse it into a tautology. For this straight-at-the-tower case the
         // target base IS the tower, so the in-range chord is simply min(range, total distance) -
         // the same geometry TowerFireTests' TuningSanity theory relies on.
         var speed = Match.EffectiveArmySpeedUnitsPerTick(MoraleTable.MaxLevel);
