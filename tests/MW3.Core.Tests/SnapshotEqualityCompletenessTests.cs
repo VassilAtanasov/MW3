@@ -178,4 +178,22 @@ public class SnapshotEqualityCompletenessTests
         AssertEveryConstructorParameterAffectsEquality(snapshot.Players[0]);
         AssertEveryConstructorParameterAffectsEquality(snapshot.Bases.First(b => b.AvailableActions.Count > 0).AvailableActions[0]);
     }
+
+    [Fact]
+    public void EveryEventBatchField_TakesPartInEquality()
+    {
+        // EventBatch holds a list (Events) and so hand-writes Equals exactly as MatchSnapshot does -
+        // the same trap applies.
+        var match = new Match(MapCatalog.Medium);
+        var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
+        var ai = match.Bases.Single(b => b.Owner == match.AiPlayer);
+        var a = MatchSnapshotBuilder.Build(match, match.HumanPlayer);
+
+        SetGarrison(human, 40);
+        Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, ai.Id, 30)));
+        match.Advance(20);
+        var b = MatchSnapshotBuilder.Build(match, match.HumanPlayer);
+
+        AssertEveryConstructorParameterAffectsEquality(SnapshotDiffer.Diff(a, b));
+    }
 }
