@@ -65,7 +65,7 @@ public class MatchSnapshotBuilderTests
         Assert.Equal(ForgeTable.AttackPercentage(human.ForgeCount), human.ForgeAttackPercentage);
         Assert.Equal(ForgeTable.DefencePercentage(human.ForgeCount), human.ForgeDefencePercentage);
 
-        Assert.Equal(human, snapshot.LocalPlayer);
+        Assert.Equal(human, snapshot.FindLocalPlayer());
     }
 
     [Fact]

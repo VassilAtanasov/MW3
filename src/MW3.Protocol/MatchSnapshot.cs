@@ -71,20 +71,25 @@ public sealed record MatchSnapshot(
         unchecked((((((ProtocolVersion * 31) + ElapsedTicks.GetHashCode()) * 31)
             + SnapshotEquality.ListHash(Bases)) * 31) + SnapshotEquality.ListHash(Armies));
 
-    /// <summary>The player <see cref="LocalPlayerId"/> names, or null if this snapshot does not carry them.</summary>
-    public PlayerSnapshot? LocalPlayer
+    /// <summary>
+    /// The player <see cref="LocalPlayerId"/> names, or null if this snapshot does not carry them.
+    ///
+    /// A method rather than a property on purpose: <c>System.Text.Json</c> serializes every public
+    /// gettable property, so as a property this would put a second copy of one player's record on
+    /// the wire - data that is already in <see cref="Players"/>, that no reader needs sent, and that
+    /// a deserializer would silently drop on the way back because it has no setter. Two encodings of
+    /// one fact is how a payload starts being able to contradict itself.
+    /// </summary>
+    public PlayerSnapshot? FindLocalPlayer()
     {
-        get
+        for (var i = 0; i < Players.Count; i++)
         {
-            for (var i = 0; i < Players.Count; i++)
+            if (Players[i].Id == LocalPlayerId)
             {
-                if (Players[i].Id == LocalPlayerId)
-                {
-                    return Players[i];
-                }
+                return Players[i];
             }
-
-            return null;
         }
+
+        return null;
     }
 }

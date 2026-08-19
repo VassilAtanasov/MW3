@@ -122,6 +122,22 @@ public class MatchSnapshotJsonTests
     }
 
     [Fact]
+    public void TheSerializedForm_CarriesEachPlayerExactlyOnce()
+    {
+        // The local player is named by id and looked up through a method, never exposed as a
+        // property - a gettable property would be serialized, putting a second copy of one player's
+        // record on the wire that the deserializer then drops. Two encodings of one fact is how a
+        // payload starts being able to contradict itself.
+        var json = JsonSerializer.Serialize(BuildRichSnapshot(), MatchSnapshotJsonContext.Default.MatchSnapshot);
+
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(2, document.RootElement.GetProperty(nameof(MatchSnapshot.Players)).GetArrayLength());
+        Assert.False(
+            document.RootElement.TryGetProperty("LocalPlayer", out _),
+            "The snapshot serialized a second copy of the local player.");
+    }
+
+    [Fact]
     public void TheSerializedForm_CarriesNoArmyPositionOrProgress()
     {
         // Not a style preference: a position on the wire would be a second answer to "where is this
