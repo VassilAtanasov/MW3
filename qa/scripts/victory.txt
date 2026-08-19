@@ -7,8 +7,11 @@
 #
 # Run with --map small --time-scale 25. This script reaches HumanVictory at tick 1788.
 #
-# 8,495 frames -> 233. The retired sequence ran at --time-scale 1 for 8,495 frames (144.6 s on the
-# reference machine, 43% of the whole suite's wall-clock) and had not reached its outcome since FR-2.
+# 8,505 frames -> 238. Both are run lengths, not last-directive frames: playback ends ten frames
+# after the last directive (ScriptedInputSource.IsPlaybackComplete), so the `8495 wait` the retired
+# sequence ended on ran to frame 8,505 and the `228 wait` below runs to frame 238. That retired
+# sequence ran at --time-scale 1 (144.6 s on the reference machine, 43% of the whole suite's
+# wall-clock) and had not reached its outcome since FR-2.
 # --time-scale 25 makes every frame worth exactly 8 ticks - (long)(1000/60) * 25 = 400 ms, and
 # 400 / 50 = 8 - so the whole tick range this sequence needs is reachable on a uniform grid, which is
 # what the old comment correctly said scale 25 could not do for the OLD sequence's non-uniform gaps.

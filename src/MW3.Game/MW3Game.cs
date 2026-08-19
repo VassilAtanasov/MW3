@@ -74,14 +74,17 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
             // scripted run: GraphicsDeviceManager defaults SynchronizeWithVerticalRetrace to true,
             // so every frame sleeps until the next vblank (~16.7 ms on a 60 Hz panel) that no one is
             // watching. A scripted run's wall-clock is then a pure function of its frame count, which
-            // made the 58-script suite ~350 s of which almost all was that sleep (issue #111).
+            // made the whole qa/scripts/ suite ~350 s of which almost all was that sleep (issue #111).
             //
             // Switching it off is safe *specifically because* of the TargetElapsedTime decoupling in
             // Update below: under scripted playback the elapsed millisecond count each tick is read
             // from the nominal step, never from measured wall-clock, so the simulation cannot see how
             // fast frames are delivered. Removing the throttle changes only how quickly the same
-            // frame sequence arrives. Proved rather than argued: every one of the 58 scripts produces
-            // a byte-identical --dump-state and the three screenshot scripts byte-identical PNGs.
+            // frame sequence arrives. Proved rather than argued: with this change as the ONLY change,
+            // all 54 scripts that write a dump produced a byte-identical --dump-state and the three
+            // screenshot scripts byte-identical PNGs. (#111 went on to retire three scripts and
+            // re-derive victory.txt, which is why the committed suite no longer matches that run
+            // file-for-file - those are separate edits, deliberately not folded into this argument.)
             // Unscripted play keeps vsync, so real players still get a tear-free, non-spinning frame.
             _graphics.SynchronizeWithVerticalRetrace = false;
         }
