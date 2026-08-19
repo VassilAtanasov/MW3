@@ -62,7 +62,7 @@ curve is caught rather than discovered.
 1. **The game is indistinguishable to play.** With the server running, a full match against the AI on
    any of the three maps plays identically to `main` — same production, same combat, same morale,
    same victory and defeat.
-2. **All 50 committed `qa/scripts/` pass unedited** after FR-3, on the loopback path. A script
+2. **All 55 committed `qa/scripts/` pass unedited** after FR-3, on the loopback path. A script
    weakened to pass rather than re-authored is a defect (the standing rule since phase 3 FR-3a).
 3. **The client contains no rules.** After FR-3, `MW3.Game` has no reference to `Match`,
    `MatchRunner`, `CombatResolver`, `AiBrain`, or any `*Table` type. This is mechanically checkable
@@ -95,7 +95,7 @@ issue rather than left silent.
 *Settled at kickoff, 17-08-2026 (issue #109).* The kickoff found that
 `MatchScreen.WriteStateDump` is **already a snapshot serializer** in a bespoke text format — it
 writes very nearly this feature's exact field list, read from `Match`. So FR-1 rewires `--dump-state`
-to render from the snapshot and requires **byte-identical output**, which turns all 50 committed
+to render from the snapshot and requires **byte-identical output**, which turns all 55 committed
 `qa/scripts/` into proof that the snapshot is complete and correct instead of resting that claim on
 tests written by the session that defined "complete". The `Menu:` and `Strength:` lines stay
 screen-owned; that the split falls out cleanly is evidence the snapshot's scope is right. Two further
@@ -128,11 +128,11 @@ cannot disagree about where an army is. `--dump-state`'s rewiring is **D-69**.
   no arithmetic of their own; every existing test covering them passes unchanged.
 - Acceptance: `MatchScreen.WriteStateDump` formats every line from the snapshot except `Menu:` and
   `Strength:` (D-26), and reads no `Match` member.
-- Acceptance: all 50 committed `qa/scripts/` pass unedited with `--dump-state` output
+- Acceptance: all 55 committed `qa/scripts/` pass unedited with `--dump-state` output
   **byte-identical** to `main`; the empty diff is quoted in the PR. Final-frame screenshots on Small,
   Medium and Big are unchanged.
 - Acceptance: the feature adds no `qa/scripts/` file, no script directive and no command-line flag,
-  stated as a decision — the dump diff across 50 existing scripts is stronger evidence than any new
+  stated as a decision — the dump diff across 55 existing scripts is stronger evidence than any new
   script would be. Unit tests cover the round-trip, builder purity and the available-actions rule.
 
 **FR-2 (wf: `8336e1854fd3`): two snapshots can be reduced to an ordered list of events and rebuilt
@@ -184,7 +184,7 @@ determinism; the enforcement is two-part and recorded as **D-71**.
 - Acceptance: a stable snapshot hash exists in `MW3.Protocol` over a canonical serialization, pinned
   by a golden-hash test; it does **not** use `string.GetHashCode` or `object.GetHashCode` (.NET
   randomizes string hashing per process), and the test asserts two separate processes agree.
-- Acceptance: `./gate.ps1` passes; no `qa/scripts/` file changes and all 50 still pass.
+- Acceptance: `./gate.ps1` passes; no `qa/scripts/` file changes and all 55 still pass.
 
 **FR-3 (wf: `11478629af65`): the client renders a match it does not own, so that the rules can live
 somewhere else.**
@@ -194,9 +194,64 @@ events — with an **in-process loopback implementation** that runs the same dif
 wire will. `MatchScreen` reads a snapshot instead of `Match`, and computes army positions itself from
 path and ticks. `MatchRunner` and `AiBrain` move behind the gateway.
 
-**This is the phase's compatibility break and its largest feature.** All 50 `qa/scripts/` run through
-this path and must pass unedited. If it proves oversized at kickoff, the split to reach for is *bases
-and morale first, armies and the action menu second* — but it is not pre-split here on a guess.
+**This is the phase's compatibility break and its largest feature.** All 55 `qa/scripts/` run through
+this path and must pass unedited.
+
+*Settled at kickoff, 20-08-2026 (issue #116).* The user chose to **keep the feature whole** rather
+than take discovery's *bases and morale first, armies and the action menu second* split: every split
+leaves an intermediate `MatchScreen` reading both a `Match` and a snapshot, which is two sources of
+truth inside the client — the drift shape #68, phase 5's morale patch and D-45 each closed once — and
+neither half alone proves success criterion 3, since the `MW3.Core` reference can only go at the end.
+Three decisions were settled: the **heads become the composition root** (**D-74**), `diff`/`apply`
+stay in `MW3.Protocol` (**D-75**, superseding §1's line — raised here while FR-2 was unbuilt, and
+satisfied by FR-2's own merge later the same day, so it is a standing constraint rather than a task),
+and the gateway's send command carries a **`SendStrength`** and **no player id** (**D-76**). Reading the current client also produced five
+findings the issue names as traps, each of which passes review if skimmed: the snapshot is one field
+short (`MatchScreen.cs:534` draws a tower's range ring from `LevelTable`, which `--dump-state` never
+prints, so FR-1's byte-identical dump could not have caught it); `SendStrengthCalculator` is a rule
+running on the client (`MatchScreen.cs:316`); `HitTester` is geometry rather than a rule and
+`MatchScreen` is its only caller, so it moves to `MW3.Protocol` for the same reason D-68 moved the
+position math there; and `BaseActionMenu`'s refresh cache re-queries only on four fields where the
+snapshot refreshes on any change, which is more correct but can move the `Menu:` dump line and so
+must be investigated rather than re-baselined.
+
+- Acceptance: `IMatchGateway` and a JSON-shaped, non-polymorphic command type live in `MW3.Protocol`;
+  the gateway exposes the current snapshot, takes elapsed wall-clock milliseconds (documented as a
+  no-op for FR-4's remote implementation, since D-62 gives the server the clock), and returns an
+  accepted/rejected result carrying a reason.
+- Acceptance: a command carries **no player id** — the gateway attributes it to the session's local
+  player — and the send command carries a **`SendStrength`**, never a unit count.
+- Acceptance: a factory interface creates a gateway for a **named** map and exposes the available map
+  names in catalogue order; the client hardcodes no map identity.
+- Acceptance: `LoopbackMatchGateway` lives in `MW3.Core`, owns one `Match`, `MatchRunner` and fresh
+  `AiBrain` per match plus the `FixedStepClock`, and reaches its exposed snapshot by **applying** a
+  diff rather than handing out the built one (D-61) — proven by a test asserting value equality and
+  reference *in*equality against `MatchSnapshotBuilder`'s output.
+- Acceptance: it diffs **once per frame** across however many ticks elapsed, so FR-2's non-adjacent
+  case is exercised on every frame of every run rather than only by FR-2's own tests.
+- Acceptance: `SnapshotDiffer`, `SnapshotApplier` and `SnapshotHash` stay in `MW3.Protocol`, where
+  FR-2 placed them — a client that needs `MW3.Core` to apply a batch cannot satisfy criterion 3
+  (D-75).
+- Acceptance: `BaseSnapshot` carries a tower's range in normalized map units (null for a type with no
+  range), `CurrentProtocolVersion` is bumped, and `HitTester` moves to `MW3.Protocol` over
+  `BaseSnapshot` with its tests re-pointed rather than duplicated.
+- Acceptance: `MatchScreen` is constructed from an `IMatchGateway`, holds no `Match`, `MatchRunner`
+  or `AiBrain`, reads every drawn value from the snapshot, computes army position and progress from
+  `ArmyPathMath`, and keeps both flashes at today's durations. `BaseActionMenu` reads
+  `BaseSnapshot.AvailableActions` and preserves its press-time availability rule. `WelcomeScreen`
+  builds its buttons from the factory's map-name list.
+- Acceptance: `src/MW3.Game/MW3.Game.csproj` has **no `ProjectReference` to `MW3.Core`** and no file
+  under `src/MW3.Game` names `Match`, `MatchRunner`, `AiBrain`, `CombatResolver`, `MapCatalog`,
+  `MapId`, `MapDefinition`, `SendStrengthCalculator` or any `*Table`; both heads reference `MW3.Core`
+  and inject the loopback factory. `--map` still validates before any graphics device is created and
+  still exits 1 with the same message.
+- Acceptance: all 55 committed `qa/scripts/` pass **unedited** with `--dump-state` byte-identical to
+  `main` (the empty diff quoted in the PR) and unchanged final-frame screenshots on all three maps.
+- Acceptance: the feature adds **no `qa/scripts/` file**, no script directive and no command-line
+  flag, stated as a decision — it adds no player-observable behaviour, and 55 scripts each driving
+  the whole gateway and diff/apply pipeline beat any new script written by the session that changed
+  the path. A headless integration test drives the gateway through complete matches on all three maps
+  instead, and device QA on the MI PAD 4 confirms a full match still plays.
 
 **FR-4 (wf: `2f0804afb96f`): many matches run on one server process and a client plays one of them
 over a network, so that the simulation is genuinely remote.**
@@ -248,7 +303,7 @@ build-mode calls:
    server at all — and makes any future non-determinism a desync bug).
 2. **Local in-process mode survives.** One gateway interface, two implementations, loopback the
    default. Requiring a server for single-player would be a product regression for an Android-first
-   game and would invalidate all 50 `qa/scripts/`.
+   game and would invalidate all 55 `qa/scripts/`.
 3. **WebSocket + JSON.** `System.Text.Json` is in-box, so no NuGet and no cost to **S-5**;
    `ClientWebSocket` works on both heads; payloads stay readable in logs and QA diffs, which matters
    when `qa-verifier` and `code-reviewer` diagnose failures unattended. The codec sits behind an

@@ -664,7 +664,7 @@ Phase 8 features, in dependency order (`/kickoff` one at a time), discovered 17-
 |---|---|---|
 | 1 | Match snapshot types and a builder in a new `MW3.Protocol` project | `d9c8506314b8` (issue #109) |
 | 2 | Snapshot diffing and applying, the event model | `8336e1854fd3` (issue #112) |
-| 3 | The client reads a match through a gateway, loopback implementation | `11478629af65` |
+| 3 | The client reads a match through a gateway, loopback implementation | `11478629af65` (issue #116) |
 | 4 | `MW3.Server` hosts many matches over WebSocket, desktop plays remotely | `2f0804afb96f` |
 | 5 | The Android head connects to a server and falls back to local | `38ffe9924312` |
 | 6 | The server records a per-match command and event log | `30450bdd69ee` |

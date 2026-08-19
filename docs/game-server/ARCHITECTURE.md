@@ -70,7 +70,7 @@ follows this section literally.
 **This phase is the first where a feature may need two processes.** The default remains one.
 
 Local play — unchanged, and still the default with no flags. This is the loopback path, and it is
-what all 50 committed `qa/scripts/` exercise:
+what all 55 committed `qa/scripts/` exercise:
 
 ```powershell
 dotnet run --project src/MW3.Desktop -- --map small
@@ -106,12 +106,12 @@ Two new projects; existing ones keep their roles.
 
 | Project | Target | Role | Changes this phase |
 |---|---|---|---|
-| `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, JSON contract | FR-1, FR-2 |
-| `MW3.Core` | `netstandard2.1` | Rules, AI. Gains snapshot building and diff/apply | FR-1, FR-2 |
+| `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, diff/apply, JSON contract | FR-1, FR-2, FR-3 |
+| `MW3.Core` | `netstandard2.1` | Rules, AI. Gains snapshot building and the loopback gateway | FR-1, FR-3 |
 | `MW3.Game` | `net10.0;net10.0-android` | **Renderer only.** Loses its `MW3.Core` reference | FR-3, FR-5 |
 | `MW3.Server` | `net10.0` | **New.** ASP.NET Core host, sessions, scheduler, log | FR-4, FR-6 |
-| `MW3.Desktop` | `net10.0` | Head. Gains `--server` | FR-4 |
-| `MW3.Android` | `net10.0-android` | Head. Gains network config and an address | FR-5 |
+| `MW3.Desktop` | `net10.0` | Head, and composition root from FR-3 (D-74). Gains `--server` | FR-3, FR-4 |
+| `MW3.Android` | `net10.0-android` | Head, and composition root from FR-3 (D-74). Gains network config and an address | FR-3, FR-5 |
 
 Tests follow the existing convention: `MW3.Core.Tests` keeps snapshot/diff coverage, and a new
 `MW3.Server.Tests` covers sessions, the scheduler and the wire. `MW3.Core.Tests` also holds the
@@ -235,7 +235,7 @@ shape as `CombatResolver.WouldCapture` after #68 and `TravelTimeCalculator` afte
 **D-69: `--dump-state` renders from the snapshot, and must stay byte-identical.** Settled at FR-1's
 kickoff on the finding that `MatchScreen.WriteStateDump` is already a snapshot serializer in a
 bespoke text format, writing very nearly the exact field list FR-1 has to define. Rewiring it makes
-all 50 committed `qa/scripts/` evidence that the snapshot is complete and faithful, which is a far
+all 55 committed `qa/scripts/` evidence that the snapshot is complete and faithful, which is a far
 stronger standard than unit tests written by the same session that decided what "complete" means.
 The `Menu:` and `Strength:` lines keep coming from the screen, because menu and selected strength are
 presentation state under D-26 and are not part of the match — that this boundary falls out cleanly is
@@ -303,6 +303,42 @@ lookup that can fail on a legitimate custom layout. The snapshot carries the map
 as the `MapId` enum: `MapId` belongs to the rules' catalogue and stays there, since D-49 leaves the
 map file format to the Campaigns project and the wire should not be holding an enum whose members
 that project will add to.
+
+**D-74: the heads become the composition root, and the client names a map by name.** Settled at
+FR-3's kickoff. `LoopbackMatchGateway` needs `MW3.Core`, and D-57 takes `MW3.Core` away from
+`MW3.Game` — so something above `MW3.Game` has to build the gateway, and the only things above it are
+`MW3.Desktop` and `MW3.Android`. They gain the `MW3.Core` reference and inject a gateway factory into
+`MW3Game`, which passes it to `WelcomeScreen`. Considered: leaving `MW3.Game` referencing `MW3.Core`
+and enforcing "no rules read" by review, which is what D-57 already rejected; and putting the loopback
+implementation in `MW3.Protocol`, which would drag `Match` into the protocol and invert the whole
+dependency. The second consequence is the useful one: `MapId` and `MapCatalog` leave the client
+entirely, because the factory takes a map **name** and exposes the available names in catalogue
+order. That is the same name `MatchSnapshot.MapId` already carries under D-73, so the client holds
+one map identity concept rather than two, and the Campaigns project can add a map without the
+renderer learning about it.
+
+**D-75: `diff` and `apply` live in `MW3.Protocol`, not `MW3.Core`.** §1 above says `MW3.Core` gains
+the differ/applier pair; that line is superseded here. A client applies event batches to its own
+snapshot, and after FR-3 the client cannot see `MW3.Core` — so an applier in `MW3.Core` would make
+success criterion 3 unreachable. Both are pure functions over snapshots with no rule in them, so
+`MW3.Protocol` is where they belong on the merits too, next to `ArmyPathMath` for the reason D-68
+gives. Raised at FR-3's kickoff while FR-2 was still unbuilt, and the user settled that **FR-2's
+issue (#112) would not be edited** for it — the correction cost FR-3 a file move it could absorb, and
+rewriting a settled contract to save that move is the more expensive habit. FR-2 then merged the same
+day having placed `SnapshotDiffer`, `SnapshotApplier` and `SnapshotHash` in `MW3.Protocol` of its own
+accord, so no move is needed and this decision is a **standing constraint** rather than a task: they
+stay there, and §1's line is the thing that was wrong.
+
+**D-76: a gateway command carries a send strength and no player id.** Two things settled at FR-3's
+kickoff about the command vocabulary, which is new protocol data and therefore free to differ from
+Core's `SendArmyCommand`. It carries **no issuing player**: the gateway attributes every command to
+its session's local player, so there is no field a client could set to submit on the AI's behalf —
+validation at the boundary by making the bad state unrepresentable rather than by checking for it.
+And it carries a **`SendStrength`**, not a unit count, because `MatchScreen.cs:316` calls
+`SendStrengthCalculator` today and that is a rule executing on the client. Considered: keeping the
+count and having the server re-validate it, which preserves Core's command shape but leaves the
+arithmetic duplicated on both sides of the seam — the drift shape this repo has paid to close three
+times. Resolving the strength inside the gateway leaves `AiBrain` and `SendArmyCommand` untouched.
 
 ## 5. Cross-cutting conventions
 
