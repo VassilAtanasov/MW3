@@ -224,17 +224,18 @@ Three scripts exercise the ending, each a **documented exception to the 30-secon
 budget: up to 60 seconds**, since reaching an ending is a full match rather than a few drags:
 
 ```powershell
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/defeat.txt --time-scale 125 --screenshot defeat.png --dump-state defeat.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/defeat.txt --map small --time-scale 125 --screenshot defeat.png --dump-state defeat.txt
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/victory.txt --map small --time-scale 25 --screenshot victory.png --dump-state victory.txt
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-ending.txt --time-scale 125 --screenshot dismiss.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-ending.txt --map small --time-scale 125 --screenshot dismiss.png
 ```
 
 `defeat.txt` presses nothing after `Play`, at a time scale sufficient for the passive-human match to
 reach defeat well within FR-6's 5000-tick budget: its dump reports human defeat with the AI owning
 all six bases. `victory.txt` drives a fixed, hand-authorable command sequence — the same *kind* of artefact as
-`MatchOutcomeTests`' winning sequence in `MW3.Core.Tests`, but derived separately and expressed
-entirely as drags, since a drag always sends the picker's default 50% of the source garrison: its
-dump reports human victory with the human owning all six bases. Every drag's timing is chosen so it
+`MatchOutcomeTests`' winning sequence in `MW3.Core.Tests`, but derived separately and restricted to
+gestures a player can actually make: one opening action-menu upgrade of the capital (two taps), then
+drags, every one of which sends the picker's default 50% of the source garrison. Its dump reports
+human victory with the human owning all six bases. Every drag's timing is chosen so it
 lands on the intended tick precisely under `--time-scale 25`, where each frame advances the match by
 exactly 8 ticks.
 
@@ -247,9 +248,14 @@ stops the passive human's capital out-growing the AI's expansion; victory landed
 **Corrected again by issue #111**, which re-derived `victory.txt` and so closed follow-up #76: the
 sequence had not reached `HumanVictory` since phase 5 FR-2 made morale feed the combat formula, and
 at 8,505 frames it was 43% of the whole suite's wall-clock. It now reaches victory at tick 1788 in
-238 frames. The `--map small` above is required and was missing here: phase 7 FR-2 deleted the
-opening `Play` tap, so without the flag no match screen is ever current and `--dump-state` silently
-writes nothing. The frame↔tick mapping is `tick = 8 * (frame + 1)`, since `--map` starts the match at
+238 frames. The `--map small` in all three commands above is required and was missing from every one
+of them: phase 7 FR-2 re-homed these scripts onto the flag and deleted their opening `Play` tap, so
+without it no match screen is ever current, `--dump-state` silently writes nothing, and
+`dismiss-ending.txt`'s "screenshot matches the welcome baseline" check passes vacuously — it never
+leaves the welcome screen to pop back to it. Re-measured while fixing that, `defeat.txt` now lands at
+tick **1759**, not the 377 the FR-1 note above records; that note is left as the historical record of
+what FR-1 did, and this is the current number. All three commands above were run exactly as printed
+and produce the outcomes claimed for them. The frame↔tick mapping is `tick = 8 * (frame + 1)`, since `--map` starts the match at
 frame 0 rather than at a tap's release.
 `dismiss-ending.txt` waits past defeat, then presses back: its final screenshot is byte-identical to
 the FR-2 welcome baseline, proving the return is a real pop rather than a redrawn lookalike (and
