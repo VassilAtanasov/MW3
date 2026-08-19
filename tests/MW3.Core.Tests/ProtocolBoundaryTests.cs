@@ -76,7 +76,12 @@ public class ProtocolBoundaryTests
         // that says "MatchOutcome is what Match.Advance sets" is fine. What is not fine is a
         // reference the compiler resolved, so this looks for one in code: a `using MW3.Core`, or a
         // banned name used as a type.
-        foreach (var file in Directory.EnumerateFiles(ProtocolSourceDirectory, "*.cs", SearchOption.TopDirectoryOnly))
+        //
+        // AllDirectories, not TopDirectoryOnly: a file added under a subfolder is exactly the file
+        // nobody would think to check. And the name is matched as a whole word, so `(Match)x`,
+        // `Match)` and a line-broken `LevelTable` / `.MaxLevel(t)` are caught as well as the plain
+        // `LevelTable.MaxLevel`. D-71 builds its determinism scan on this same shape at FR-2.
+        foreach (var file in Directory.EnumerateFiles(ProtocolSourceDirectory, "*.cs", SearchOption.AllDirectories))
         {
             var lines = File.ReadAllLines(file);
             var name = Path.GetFileName(file);
@@ -97,12 +102,39 @@ public class ProtocolBoundaryTests
                 foreach (var banned in _bannedTypeNames)
                 {
                     Assert.False(
-                        line.Contains(banned + ".", StringComparison.Ordinal) || line.Contains(banned + " ", StringComparison.Ordinal),
+                        ContainsWholeWord(line, banned),
                         $"{name} line {i + 1} references '{banned}', which lives in MW3.Core: {code}");
                 }
             }
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="line"/> uses <paramref name="word"/> as an identifier rather than as
+    /// part of a longer one - so <c>MatchSnapshot</c> and <c>MatchOutcome</c> do not trip the scan
+    /// for <c>Match</c>, but <c>(Match)</c> and <c>Match.Advance</c> both do.
+    /// </summary>
+    private static bool ContainsWholeWord(string line, string word)
+    {
+        var index = line.IndexOf(word, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            var beforeOk = index == 0 || !IsIdentifierChar(line[index - 1]);
+            var afterIndex = index + word.Length;
+            var afterOk = afterIndex >= line.Length || !IsIdentifierChar(line[afterIndex]);
+
+            if (beforeOk && afterOk)
+            {
+                return true;
+            }
+
+            index = line.IndexOf(word, index + 1, StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
+    private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_';
 
     [Theory]
     [InlineData("MapPoint")]

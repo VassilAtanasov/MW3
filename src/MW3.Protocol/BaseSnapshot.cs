@@ -69,6 +69,15 @@ public sealed record BaseSnapshot(
     long? LastFireTick,
     IReadOnlyList<BaseActionSnapshot> AvailableActions)
 {
+    /// <summary>
+    /// What the local player can do to this base right now, empty for a base they do not own.
+    /// Validated here rather than left to the first reader: a deserializer handed
+    /// <c>"AvailableActions": null</c> would otherwise produce a snapshot that only fails when a
+    /// menu is opened, which is a long way from where the bad payload arrived.
+    /// </summary>
+    public IReadOnlyList<BaseActionSnapshot> AvailableActions { get; } =
+        AvailableActions ?? throw new ArgumentNullException(nameof(AvailableActions));
+
     /// <inheritdoc />
     public bool Equals(BaseSnapshot? other) =>
         other is not null

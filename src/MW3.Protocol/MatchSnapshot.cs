@@ -47,6 +47,18 @@ public sealed record MatchSnapshot(
     IReadOnlyList<BaseSnapshot> Bases,
     IReadOnlyList<ArmySnapshot> Armies)
 {
+    /// <summary>Every player, in the order the match holds them.</summary>
+    public IReadOnlyList<PlayerSnapshot> Players { get; } = Players ?? throw new ArgumentNullException(nameof(Players));
+
+    /// <summary>Every base, in id order.</summary>
+    public IReadOnlyList<BaseSnapshot> Bases { get; } = Bases ?? throw new ArgumentNullException(nameof(Bases));
+
+    /// <summary>Every army in flight, in the order the match holds them.</summary>
+    public IReadOnlyList<ArmySnapshot> Armies { get; } = Armies ?? throw new ArgumentNullException(nameof(Armies));
+
+    /// <summary>The map's obstacles, which block movement (phase 7 D-54) and are drawn.</summary>
+    public IReadOnlyList<MapObstacle> Obstacles { get; } = Obstacles ?? throw new ArgumentNullException(nameof(Obstacles));
+
     /// <summary>
     /// The version every snapshot this build produces carries. Bumped when a field is added,
     /// removed or reinterpreted - never for a value change.

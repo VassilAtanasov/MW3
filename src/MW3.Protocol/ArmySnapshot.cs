@@ -38,6 +38,18 @@ public sealed record ArmySnapshot(
     IReadOnlyList<MapPoint> PathWaypoints,
     double PathLength)
 {
+    /// <summary>
+    /// The polyline this army flies, in order, including both endpoints (D-51). A path needs at
+    /// least two points to be one, and that is checked here rather than in <see cref="ToPath"/>:
+    /// otherwise a malformed payload deserializes cleanly and throws later, at render time, one
+    /// frame after a client decided to draw the army.
+    /// </summary>
+    public IReadOnlyList<MapPoint> PathWaypoints { get; } = PathWaypoints is null
+        ? throw new ArgumentNullException(nameof(PathWaypoints))
+        : PathWaypoints.Count >= 2
+            ? PathWaypoints
+            : throw new ArgumentException("An army's path must have at least two waypoints.", nameof(PathWaypoints));
+
     /// <inheritdoc />
     public bool Equals(ArmySnapshot? other) =>
         other is not null

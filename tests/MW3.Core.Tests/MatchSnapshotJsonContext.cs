@@ -17,7 +17,16 @@ namespace MW3.Core.Tests;
 /// whichever project targets <c>net10.0</c>. Until then it lives with the test that proves the
 /// contract round-trips.
 /// </summary>
-[JsonSourceGenerationOptions(Converters = new[] { typeof(MapObstacleJsonConverter) })]
+// Enums travel as NAMES, not as ordinals. System.Text.Json defaults to the ordinal, and this
+// repo has a standing expectation that a BaseType member can be reordered safely - Match.cs says
+// so where it builds its convert order "so the button order is stable regardless of enum-value
+// ordinal changes elsewhere". With ordinals on the wire, such a reorder would silently
+// reinterpret every previously serialized Tower as a Forge while the protocol version still read
+// 1, which is precisely the disagreement the version field exists to make loud. A few bytes buys
+// a payload that cannot be misread.
+[JsonSourceGenerationOptions(
+    Converters = new[] { typeof(MapObstacleJsonConverter) },
+    UseStringEnumConverter = true)]
 [JsonSerializable(typeof(MatchSnapshot))]
 internal sealed partial class MatchSnapshotJsonContext : JsonSerializerContext
 {

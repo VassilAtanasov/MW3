@@ -30,6 +30,15 @@ public static class MatchSnapshotBuilder
             throw new ArgumentNullException(nameof(localPlayer));
         }
 
+        // A player from some other match would produce a snapshot that is quietly wrong rather than
+        // loudly broken: LocalPlayerId would name nobody in Players, and every base's action list
+        // would come back empty, because AvailableActions short-circuits on ownership. A server
+        // holding many matches at once (FR-4) is exactly the caller that can make this mistake.
+        if (localPlayer != match.HumanPlayer && localPlayer != match.AiPlayer)
+        {
+            throw new ArgumentException("The local player is not one of this match's players.", nameof(localPlayer));
+        }
+
         var players = new List<PlayerSnapshot>(2)
         {
             BuildPlayer(match, match.HumanPlayer),
