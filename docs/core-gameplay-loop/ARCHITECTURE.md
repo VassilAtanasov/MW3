@@ -107,13 +107,16 @@ attached MI Pad 4; see follow-up #15 for correcting this repo-wide rather than o
 viewport-derived layout adapts to whatever the real value is regardless, so this doesn't affect
 correctness - only any future arithmetic that assumes the panel's advertised resolution literally.
 
-Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/` (`play.txt`,
-`play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so the commands below are
-reproducible on a clean clone:
+Scripts backing the FR-2 acceptance criteria are committed under `qa/scripts/`
+(`select-map-small.txt`, `play-then-back.txt`, `press-then-drag-off.txt`, `back-and-forth.txt`), so
+the commands below are reproducible on a clean clone. The first was `play.txt` until issue #111
+retired it into `select-map-small.txt`, which taps the same coordinate with the same two directives
+and now carries its claim; phase 7 FR-2 had already replaced the Play button itself with three map
+buttons, leaving `play.txt` named after a control that no longer exists:
 
 ```powershell
 dotnet run --project src/MW3.Desktop -- --smoke --screenshot welcome.png
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/play.txt --screenshot match.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/select-map-small.txt --screenshot match.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/play-then-back.txt --screenshot back.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/press-then-drag-off.txt --screenshot drag.png
 dotnet run --project src/MW3.Desktop -- --script qa/scripts/back-and-forth.txt --screenshot cycles.png
@@ -160,8 +163,11 @@ dotnet run --project src/MW3.Desktop -- --script qa/scripts/hold-empty-space.txt
 army lands: its dump shows the human base at half its pre-send garrison and exactly one army in
 flight, with an arrival tick later than its launch tick. `army-arrival.txt` holds first so the
 human base's garrison outgrows twice the neutral's before dragging, then waits long enough (~17
-ticks) for the army to land: its dump shows the target owned by the human with a garrison
-consistent with FR-4's 1:1 arithmetic. `cancel-on-empty-space.txt` presses on the human base and
+ticks) for the army to land and resolve. **Corrected by issue #111**: its dump shows the target
+`Owner=Neutral Garrison=0` — attacker and defenders destroy each other, so the neutral is emptied
+but not captured. This wording claimed a capture until #111 checked it against a real run; the
+script's arrival-and-resolution claim stands, and that it does *not* capture is now load-bearing,
+since a capture would award morale and break the two morale-0 identities its header carries. `cancel-on-empty-space.txt` presses on the human base and
 releases over empty space; `drag-from-unowned-base.txt` presses starting on the AI's base — both
 dumps show zero armies in flight, every base under its starting owner, and garrisons consistent
 with production alone. `hold-selection.txt` presses on the human base and never releases, so its
@@ -178,7 +184,8 @@ entries rather than dodged: **`match-late.txt`**'s dump no longer has every owne
 exactly `10 + elapsedTicks / 10` — only the human's base and any base the AI has not acted on still
 do; the AI's own bases reflect its sends and captures instead. **`army-arrival.txt`**'s dump may
 show the AI's own army still in flight elsewhere on the map, so "zero armies in flight" no longer
-holds by itself — only the human's captured base and its own zero-contest guarantee stand.
+holds by itself — only the human send's own resolution stands (and, per #111 above, that resolution
+is a mutual wipe rather than a capture).
 `match-early.txt` (elapsed tick 4) and the other FR-5 scripts all end well before the AI's first
 decision (tick 20) and are unaffected.
 
@@ -217,23 +224,39 @@ Three scripts exercise the ending, each a **documented exception to the 30-secon
 budget: up to 60 seconds**, since reaching an ending is a full match rather than a few drags:
 
 ```powershell
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/defeat.txt --time-scale 125 --screenshot defeat.png --dump-state defeat.txt
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/victory.txt --time-scale 25 --screenshot victory.png --dump-state victory.txt
-dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-ending.txt --time-scale 125 --screenshot dismiss.png
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/defeat.txt --map small --time-scale 125 --screenshot defeat.png --dump-state defeat.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/victory.txt --map small --time-scale 25 --screenshot victory.png --dump-state victory.txt
+dotnet run --project src/MW3.Desktop -- --script qa/scripts/dismiss-ending.txt --map small --time-scale 125 --screenshot dismiss.png
 ```
 
 `defeat.txt` presses nothing after `Play`, at a time scale sufficient for the passive-human match to
 reach defeat well within FR-6's 5000-tick budget: its dump reports human defeat with the AI owning
-all six bases. `victory.txt` drives the exact fixed, hand-authored command sequence covered by
-`MatchOutcomeTests` in `MW3.Core.Tests` — every drag's timing is chosen so it lands on the intended
-tick precisely under `--time-scale 25` (each frame after `Play`'s release advances the match by
-exactly 4 ticks): its dump reports human victory with the human owning all six bases.
+all six bases. `victory.txt` drives a fixed, hand-authorable command sequence — the same *kind* of artefact as
+`MatchOutcomeTests`' winning sequence in `MW3.Core.Tests`, but derived separately and restricted to
+gestures a player can actually make: one opening action-menu upgrade of the capital (two taps), then
+drags, every one of which sends the picker's default 50% of the source garrison. Its dump reports
+human victory with the human owning all six bases. Every drag's timing is chosen so it
+lands on the intended tick precisely under `--time-scale 25`, where each frame advances the match by
+exactly 8 ticks.
 
 **Corrected by phase 3 FR-1 (#30)**: both sequences were re-derived, because garrison caps changed
 the arithmetic they were tuned around. The frame↔tick mapping (`frame = 5 + tick/4`, `down` two
 frames before its `up`) is unchanged, and so is everything else about the format — only the drags
 themselves differ. Defeat now lands at tick 377 rather than deep into the thousands, because a cap
-stops the passive human's capital out-growing the AI's expansion; victory lands at tick 556.
+stops the passive human's capital out-growing the AI's expansion; victory landed at tick 556.
+
+**Corrected again by issue #111**, which re-derived `victory.txt` and so closed follow-up #76: the
+sequence had not reached `HumanVictory` since phase 5 FR-2 made morale feed the combat formula, and
+at 8,505 frames it was 43% of the whole suite's wall-clock. It now reaches victory at tick 1788 in
+238 frames. The `--map small` in all three commands above is required and was missing from every one
+of them: phase 7 FR-2 re-homed these scripts onto the flag and deleted their opening `Play` tap, so
+without it no match screen is ever current, `--dump-state` silently writes nothing, and
+`dismiss-ending.txt`'s "screenshot matches the welcome baseline" check passes vacuously — it never
+leaves the welcome screen to pop back to it. Re-measured while fixing that, `defeat.txt` now lands at
+tick **1759**, not the 377 the FR-1 note above records; that note is left as the historical record of
+what FR-1 did, and this is the current number. All three commands above were run exactly as printed
+and produce the outcomes claimed for them. The frame↔tick mapping is `tick = 8 * (frame + 1)`, since `--map` starts the match at
+frame 0 rather than at a tap's release.
 `dismiss-ending.txt` waits past defeat, then presses back: its final screenshot is byte-identical to
 the FR-2 welcome baseline, proving the return is a real pop rather than a redrawn lookalike (and
 `--dump-state`, given alongside it, would write nothing, since the final screen showing is

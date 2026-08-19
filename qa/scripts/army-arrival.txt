@@ -3,9 +3,46 @@
 # the tap started it at frame 5. Proved, not assumed: this script's --dump-state output is
 # byte-identical to its own output on main, aside from the two centre-line slots (bases 6, 7)
 # the retired eight-slot board carried and Small does not.
-# Tap Play, hold long enough for the human base to grow past twice the neutral's garrison, then
-# drag from it to the nearest neutral and hold long enough (~17 ticks) for the army to land and
-# capture it.
+# Hold long enough for the human base to grow past twice the neutral's garrison, then drag from it
+# to the nearest neutral and hold long enough (~17 ticks) for the army to land and resolve.
+#
+# THIS FILE NOW CARRIES THREE CLAIMS, not one (issue #111). Two later scripts were deliberately
+# authored with directives byte-identical to this one's - morale-zero-baseline-matches-army-arrival
+# .txt (phase 5 FR-2, #67) and morale-speed-zero-baseline.txt (phase 5 FR-4, #71) - precisely so
+# that their dumps had to equal this one's. Identical input and identical output meant three runs
+# bought a single observation, so #111 folded them in here rather than deleting them: the redundancy
+# WAS the assertion, and the assertion survives while the duplicate runs do not.
+#
+#   1. PHASE 2's OWN CLAIM: a send leaves its source, transits, arrives on a tick derived from the
+#      distance, and RESOLVES against the defender. Read the result exactly: base 2 ends
+#      `Owner=Neutral Garrison=0` - the arriving force and the five defenders destroy each other, so
+#      the neutral is emptied but NOT captured, and base 0 is left at the post-send garrison plus
+#      production. This script does not prove capture and must not be re-tuned until it does; for a
+#      human capture through the real UI see menu-clamped-on-top-row-base.txt (one neutral taken,
+#      Morale Human=40) and victory.txt (four).
+#   2. FR-2's MORALE-0 IDENTITY (#67): with both players at morale 0 every composed combat index is
+#      exactly identity, so FR-2's rescale of CombatResolver's indices from percent to basis points -
+#      and of both call sites composing them, Match.ResolveArrival and AiBrain's predictions - must
+#      leave the result below bit-identical.
+#   3. FR-4's MORALE-0 SPEED IDENTITY (#71): with the sender at morale 0,
+#      EffectiveArmySpeedUnitsPerTick is bit-identical to the base ArmySpeedUnitsPerTick constant, so
+#      FR-4 threading a speed multiplier through TravelTimeCalculator.ComputeTicks (both the Match and
+#      AiBrain paths) and TowerThreatEstimator.EstimateUnitsLost must leave the arrival tick alone.
+#
+# THE THREE CLAIMS ARE NOT INDEPENDENT, and claim 1's exactness is what holds the other two up. The
+# `Morale: Human=0 ... Ai=0` line is LOAD-BEARING here, not incidental detail: capturing a level-1
+# neutral village would award +40 (MoraleTable.Village's neutral capture gain), so Human=0 is
+# positive evidence that no capture happened, which is in turn the precondition claims 2 and 3 need.
+# A well-meaning future edit that made this script actually capture would raise morale to 40 and
+# destroy both morale-0 assertions - so if the capture-through-the-UI path ever needs stronger
+# coverage, it belongs in a NEW script, never in this one.
+#
+# What proves claim 3 is not an Army line - the human's send has already resolved by the final frame
+# and leaves none; the only Army line in the dump belongs to the AI's own independent send (FR-6's
+# 20-tick decision interval runs well inside this script's 395-frame hold). It is that the human send
+# resolved inside this script's FIXED frame budget, chosen against the unmultiplied speed. If this
+# script's dump ever needs a different budget, that is a signal the morale-0 baseline guarantee in
+# docs/morale/ARCHITECTURE.md was broken - investigate rather than re-baseline (the rule since FR-3a).
 195 down 0.120000 0.500000
 200 up 0.350000 0.250000
 395 wait
