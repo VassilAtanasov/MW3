@@ -130,7 +130,10 @@ public class SnapshotEqualityCompletenessTests
             }
             else if (values[i] is System.Collections.IList)
             {
-                // An empty list cannot be shortened, so nothing about it is provable here.
+                // An empty list cannot be shortened, so nothing about it is provable here. Every
+                // list field this test exercises today is non-empty in BuildSnapshot()'s fixture;
+                // a future field that is legitimately empty by construction would silently reach
+                // this branch unexercised, which is a gap worth a fixture change, not a bigger test.
                 continue;
             }
             else

@@ -34,7 +34,11 @@ public static class MatchSnapshotBuilder
         // loudly broken: LocalPlayerId would name nobody in Players, and every base's action list
         // would come back empty, because AvailableActions short-circuits on ownership. A server
         // holding many matches at once (FR-4) is exactly the caller that can make this mistake.
-        if (localPlayer != match.HumanPlayer && localPlayer != match.AiPlayer)
+        //
+        // ReferenceEquals, not ==: Player is a record, so == compares (Id, ControllerKind) - two
+        // independently constructed matches both mint Player(1, Human), and value equality would
+        // wave that pairing through. Only this match's own two instances are the right players.
+        if (!ReferenceEquals(localPlayer, match.HumanPlayer) && !ReferenceEquals(localPlayer, match.AiPlayer))
         {
             throw new ArgumentException("The local player is not one of this match's players.", nameof(localPlayer));
         }
