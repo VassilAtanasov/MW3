@@ -5,6 +5,15 @@ public class SnapshotDifferTests
     private static void SetGarrison(Base b, int garrison) =>
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
 
+    private static void SetOwner(Base b, Player? owner) =>
+        typeof(Base).GetProperty(nameof(Base.Owner))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { owner });
+
+    private static void SetLastOwnerChangeTick(Base b, long? tick) =>
+        typeof(Base).GetProperty(nameof(Base.LastOwnerChangeTick))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { tick });
+
+    private static void SetOwnerBeforeLastChange(Base b, Player? owner) =>
+        typeof(Base).GetProperty(nameof(Base.OwnerBeforeLastChange))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { owner });
+
     [Fact]
     public void Diff_OfASnapshotAgainstItself_IsEmpty()
     {
@@ -185,5 +194,37 @@ public class SnapshotDifferTests
         {
             Assert.True(lastBaseIndex < firstArmyIndex);
         }
+    }
+
+    /// <summary>
+    /// A base captured and then recaptured back to its original owner within one (possibly
+    /// non-adjacent) diff window has an unchanged <c>OwnerPlayerId</c> but changed audit fields
+    /// (<c>LastOwnerChangeTick</c>, <c>OwnerBeforeLastChangePlayerId</c>) - the recapture grace is
+    /// only 20 ticks, well inside the gaps FR-2's own property test diffs. Dropping that change
+    /// would leave <see cref="SnapshotApplier"/> reconstructing a base with stale audit data.
+    /// </summary>
+    [Fact]
+    public void ABaseRecapturedBackToItsOriginalOwner_WithinOneDiffWindow_StillEmitsAnEvent()
+    {
+        var match = new Match();
+        var aiBase = match.Bases.Single(x => x.Owner == match.AiPlayer);
+        var a = MatchSnapshotBuilder.Build(match, match.HumanPlayer);
+
+        SetOwnerBeforeLastChange(aiBase, match.AiPlayer);
+        SetOwner(aiBase, match.HumanPlayer);
+        SetLastOwnerChangeTick(aiBase, 5);
+        SetOwnerBeforeLastChange(aiBase, match.HumanPlayer);
+        SetOwner(aiBase, match.AiPlayer);
+        SetLastOwnerChangeTick(aiBase, 10);
+        var b = MatchSnapshotBuilder.Build(match, match.HumanPlayer);
+
+        Assert.Equal(a.Bases.Single(x => x.Id == aiBase.Id).OwnerPlayerId, b.Bases.Single(x => x.Id == aiBase.Id).OwnerPlayerId);
+        Assert.NotEqual(a.Bases.Single(x => x.Id == aiBase.Id).LastOwnerChangeTick, b.Bases.Single(x => x.Id == aiBase.Id).LastOwnerChangeTick);
+
+        var batch = SnapshotDiffer.Diff(a, b);
+        Assert.Contains(batch.Events, e => e.BaseId == aiBase.Id);
+
+        var reconstructed = SnapshotApplier.Apply(batch, a);
+        Assert.Equal(b, reconstructed);
     }
 }

@@ -89,8 +89,15 @@ public static class SnapshotDiffer
             return newBase.Construction is null ? MatchEventKind.ConstructionCompleted : MatchEventKind.ConstructionStarted;
         }
 
-        // Compares every field except the ones already accounted for above (owner and its two
-        // audit fields, construction) and the one accounted for below (available actions).
+        // Compares every field except Construction (accounted for above) and AvailableActions
+        // (accounted for below). OwnerPlayerId itself is excluded too - it is already known equal
+        // at this point, the only way execution reaches here - but its two audit fields,
+        // LastOwnerChangeTick and OwnerBeforeLastChangePlayerId, are NOT excluded: a base captured
+        // and then recaptured back to its original owner within one (possibly non-adjacent) diff
+        // window has an unchanged OwnerPlayerId but changed audit fields, and dropping that change
+        // silently would leave SnapshotApplier reconstructing stale audit data - a real
+        // apply(diff(a, b), a) == b failure the recapture grace (20 ticks) makes reachable well
+        // within the gaps FR-2's own property test diffs.
         var coreEqual = oldBase.Position.Equals(newBase.Position)
             && oldBase.Type == newBase.Type
             && oldBase.Level == newBase.Level
@@ -102,7 +109,9 @@ public static class SnapshotDiffer
             && oldBase.MaxLevel == newBase.MaxLevel
             && oldBase.MaxUpgradableLevel == newBase.MaxUpgradableLevel
             && oldBase.ProductionProgressTicks == newBase.ProductionProgressTicks
-            && oldBase.LastFireTick == newBase.LastFireTick;
+            && oldBase.LastFireTick == newBase.LastFireTick
+            && oldBase.LastOwnerChangeTick == newBase.LastOwnerChangeTick
+            && oldBase.OwnerBeforeLastChangePlayerId == newBase.OwnerBeforeLastChangePlayerId;
 
         if (!coreEqual)
         {
