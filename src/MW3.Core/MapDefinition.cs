@@ -7,7 +7,15 @@ namespace MW3.Core;
 /// </summary>
 public sealed class MapDefinition
 {
-    public MapDefinition(IReadOnlyList<MapSlot> slots, IReadOnlyList<MapObstacle> obstacles)
+    /// <param name="slots">The map's slots, in the order bases are numbered.</param>
+    /// <param name="obstacles">Its obstacles, possibly none.</param>
+    /// <param name="id">
+    /// Which <see cref="MapCatalog"/> entry this is, or null for a definition a caller built itself -
+    /// which only a test does. Carried so a match can say which map it is being played on
+    /// (<see cref="Match.MapId"/>) without <see cref="MapCatalog"/> having to be searched for a
+    /// definition that matches by value.
+    /// </param>
+    public MapDefinition(IReadOnlyList<MapSlot> slots, IReadOnlyList<MapObstacle> obstacles, MapId? id = null)
     {
         if (slots is null)
         {
@@ -39,7 +47,11 @@ public sealed class MapDefinition
 
         Slots = slots;
         Obstacles = obstacles;
+        Id = id;
     }
+
+    /// <summary>Which <see cref="MapCatalog"/> entry this is, or null for a caller-built definition.</summary>
+    public MapId? Id { get; }
 
     public IReadOnlyList<MapSlot> Slots { get; }
 

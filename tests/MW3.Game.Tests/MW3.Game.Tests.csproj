@@ -24,4 +24,10 @@
     <ProjectReference Include="..\..\src\MW3.Game\MW3.Game.csproj" />
   </ItemGroup>
 
+  <!-- D-67: MapPoint, BaseType and the other pure value types live in MW3.Protocol now. A global
+       using absorbs the move; MW3.Protocol arrives transitively through MW3.Core. -->
+  <ItemGroup>
+    <Using Include="MW3.Protocol" />
+  </ItemGroup>
+
 </Project>

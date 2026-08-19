@@ -114,7 +114,9 @@ Two new projects; existing ones keep their roles.
 | `MW3.Android` | `net10.0-android` | Head. Gains network config and an address | FR-5 |
 
 Tests follow the existing convention: `MW3.Core.Tests` keeps snapshot/diff coverage, and a new
-`MW3.Server.Tests` covers sessions, the scheduler and the wire.
+`MW3.Server.Tests` covers sessions, the scheduler and the wire. `MW3.Core.Tests` also holds the
+source-generated `JsonSerializerContext` and the one converter the snapshot needs, until FR-4 gives
+the codec a shipped home — see **D-72** for why they cannot live in `MW3.Protocol` itself.
 
 ## 4. Key decisions
 
@@ -270,6 +272,37 @@ be built on `string.GetHashCode` or `object.GetHashCode`, since .NET randomizes 
 process, so such a hash would differ between two runs on one machine. The hash is defined over a
 canonical serialization and its cross-process stability is asserted by the test rather than assumed.
 It also gives FR-4 a desync detector for free.
+
+**D-72: the source-generated `JsonSerializerContext` lives with whoever targets `net10.0`, not in
+`MW3.Protocol`.** Found at FR-1's build, and it is a genuine collision between two of that feature's
+own criteria rather than a preference. `MW3.Protocol` must target `netstandard2.1` (so `MW3.Core`,
+which is `netstandard2.1` under S-2/D-2, can reference it) and must carry **no `PackageReference`**,
+because a dependency-free project is the cheapest possible proof of D-57's boundary. But
+`System.Text.Json` is in-box only from `net6.0`: on `netstandard2.1` it is a NuGet package. So the
+snapshot types stay in `MW3.Protocol` as plain JSON-shaped data with no serialization attributes at
+all, and the context that serializes them lives in the nearest project that targets `net10.0` —
+`MW3.Core.Tests` at FR-1, since nothing *ships* a serialized snapshot until FR-4, which owns the
+codec seam (D-64) and gives it a permanent home. Considered and rejected: taking the package (breaks
+the rule the project exists to hold, and puts a trimming dependency in the Android head's transitive
+graph for nothing); multi-targeting `MW3.Protocol` as `netstandard2.1;net10.0` (works, but
+`MW3.Core`'s reference resolves the `netstandard2.1` asset while a head would resolve the `net10.0`
+one, and two assemblies of one identity in a copy-local set is a build conflict, not a design);
+declaring the snapshot types twice (D-67 rejects exactly this). One consequence FR-4 inherits:
+`MapObstacle` needs a converter, because it is a struct with get-only extents and a validating
+constructor, and `System.Text.Json` reaches for a struct's parameterless constructor and then assigns
+settable properties — so without one an obstacle deserializes as four silent zeroes. Teaching the
+codec to rebuild the type through its constructor costs the type nothing; loosening its properties to
+`init` would let any caller build an invalid obstacle, and `[JsonConstructor]` is unavailable for the
+same package reason.
+
+**D-73: a match knows which map it is.** `MapDefinition` gains an optional `MapId?`, `MapCatalog`
+stamps its three entries with theirs, and `Match` exposes it — null for a definition a caller
+assembled itself, which only a test does. The snapshot needs a map identity (a client has to know
+which board it is drawing) and searching `MapCatalog` for a definition matching by value would be a
+lookup that can fail on a legitimate custom layout. The snapshot carries the map as a **name**, not
+as the `MapId` enum: `MapId` belongs to the rules' catalogue and stays there, since D-49 leaves the
+map file format to the Campaigns project and the wire should not be holding an enum whose members
+that project will add to.
 
 ## 5. Cross-cutting conventions
 

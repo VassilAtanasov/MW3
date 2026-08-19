@@ -792,42 +792,105 @@ internal sealed class MatchScreen : IScreen
     /// <summary>
     /// Writes the match's elapsed ticks, one line per base (id, owner, garrison, level, cap,
     /// building), one line per in-flight army, and one menu line to <paramref name="path"/>, for
-    /// `--dump-state` to give QA exact numbers instead of pixels. The menu line is written by the
-    /// screen, never by <see cref="MW3.Core.Match"/> - menu state is presentation state (D-26).
+    /// `--dump-state` to give QA exact numbers instead of pixels.
+    ///
+    /// Every match line is formatted from a <see cref="MatchSnapshot"/> rather than from
+    /// <see cref="MW3.Core.Match"/> (D-69). That direction matters more than it looks: this method
+    /// was already a snapshot serializer in a bespoke text format, so making it render from the real
+    /// snapshot turns every committed <c>qa/scripts/</c> run into evidence that the snapshot is a
+    /// complete and faithful view of a match - a far stronger standard than tests written by the
+    /// session that decided what "complete" means. The output is required to stay byte-identical,
+    /// which is the check that keeps the evidence honest.
+    ///
+    /// The `Menu:` and `Strength:` lines are the exception, and stay the screen's own: menu state and
+    /// the selected send strength are presentation state (D-26), not part of the match, and the fact
+    /// that exactly those two lines resist the move is itself evidence the snapshot's scope is right.
     /// </summary>
     internal void WriteStateDump(string path)
     {
+        var snapshot = BuildLocalSnapshot();
+
         using var writer = new StreamWriter(path);
-        writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {_match.ElapsedTicks}"));
-        writer.WriteLine(FormattableString.Invariant($"Outcome: {_match.Outcome}"));
+        writer.WriteLine(FormattableString.Invariant($"ElapsedTicks: {snapshot.ElapsedTicks}"));
+        writer.WriteLine(FormattableString.Invariant($"Outcome: {snapshot.Outcome}"));
+
+        var human = FindPlayer(snapshot, PlayerControllerKind.Human);
+        var ai = FindPlayer(snapshot, PlayerControllerKind.Ai);
         writer.WriteLine(FormattableString.Invariant(
-            $"Morale: Human={_match.HumanMorale.Points} HumanLevel={_match.HumanMorale.Level} HumanAtk={MoraleTable.AttackPercentage(_match.HumanMorale.Level)} HumanDef={MoraleTable.DefencePercentage(_match.HumanMorale.Level)} Ai={_match.AiMorale.Points} AiLevel={_match.AiMorale.Level} AiAtk={MoraleTable.AttackPercentage(_match.AiMorale.Level)} AiDef={MoraleTable.DefencePercentage(_match.AiMorale.Level)}"));
+            $"Morale: Human={human.MoralePoints} HumanLevel={human.MoraleLevel} HumanAtk={human.MoraleAttackPercentage} HumanDef={human.MoraleDefencePercentage} Ai={ai.MoralePoints} AiLevel={ai.MoraleLevel} AiAtk={ai.MoraleAttackPercentage} AiDef={ai.MoraleDefencePercentage}"));
 
         // Phase 6 FR-3: count plus the two resulting percentages, the shape MW2-RULES.md §2.4 uses
-        // to express a forge holding. The percentages are read from ForgeTable here rather than
-        // recomputed, so this line can never quietly disagree with the indices combat actually
-        // composes. Written by the screen, never by MW3.Core (D-26).
-        var humanForges = _match.ForgeCountFor(_match.HumanPlayer);
-        var aiForges = _match.ForgeCountFor(_match.AiPlayer);
+        // to express a forge holding. The percentages come from the snapshot, which read them from
+        // ForgeTable - so this line can never quietly disagree with the indices combat actually
+        // composes, and after FR-3 the client will not have a ForgeTable to disagree with.
         writer.WriteLine(FormattableString.Invariant(
-            $"Forges: Human={humanForges} HumanAtk={ForgeTable.AttackPercentage(humanForges)} HumanDef={ForgeTable.DefencePercentage(humanForges)} Ai={aiForges} AiAtk={ForgeTable.AttackPercentage(aiForges)} AiDef={ForgeTable.DefencePercentage(aiForges)}"));
+            $"Forges: Human={human.ForgeCount} HumanAtk={human.ForgeAttackPercentage} HumanDef={human.ForgeDefencePercentage} Ai={ai.ForgeCount} AiAtk={ai.ForgeAttackPercentage} AiDef={ai.ForgeDefencePercentage}"));
 
-        foreach (var b in _match.Bases)
+        foreach (var b in snapshot.Bases)
         {
-            var owner = b.Owner?.ControllerKind.ToString() ?? "Neutral";
+            var owner = OwnerName(snapshot, b.OwnerPlayerId);
             var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
             writer.WriteLine(FormattableString.Invariant(
                 $"Base {b.Id}: Owner={owner} Garrison={b.GarrisonCount} Level={b.Level} Cap={cap} {FormatBuildingField(b)} Type={b.Type}"));
         }
 
-        foreach (var army in _match.ArmiesInFlight)
+        foreach (var army in snapshot.Armies)
         {
             writer.WriteLine(FormattableString.Invariant(
-                $"Army {army.Id}: Owner={army.Owner.ControllerKind} Source={army.SourceBaseId} Target={army.TargetBaseId} Count={army.UnitCount} Launch={army.LaunchTick} Arrival={army.ArrivalTick} Send={army.SendId} Wave={army.WaveIndex}/{army.WaveCount}"));
+                $"Army {army.Id}: Owner={OwnerName(snapshot, army.OwnerPlayerId)} Source={army.SourceBaseId} Target={army.TargetBaseId} Count={army.UnitCount} Launch={army.LaunchTick} Arrival={army.ArrivalTick} Send={army.SendId} Wave={army.WaveIndex}/{army.WaveCount}"));
         }
 
         writer.WriteLine(FormatMenuDumpLine());
         writer.WriteLine(FormattableString.Invariant($"Strength: {(int)_strengthSelector.SelectedStrength}"));
+    }
+
+    /// <summary>
+    /// The one place this screen still turns its match into a snapshot. Isolated here so
+    /// <see cref="WriteStateDump"/> itself formats from snapshot data only - after FR-3 the screen
+    /// is handed a snapshot by the gateway and this method is what disappears, not the dump.
+    /// </summary>
+    private MatchSnapshot BuildLocalSnapshot() => MatchSnapshotBuilder.Build(_match, _match.HumanPlayer);
+
+    /// <summary>
+    /// The player in <paramref name="snapshot"/> with <paramref name="kind"/>. The dump names the two
+    /// players by controller kind (`Human=`, `Ai=`) where the snapshot names them by id, because the
+    /// dump's format predates the snapshot and D-69 requires it byte-identical.
+    /// </summary>
+    private static PlayerSnapshot FindPlayer(MatchSnapshot snapshot, PlayerControllerKind kind)
+    {
+        foreach (var player in snapshot.Players)
+        {
+            if (player.ControllerKind == kind)
+            {
+                return player;
+            }
+        }
+
+        throw new InvalidOperationException(
+            FormattableString.Invariant($"The snapshot carries no {kind} player."));
+    }
+
+    /// <summary>
+    /// How the dump names an owner: the controller kind of the player whose id it is, or `Neutral`
+    /// for the absence of one (D-11).
+    /// </summary>
+    private static string OwnerName(MatchSnapshot snapshot, int? ownerPlayerId)
+    {
+        if (ownerPlayerId is not int id)
+        {
+            return "Neutral";
+        }
+
+        foreach (var player in snapshot.Players)
+        {
+            if (player.Id == id)
+            {
+                return player.ControllerKind.ToString();
+            }
+        }
+
+        throw new InvalidOperationException(
+            FormattableString.Invariant($"The snapshot carries no player with id {id}."));
     }
 
     /// <summary>
@@ -836,12 +899,13 @@ internal sealed class MatchScreen : IScreen
     /// `ConvertToForge@1300`. Renders the target type by name so a third convert destination costs
     /// this line nothing beyond adding the enum member.
     /// </summary>
-    private static string FormatBuildingField(Base b) => b.Construction switch
+    private static string FormatBuildingField(BaseSnapshot b) => b.Construction switch
     {
         null => "Building=none",
-        PendingUpgrade upgrade => FormattableString.Invariant($"Building=UpgradeToLevel{upgrade.TargetLevel}@{upgrade.CompletionTick}"),
-        PendingConversion conversion => FormattableString.Invariant(
-            $"Building=ConvertTo{conversion.TargetType}@{conversion.CompletionTick}"),
+        { Kind: BaseActionKind.Upgrade, TargetLevel: int level } construction =>
+            FormattableString.Invariant($"Building=UpgradeToLevel{level}@{construction.CompletionTick}"),
+        { Kind: BaseActionKind.Convert, TargetType: BaseType type } construction =>
+            FormattableString.Invariant($"Building=ConvertTo{type}@{construction.CompletionTick}"),
         _ => "Building=none",
     };
 

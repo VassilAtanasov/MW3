@@ -4,4 +4,14 @@
     <TargetFramework>netstandard2.1</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MW3.Protocol\MW3.Protocol.csproj" />
+  </ItemGroup>
+
+  <!-- D-67: the value types moved down to MW3.Protocol. A global using absorbs the move so no
+       existing file needs a using directive edited into it one at a time. -->
+  <ItemGroup>
+    <Using Include="MW3.Protocol" />
+  </ItemGroup>
+
 </Project>
