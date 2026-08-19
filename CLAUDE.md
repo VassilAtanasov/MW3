@@ -539,6 +539,11 @@ These run without a human gate and never block or reopen a feature:
   **full** node id. Reads accept either. The CLI also crashes with `UnicodeEncodeError` on any
   character outside cp1252 — prefix `PYTHONIOENCODING=utf-8`, or better, call the REST API directly
   per **Transport** above.
+- Workflowy REST gotcha: updating a node's name or note is **`POST /api/v1/nodes/<full-id>`**, not
+  `PATCH` — `PATCH` returns `{"error": "Method not allowed", "allowed_methods": ["GET", "POST",
+  "DELETE"]}`. The body is `{"note": "..."}` (or `{"name": "..."}`), and a success is a bare
+  `{"status":"ok"}` that says nothing about whether the note will render — read the node back and
+  check its length against the ~5 KB boundary above. Hit 20-08-2026 at phase 8 FR-3's kickoff.
 - Ivan plugin version: **1.6.0** (the installed plugin, verified 04-08-2026; this line had gone
   stale at 1.3.0). Both project-local substitutions below still apply unchanged at 1.6.0 — the
   skills still emit `gh` commands and still assume a Workflowy note can hold a full feature
