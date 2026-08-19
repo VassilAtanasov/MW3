@@ -1,4 +1,4 @@
-namespace MW3.Core;
+namespace MW3.Protocol;
 
 /// <summary>
 /// A position on the map normalized to the 0..1 range on both axes, resolved to pixels only in

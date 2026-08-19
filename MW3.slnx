@@ -4,6 +4,7 @@
     <Project Path="src/MW3.Core/MW3.Core.csproj" />
     <Project Path="src/MW3.Desktop/MW3.Desktop.csproj" />
     <Project Path="src/MW3.Game/MW3.Game.csproj" />
+    <Project Path="src/MW3.Protocol/MW3.Protocol.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MW3.Core.Tests/MW3.Core.Tests.csproj" />

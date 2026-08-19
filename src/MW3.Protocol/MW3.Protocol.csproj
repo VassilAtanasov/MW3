@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The wire contract (D-57). netstandard2.1 because MW3.Core (S-2 / D-2) compiles against it and
+    references this project - the dependency runs Core -> Protocol and never the other way, which is
+    what makes D-57's boundary a compiler error rather than a convention.
+
+    Deliberately EMPTY of ItemGroups: no ProjectReference and no PackageReference. "The client
+    contains no rules" is only enforceable if this project cannot reach them, and a dependency-free
+    project is the cheapest possible proof. It is also why the source-generated JsonSerializerContext
+    is not here: System.Text.Json is in-box on net10.0 but a NuGet package on netstandard2.1, and
+    taking that package would break the no-PackageReference rule this project exists to hold. The
+    types are plain JSON-shaped data; the context that serializes them lives with whoever targets
+    net10.0 - MW3.Core.Tests today, FR-4's codec when there is a wire.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+  </PropertyGroup>
+
+</Project>
