@@ -28,6 +28,7 @@ namespace MW3.Core.Tests;
     Converters = new[] { typeof(MapObstacleJsonConverter) },
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(MatchSnapshot))]
+[JsonSerializable(typeof(EventBatch))]
 internal sealed partial class MatchSnapshotJsonContext : JsonSerializerContext
 {
 }
