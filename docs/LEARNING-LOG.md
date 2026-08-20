@@ -1167,3 +1167,51 @@ Concepts: `readonly record struct` for a zero-allocation event-window key, `Sort
 - **`SnapshotHashTests` launches `tools/SnapshotHashProbe` as a genuine child OS process via `Process.Start("dotnet", "run --project ...")`, rather than computing the hash twice in-process** (`tests/MW3.Core.Tests/SnapshotHashTests.cs`). Why here: the acceptance criterion is specifically that the hash must not rely on `object.GetHashCode`/`string.GetHashCode`, because .NET randomizes string hashing *per process* by design (a security mitigation against hash-flooding attacks) — an in-process assertion comparing `hash1 == hash2` computed twice in the same `Process` would pass even with a broken, `string.GetHashCode`-based implementation, since both calls would share the same process-local random seed. Only two genuinely separate OS processes can tell `SnapshotHash.Compute` apart from a process-randomized alternative. Pitfall: this makes the test slower and more fragile than the rest of the suite (spawning `dotnet run` costs real wall-clock time, and depends on the tool project having been restored/buildable), and it introduces a hand-duplicated fixture — `Program.cs` and `SnapshotHashTests.BuildFixedScenario` build the exact same scripted match independently, kept in sync only by a code comment pointing at each other, which is exactly the kind of two-definitions-of-one-fact drift risk the rest of this codebase (D-67, D-68, follow-up #68) works hard to design away everywhere else. It's the correct test for what it's proving, but it's worth noticing when a testing requirement forces you to accept a smaller, more localized version of a problem the codebase otherwise avoids.
 
 Try next: the bug this feature's code review actually caught (a base recaptured back to its original owner within one diff window silently produced no event, because the differ's field-comparison excluded two audit fields on the assumption they were "already covered" by the ownership-change branch) is a close cousin of the army-ordering bug above — both are cases where a comparison or reconstruction quietly assumed a narrower set of reachable states than the real one. Try reading `SnapshotDiffer.ClassifyBaseChange` and, for each field `BaseSnapshot` carries, asking "is there a sequence of match events that changes this field *without* also changing whichever field currently gates its branch?" — that's the systematic version of the question code review asked once, by hand, for one field.
+
+## 2026-08-20 — #116 FR-3: The client reads a match through a gateway, loopback implementation
+Concepts: interface as a compile-time seam, primary-constructor validation on a record, "own state through diff/apply, never assign the built value directly", `IDisposable` as a no-op placeholder for a future real cost
+- **`IMatchGateway` has no member typed in terms of the rules** (`src/MW3.Protocol/IMatchGateway.cs`).
+  Why here: this is the whole feature — an interface only in `MW3.Protocol` (which `MW3.Game`
+  references) lets the compiler, not a reviewer, prove `MW3.Game` never touches `MW3.Core` again;
+  removing `MW3.Core`'s `ProjectReference` from `MW3.Game.csproj` turns any regression into a build
+  error. Pitfall: an interface is only as good a seam as its members — if one method had leaked a
+  `MW3.Core` type back out (say, returning a raw `Match`), the whole point would be lost even with the
+  `ProjectReference` gone, since the type would still have to come from somewhere reachable.
+- **`GatewayCommand`'s `Kind` property is initialized by calling `Validate(...)` in its own
+  initializer**, not in a separate constructor body (`src/MW3.Protocol/GatewayCommand.cs:28`:
+  `public GatewayCommandKind Kind { get; } = Validate(Kind, FromBaseId, ToBaseId, Strength,
+  TargetType);`). Why here: a positional record's primary constructor can't easily be given a
+  validating body without hand-writing the whole thing out; assigning a property from a static
+  method call that both validates and returns the value being assigned gets validation on every
+  construction path (including `with` — actually `with` skips property initializers, worth knowing)
+  while keeping the terse positional-record declaration. Pitfall: **`with` expressions bypass property
+  initializers entirely** — they clone the object and only re-run init logic for properties whose
+  `init` accessor itself does work, so a record validated only via a property-initializer trick can be
+  put into an invalid state through `command with { Kind = GatewayCommandKind.Convert }` without
+  re-validating; this codebase accepts that gap because nothing in it currently uses `with` on a
+  `GatewayCommand`, but it's a real trap for future code that does.
+- **`LoopbackMatchGateway.Refresh()` always goes `SnapshotDiffer.Diff` then `SnapshotApplier.Apply`,
+  never `CurrentSnapshot = built`** (`src/MW3.Core/LoopbackMatchGateway.cs:132-137`). Why here: this
+  is D-61 — the loopback path must exercise the *exact* code the network path will need (diffing two
+  snapshots, applying the batch), so a bug in that pipeline shows up in every local game, not only
+  once FR-4 ships a real socket. Proven by a test asserting `ReferenceEquals` is false between
+  `CurrentSnapshot` and a `MatchSnapshotBuilder.Build` called independently at the same instant —
+  value-equal, not reference-equal. Pitfall: the tempting shortcut ("we already have the built
+  snapshot right here, just assign it") is strictly *more* correct in isolation and *breaks the whole
+  point of the test* — this is a case where the "obviously fine" simplification is the bug.
+- **`IMatchGateway : IDisposable` with a `Dispose()` that currently does nothing**
+  (`LoopbackMatchGateway.Dispose`). Why here: `Match`/`MatchRunner`/`AiBrain` hold no unmanaged
+  resources today, so there's genuinely nothing to release — but a future `RemoteMatchGateway` (FR-4)
+  will hold a live socket, and retrofitting `IDisposable` onto every caller after the fact (every
+  `using`/`try-finally` at every call site) is far more invasive than declaring the empty method now.
+  Pitfall: an empty `Dispose()` is easy to forget to *call* precisely because skipping it has no
+  visible effect today — the discipline (`MatchScreen` disposing its gateway on pop, verified by
+  `play-then-back.txt`/`back-and-forth.txt` staying byte-identical) only pays off once a later
+  implementation actually needs it, and by then a skipped call site is a leak, not a compile error.
+
+Try next: `GatewayCommandTests.cs` tests "no member of the command names a player" via reflection
+over `GatewayCommand`'s properties rather than by convention. Try writing the equivalent reflective
+guard for the `with`-bypasses-validation gap above — a test that constructs a valid `GatewayCommand`,
+applies a `with` that should make it invalid (e.g. `Kind = Convert` while leaving `Strength` set), and
+asserts whether the result is actually invalid or silently accepted — to see for yourself whether the
+gap noted above is real today or already closed by something you haven't spotted in the code.
