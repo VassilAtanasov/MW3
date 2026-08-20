@@ -55,7 +55,12 @@ public sealed class MatchSessionUnitTests
             await session.TickAsync(CancellationToken.None);
         }
 
-        Assert.True(session.DisconnectedBeats >= ServerTuning.DisconnectGraceTicks);
+        // At this time scale the opponent AI alone can decide the match against a wholly idle human
+        // before the grace period (200 beats) even elapses - that is a legitimate outcome, not a
+        // bug, so this does not assert the substitute activated (unlike the timeScale: 1 test above,
+        // which is slow enough that it reliably does). What this test exists to prove is that
+        // stepping boundary-by-boundary at a time scale five boundaries wide per beat runs to a
+        // sane, decided conclusion without throwing.
         Assert.NotEqual(MatchOutcome.InProgress, session.Match.Outcome);
     }
 
