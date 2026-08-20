@@ -42,6 +42,12 @@ public static class WebSocketFraming
             }
 
             await buffered.WriteAsync(buffer.AsMemory(0, result.Count), cancellationToken).ConfigureAwait(false);
+            if (buffered.Length > _maxMessageBytes)
+            {
+                throw new InvalidOperationException(
+                    FormattableString.Invariant($"A single WebSocket message exceeded {_maxMessageBytes} bytes without completing."));
+            }
+
             if (result.EndOfMessage)
             {
                 return buffered.ToArray();
