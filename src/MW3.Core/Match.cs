@@ -96,6 +96,7 @@ public sealed class Match
         }
 
         Obstacles = definition.Obstacles;
+        MapId = definition.Id;
     }
 
     public Player HumanPlayer { get; }
@@ -122,6 +123,14 @@ public sealed class Match
     /// this yet - it is here for FR-3 (blocking) and FR-4 (drawing) to consume.
     /// </summary>
     public IReadOnlyList<MapObstacle> Obstacles { get; } = Array.Empty<MapObstacle>();
+
+    /// <summary>
+    /// Which <see cref="MapCatalog"/> map this match is being played on, or null when it was built
+    /// from a layout a caller assembled itself (D-44's seam, which only tests use). Read by the
+    /// snapshot builder so a client can be told which map it is drawing without being handed the
+    /// catalogue.
+    /// </summary>
+    public MapId? MapId { get; }
 
     /// <summary>
     /// Armies currently in flight. Read-only view over <see cref="Match"/>'s internal state; an
@@ -645,7 +654,9 @@ public sealed class Match
     /// resolves tower range against for the same army and tick, exposed so a renderer is not exempt
     /// from S-8 (D-45's pattern, applied to drawing rather than prediction): <c>MatchScreen</c> reads
     /// an army's position here instead of recomputing one from the two base positions it flew
-    /// between.
+    /// between. The arithmetic is <see cref="ArmyPathMath"/>'s, not this class's (D-68): a client
+    /// holding a snapshot and no <see cref="Match"/> calls the same function, so where an army is
+    /// drawn and where tower range and arrival resolve it can never come apart.
     /// </summary>
     public MapPoint PositionOf(Army army)
     {
@@ -679,8 +690,9 @@ public sealed class Match
     /// rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to an
     /// endpoint rather than extrapolating past it. Walks the polyline at uniform speed: at elapsed
     /// fraction <c>f</c> of the flight, the army sits at arc-length <c>f * Path.Length</c> along the
-    /// waypoints. Returns the source base's own position (fraction 0) if it is somehow unknown, which
-    /// cannot happen for a live army on the hardcoded map.
+    /// waypoints - all of which is <see cref="ArmyPathMath.PositionAt"/>'s to compute (D-68). What is
+    /// left here is the guard: an army whose source base is somehow unknown resolves to the default
+    /// point rather than to its path, which cannot happen for a live army on any shipped map.
     /// </summary>
     private MapPoint PositionAtTick(Army army, long tick)
     {
@@ -690,64 +702,17 @@ public sealed class Match
             return default;
         }
 
-        return PositionAlongPath(army.Path, FractionAtTick(army, tick));
+        return ArmyPathMath.PositionAt(army.Path, army.LaunchTick, army.ArrivalTick, tick);
     }
 
     /// <summary>
-    /// <paramref name="army"/>'s clamped 0..1 flight fraction at <paramref name="tick"/> - the one
-    /// place launch/arrival ticks are turned into a fraction, shared by <see cref="PositionAtTick"/>
-    /// and <see cref="ProgressOf"/> so the two can never disagree.
+    /// <paramref name="army"/>'s clamped 0..1 flight fraction at <paramref name="tick"/>. The
+    /// arithmetic itself lives in <see cref="ArmyPathMath.ProgressAt"/> (D-68) so the rules, the
+    /// renderer and - after FR-3 - a client holding only a snapshot all share one implementation;
+    /// this is the <c>Match</c>-shaped call of it.
     /// </summary>
-    private static double FractionAtTick(Army army, long tick)
-    {
-        var span = army.ArrivalTick - army.LaunchTick;
-        var fraction = span > 0 ? (double)(tick - army.LaunchTick) / span : 1.0;
-        return Math.Clamp(fraction, 0.0, 1.0);
-    }
-
-    /// <summary>
-    /// The point at arc-length fraction <paramref name="fraction"/> (0..1) along
-    /// <paramref name="path"/>'s waypoints. At 0 this is exactly the first waypoint and at 1 exactly
-    /// the last, regardless of accumulated floating-point drift along the way.
-    /// </summary>
-    private static MapPoint PositionAlongPath(ArmyPath path, double fraction)
-    {
-        var waypoints = path.Waypoints;
-        if (fraction <= 0.0)
-        {
-            return waypoints[0];
-        }
-
-        if (fraction >= 1.0)
-        {
-            return waypoints[waypoints.Count - 1];
-        }
-
-        var targetDistance = fraction * path.Length;
-        var accumulated = 0.0;
-
-        for (var i = 1; i < waypoints.Count; i++)
-        {
-            var segmentStart = waypoints[i - 1];
-            var segmentEnd = waypoints[i];
-            var dx = segmentEnd.X - segmentStart.X;
-            var dy = segmentEnd.Y - segmentStart.Y;
-            var segmentLength = Math.Sqrt((dx * dx) + (dy * dy));
-
-            if (accumulated + segmentLength >= targetDistance || i == waypoints.Count - 1)
-            {
-                var remaining = targetDistance - accumulated;
-                var segmentFraction = segmentLength > 0.0 ? Math.Clamp(remaining / segmentLength, 0.0, 1.0) : 0.0;
-                return new MapPoint(
-                    segmentStart.X + (dx * segmentFraction),
-                    segmentStart.Y + (dy * segmentFraction));
-            }
-
-            accumulated += segmentLength;
-        }
-
-        return waypoints[waypoints.Count - 1];
-    }
+    private static double FractionAtTick(Army army, long tick) =>
+        ArmyPathMath.ProgressAt(army.LaunchTick, army.ArrivalTick, tick);
 
     private Base? FindBase(int id)
     {

@@ -1,4 +1,4 @@
-namespace MW3.Core;
+namespace MW3.Protocol;
 
 public enum PlayerControllerKind
 {

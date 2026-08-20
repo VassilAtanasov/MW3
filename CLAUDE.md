@@ -263,8 +263,12 @@ These run without a human gate and never block or reopen a feature:
 - Workflowy root: `3190919ca4d7` (level-1 item "MW3"; full id
   `2e4d883b-f264-4f90-b966-3190919ca4d7`). `WORKFLOWY_API_KEY` and `GITHUB_CLASSIC_TOKEN` live in
   the gitignored `.env`.
-- Active project: **Maps** (`docs/maps/`, wf `3f7156d826aa`), discovered 07-08-2026 — see its own
-  bullet below. No board and no issues yet; `/kickoff` creates the board at the first feature.
+- Active project: **Game server** (`docs/game-server/`, wf `836033c6cb0a`), discovered 17-08-2026 —
+  see its own bullet below. No board and no issues yet; `/kickoff` creates the board at the first
+  feature. **Phase 7 (Maps) is not finished**: FR-1..FR-5 are merged but **FR-6 (issue #98's
+  sibling, #108) was kicked off at `b2eeb61` and never built**, so `/implement 108` should land
+  before phase 8's first `/implement`. Discovery ran ahead of it deliberately — planning does not
+  touch the tree.
   A level-2 project, **Branding** (wf `6080284b9dcc`), was seeded 05-08-2026 for the IP
   layer and is **not** discovered; it gates hero *content*, never mechanics, so it blocks no
   phase. Phases 1–6 are all complete and merged.
@@ -447,6 +451,69 @@ These run without a human gate and never block or reopen a feature:
   after a *conversion*, which is what the new `qa/scripts/ai-tower-detour-medium.txt` builds. The
   named boundary is that FR-6 makes the AI **cost** its one deterministic route correctly; it does
   **not** give the AI a choice of routes.
+- **Phase 8, "Game server" (`docs/game-server/`, wf `836033c6cb0a`) — the active project.**
+  Discovered 17-08-2026; board **25**, created at FR-1's kickoff the same day, with FR-1 as issue
+  **#109**. **FR-1's kickoff found that `MatchScreen.WriteStateDump` is already a snapshot
+  serializer** in a bespoke text format, writing very nearly the exact field list FR-1 had to define
+  — so FR-1 rewires `--dump-state` to render from the snapshot and requires **byte-identical**
+  output, making all 50 `qa/scripts/` the evidence that the snapshot is complete rather than tests
+  written by the session that defined "complete". `Menu:` and `Strength:` stay screen-owned (D-26),
+  and that the split falls out cleanly is itself evidence the scope is right. Two more settled there:
+  the pure value types **move down** into `MW3.Protocol` rather than being duplicated behind a
+  mapping layer (**D-67**, with "no test file changes except its usings" as the bar), and position
+  and progress become **shared pure functions** `Match.PositionOf`/`ProgressOf` delegate to
+  (**D-68**) — both refusals of the same duplication-drift that #68, phase 5 and D-45 each closed
+  once. `--dump-state`'s rewiring is **D-69**. The node was created as "Multiplayer server"
+  and was **renamed at this discovery** when the user reduced the scope: the game stays **one human
+  against the AI**, and what moves is *who owns the truth* — `MW3.Core`, `MatchRunner` and `AiBrain`
+  run server-side, `MW3.Game` becomes a renderer. Everything the reduction deferred (PvP, N-player,
+  accounts, matchmaking, Fame) went to a **new sibling project, Multiplayer** (wf `98f700a52bf7`,
+  not discovered), which now owns parity **G-17**. Phase 8 **closes no parity gap**, and MW2's
+  netcode is entirely unpublished (`MW2-RULES.md` §9), so nearly all of it is MW3's own design and
+  must never be described as a port — the already-answered rule buys this phase very little, which
+  is why four decisions were settled explicitly with the user instead. Six features and **FR order
+  is dependency order**: snapshot types in a new `MW3.Protocol` (FR-1), snapshot diff/apply (FR-2),
+  the client reading through a gateway (FR-3), `MW3.Server` hosting many matches (FR-4), Android
+  (FR-5), the command log (FR-6). Four things settled with the user in discovery and binding, not
+  build-mode calls: a **thin, event-driven client** that holds no rules; a **local in-process
+  loopback path that survives**, so offline Android play and all 50 `qa/scripts/` keep working;
+  **WebSocket + JSON**, both in-box so S-5 costs nothing, with the codec behind a seam; and a
+  **per-match command/event log** with no playback, which is the separate Game logs / replays
+  project. Two findings from the existing code drive the design and build mode will get them wrong
+  if it skims. **The wire never carries an army position** — `Army`'s position is a pure function of
+  `LaunchTick`, `ArrivalTick` and `Path`, all immutable (D-51, D-39), and its only mutable field
+  changes solely on tower fire — so launch data alone renders an army forever. And **events are
+  derived by diffing two snapshots, never emitted by `Match`** (D-58): instrumenting 1368 lines of
+  mutation would create a second source of truth that can disagree with the state, which is exactly
+  the desync class #68, phase 5 and phase 6's D-45 each had to close once. Watch **D-61**: loopback
+  runs the *same* diff/apply pipeline as the wire, so local play is not a shortcut around the
+  protocol — that is what makes all 50 scripts protocol coverage. Also **D-57** (`MW3.Protocol` is a
+  separate project because only a missing project reference is compiler-enforced, and success
+  criterion 3 is "the client contains no rules"), **D-59** (commands apply on arrival; no
+  prediction, no rollback, no input delay — reopens in Multiplayer), **D-60** (determinism stops
+  being an accident: `MW3.Core` has no `DateTime`, no `Random` and no math beyond `Math.Sqrt`, all
+  IEEE-754-exact, and this phase adds a mechanism that keeps it that way), **D-63** (one 50 ms
+  scheduler for all sessions, never a thread per match — true only because `Match` has no statics),
+  and **D-65** (a disconnect substitutes `AiBrain`, cheap only because `MatchRunner` already
+  consults an `IPlayerBrain`). Localhost only — **no cloud, no recurring cost** this phase. **The
+  hard limit: no gameplay change.** If a match plays differently after this phase, that is a defect,
+  and the standard of evidence is a byte-identical `--dump-state` diff, as phase 7 FR-2 set.
+  **FR-2's kickoff (18-08-2026, issue #112)** established that **the client needs no semantic
+  events at all**: `MatchScreen` renders from state and derives its one change-driven animation from a
+  state field (`Base.LastFireTick`), and nothing in `MW3.Game` holds a previous frame to compare
+  against — so the semantic value of events is for FR-6's log and for features that do not yet exist.
+  The shape settled is **complete deltas carrying a semantic label** (**D-70**): every event carries
+  every changed field, so reconstruction is exact, and the kind is derived from *which* fields changed
+  rather than inferred in a way that would let a field be dropped. Where a label is not derivable with
+  certainty it is **not invented** — `ArmyRemoved` carries no arrived-vs-destroyed reason, because the
+  obvious `ArrivalTick <= toTick` rule is wrong for an army dying on exactly its arrival tick. FR-2
+  also closes **D-60** as **D-71**: a banned-API source scan over `MW3.Core` *and* `MW3.Protocol`
+  (D-68 moved position math there) that fails naming file and line, **plus** a golden snapshot hash —
+  neither alone suffices, and the hash must not rest on `string.GetHashCode`, which .NET randomizes
+  per process. Two more things build mode will get wrong if it skims: `diff` must work on
+  **non-adjacent** snapshots, since FR-4 may send below the tick rate, and an implementation quietly
+  assuming adjacency passes every FR-2 test and fails in FR-4; and the sequence number **is the
+  elapsed tick**, not a new counter.
 - **Device QA is fully unblocked** (28-07-2026): follow-up #28 (adb `unauthorized`) is resolved and
   closed — `adb devices` now shows `43e75e5 device`. Re-running the FR-6/FR-7 device checks against
   the *currently installed* APK first surfaced what looked like a real defect (the AI never acting
@@ -472,6 +539,11 @@ These run without a human gate and never block or reopen a feature:
   **full** node id. Reads accept either. The CLI also crashes with `UnicodeEncodeError` on any
   character outside cp1252 — prefix `PYTHONIOENCODING=utf-8`, or better, call the REST API directly
   per **Transport** above.
+- Workflowy REST gotcha: updating a node's name or note is **`POST /api/v1/nodes/<full-id>`**, not
+  `PATCH` — `PATCH` returns `{"error": "Method not allowed", "allowed_methods": ["GET", "POST",
+  "DELETE"]}`. The body is `{"note": "..."}` (or `{"name": "..."}`), and a success is a bare
+  `{"status":"ok"}` that says nothing about whether the note will render — read the node back and
+  check its length against the ~5 KB boundary above. Hit 20-08-2026 at phase 8 FR-3's kickoff.
 - Ivan plugin version: **1.6.0** (the installed plugin, verified 04-08-2026; this line had gone
   stale at 1.3.0). Both project-local substitutions below still apply unchanged at 1.6.0 — the
   skills still emit `gh` commands and still assume a Workflowy note can hold a full feature
@@ -490,7 +562,11 @@ These run without a human gate and never block or reopen a feature:
 | Morale | `3401ecb1c7a5` | `docs/morale/` | 22 | `PVT_kwHOANIl2M4BfXZs` | Status `PVTSSF_lAHOANIl2M4BfXZszhZqzHk` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Forges | `3900095949a7` | `docs/forges/` | 23 | `PVT_kwHOANIl2M4BfdZf` | Status `PVTSSF_lAHOANIl2M4BfdZfzhZwJAo` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Maps | `3f7156d826aa` | `docs/maps/` | 24 | `PVT_kwHOANIl2M4BfuDq` | Status `PVTSSF_lAHOANIl2M4BfuDqzhZ--GA` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
+| Game server | `836033c6cb0a` | `docs/game-server/` | 25 | `PVT_kwHOANIl2M4BgpT6` | Status `PVTSSF_lAHOANIl2M4BgpT6zhfoFSg` / Todo `f75ad846` / In Progress `47fc9ee4` / Done `98236657` |
 | Branding | `6080284b9dcc` | — | — | — | not discovered; IP layer, see its own bullet |
+| Multiplayer | `98f700a52bf7` | — | — | — | not discovered; split out of Game server 17-08-2026, owns G-17 |
+| Campaigns | `31be9fb8ceb7` | — | — | — | not discovered; owns the map file format (D-49) |
+| Game logs, game replays | `9cbaa676e175` | — | — | — | not discovered; fed by phase 8 FR-6's log format |
 
 Phase 1 features, in dependency order (`/kickoff` one at a time):
 
@@ -586,6 +662,27 @@ dependency order all agree, unlike phases 3, 4 and 6. FR-5 is the one placement 
 could sit anywhere after FR-1, and it goes fifth so the base radius is re-derived **once**, against
 the final board (nine elements plus a drawn obstacle), rather than before FR-4 adds a shape and again
 after. FR-6's new `qa/scripts/` files then get authored at the final size.
+
+Phase 8 features, in dependency order (`/kickoff` one at a time), discovered 17-08-2026:
+
+| # | Feature | wf short id |
+|---|---|---|
+| 1 | Match snapshot types and a builder in a new `MW3.Protocol` project | `d9c8506314b8` (issue #109) |
+| 2 | Snapshot diffing and applying, the event model | `8336e1854fd3` (issue #112) |
+| 3 | The client reads a match through a gateway, loopback implementation | `11478629af65` (issue #116) |
+| 4 | `MW3.Server` hosts many matches over WebSocket, desktop plays remotely | `2f0804afb96f` |
+| 5 | The Android head connects to a server and falls back to local | `38ffe9924312` |
+| 6 | The server records a per-match command and event log | `30450bdd69ee` |
+
+**FR numbering is the build order again**, as in phase 7. **FR-3 is the phase's compatibility break
+and its largest feature** — it rewrites `MatchScreen`'s entire read path, and all 50 committed
+`qa/scripts/` run through it and must pass unedited. If it looks oversized at its kickoff, the split
+to reach for is *bases and morale first, armies and the action menu second*; it is deliberately not
+pre-split here on a guess. **FR-4 ships many concurrent sessions from the start** rather than one,
+because a `Dictionary<matchId, MatchSession>` plus a timer that walks it is the same code as a single
+session — restricting it would be artificial work. **FR-1, like phase 7's FR-1, is deliberately
+invisible and adds no `qa/scripts/` file**, which its issue should state as a decision rather than
+leave silent.
 
 **FR-3a/3b/3c are the mid-phase MW2 correction** (added 28-07-2026). Phase 3 was designed before
 `docs/reference/` existed, so its ladder was invented rather than sourced; these three replace it

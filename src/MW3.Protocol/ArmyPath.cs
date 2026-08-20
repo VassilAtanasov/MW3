@@ -1,9 +1,10 @@
-namespace MW3.Core;
+namespace MW3.Protocol;
 
 /// <summary>
-/// The polyline an <see cref="Army"/> flies (FR-3), computed once by <see cref="PathCalculator"/> at
-/// a send's submission tick and shared, unchanged, by every wave of that send (D-51). A value: no
-/// behaviour, no mutation after construction.
+/// The polyline an army flies (phase 7 FR-3), computed once by <c>MW3.Core</c>'s <c>PathCalculator</c>
+/// at a send's submission tick and shared, unchanged, by every wave of that send (D-51). A value: no
+/// behaviour, no mutation after construction. Named in prose rather than by <c>cref</c> because
+/// <c>MW3.Protocol</c> cannot reference the rules (D-57), which is the point.
 /// </summary>
 public sealed class ArmyPath
 {

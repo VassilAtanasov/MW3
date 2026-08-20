@@ -1,77 +1,81 @@
-# RE-HOMED at FR-2 (issue #99, D-56) onto --map small: the opening Play tap (two lines) was
-# deleted and every remaining frame number reduced by 5, mechanically, like every other re-homed
-# script. FOLLOW-UP #76 IS LEFT OPEN, NOT SILENTLY MASKED: this script was already unverified
-# before FR-2 (see the KNOWN STALE note directly below, from #67) and re-homing does not change
-# that status either way - a full run at --time-scale 1 for ~8500 frames did not reliably complete
-# for this feature's implementer within a practical time budget, so whether it still reaches
-# HumanVictory on the re-homed board remains unconfirmed. Re-deriving or removing this script is
-# still #76's job, not FR-2's.
+# RE-DERIVED for issue #111, which also CLOSES follow-up #76 - the KNOWN STALE header this file
+# carried since FR-2 (#67) is gone because the staleness is gone, not because the note was deleted.
+# #76 offered two resolutions: re-derive the sequence, or delete the script because MatchOutcomeTests
+# already proves victory at the unit level. Re-derived is the one taken: the unit test proves the
+# rules admit a win, while this script is the only artefact proving a human can reach one through
+# the real UI - press, drag, release, and the action menu - which is a different claim.
 #
-# KNOWN STALE (FR-2, #67): MatchOutcomeTests' winning sequence was re-derived against the
-# now-morale-aware combat formula and no longer matches the sequence below tick-for-tick. This
-# script's drags/timings were not re-derived alongside it, so it is not proven to still reach
-# HumanVictory - treat any run of this script as unverified until it is re-derived or removed.
+# Run with --map small --time-scale 25. This script reaches HumanVictory at tick 1788.
 #
-# Tap Play, then drive the same fixed, hand-authored command sequence proven against the live AI
-# in MatchOutcomeTests (MW3.Core.Tests). Run with no --time-scale (or --time-scale 1): at 50ms per
-# tick the per-frame tick rate at any faster integer time-scale (the old script used 25) only ever
-# lands on multiples of that rate, and this sequence's tick gaps are not uniform enough to stay on
-# such a grid. At time-scale 1 each frame delivers 16ms, a rate of 16/50 = 0.32 ticks/frame - under
-# 1, so the cumulative tick count (floor(frame_ms / 50)) never skips an integer, and every tick
-# this sequence needs is reachable at some exact frame. The clock's tick 0 is frame 5, right after
-# Play's release navigates to the match screen (frame = 5 + N, ticks = floor(16N / 50)).
+# 8,505 frames -> 238. Both are run lengths, not last-directive frames: playback ends ten frames
+# after the last directive (ScriptedInputSource.IsPlaybackComplete), so the `8495 wait` the retired
+# sequence ended on ran to frame 8,505 and the `228 wait` below runs to frame 238. That retired
+# sequence ran at --time-scale 1 (144.6 s on the reference machine, 43% of the whole suite's
+# wall-clock) and had not reached its outcome since FR-2.
+# --time-scale 25 makes every frame worth exactly 8 ticks - (long)(1000/60) * 25 = 400 ms, and
+# 400 / 50 = 8 - so the whole tick range this sequence needs is reachable on a uniform grid, which is
+# what the old comment correctly said scale 25 could not do for the OLD sequence's non-uniform gaps.
+# The fix was to re-derive the sequence ONTO that grid rather than to keep the grid off. Combined with
+# #111's vsync change the run costs 0.53 s instead of 144.58 s.
 #
-# Re-derived for #38: the tick rate halved (50ms) and the whole village ladder retuned to MW2's
-# published numbers, so every tick in the phase-3 sequence changed. The winning shape now sweeps
-# the near flank first, then the far flank, reinforcing the capital along the way, and finishes
-# with two grinding strikes against the AI's own capped capital once nothing else on the board is
-# winnable outright.
-374 down 0.120000 0.500000
-375 up 0.350000 0.250000
-499 down 0.120000 0.500000
-500 up 0.650000 0.250000
-687 down 0.120000 0.500000
-688 up 0.350000 0.250000
-1374 down 0.120000 0.500000
-1375 up 0.880000 0.500000
-1874 down 0.350000 0.250000
-1875 up 0.880000 0.500000
-2124 down 0.120000 0.500000
-2125 up 0.350000 0.250000
-2437 down 0.120000 0.500000
-2438 up 0.880000 0.500000
-2687 down 0.120000 0.500000
-2688 up 0.880000 0.500000
-2999 down 0.350000 0.250000
-3000 up 0.880000 0.500000
-3374 down 0.120000 0.500000
-3375 up 0.350000 0.250000
-3937 down 0.880000 0.500000
-3938 up 0.650000 0.250000
-4312 down 0.120000 0.500000
-4313 up 0.650000 0.250000
-4624 down 0.880000 0.500000
-4625 up 0.650000 0.250000
-4999 down 0.120000 0.500000
-5000 up 0.650000 0.250000
-5374 down 0.880000 0.500000
-5375 up 0.650000 0.250000
-5624 down 0.120000 0.500000
-5625 up 0.650000 0.250000
-5999 down 0.880000 0.500000
-6000 up 0.650000 0.250000
-7124 down 0.120000 0.500000
-7125 up 0.350000 0.750000
-7374 down 0.880000 0.500000
-7375 up 0.350000 0.750000
-7624 down 0.650000 0.250000
-7625 up 0.650000 0.750000
-7812 down 0.120000 0.500000
-7813 up 0.350000 0.750000
-7814 down 0.880000 0.500000
-7815 up 0.350000 0.250000
-7999 down 0.650000 0.250000
-8000 up 0.350000 0.250000
-8062 down 0.120000 0.500000
-8063 up 0.650000 0.750000
-8495 wait
+# HOW IT WAS DERIVED, so the next person to re-derive it does not start from nothing. The sequence
+# was searched offline against the live Match/MatchRunner/AiBrain, over a small space of
+# hand-authorable policies of the form "upgrade the capital, then drag at a fixed cadence to the
+# first not-yet-owned base in a priority order", keeping only sends of 50% of the source garrison -
+# because 50% is the SendStrength the picker starts on, so every send here is what a plain drag
+# actually produces. The winning policy sweeps the near flank, then the far flank, then the AI's
+# capital, which is the shape the retired sequence had. The search modelled the head's exact timing
+# (MatchScreen advances the match, THEN handles input, so a release on frame f commands at tick
+# 8*(f+1); a drag is `down` on f-1 and `up` on f; an upgrade is two gestures, so the one below lands
+# on frame 3) and its prediction was then confirmed by a real run, not assumed.
+#
+# EXPECTED END STATE, derived rather than observed - this script's whole claim is the Outcome line:
+#   Outcome: HumanVictory   at   ElapsedTicks: 1788
+#   every one of bases 0-5 Owner=Human, base 0 at Level=2 from the opening upgrade
+#   no Army lines: the last send lands before the match is decided, nothing is left in flight
+#
+# Open base 0's action menu and press Upgrade - funds the level-2 cap the capture force needs.
+0 down 0.120000 0.500000
+1 up 0.120000 0.500000
+2 down 0.328906 0.416667
+3 up 0.328906 0.416667
+# Near flank: take base 2 (0.35, 0.25), reinforcing from the capital.
+17 down 0.120000 0.500000
+18 up 0.350000 0.250000
+32 down 0.120000 0.500000
+33 up 0.350000 0.250000
+# Far flank on the same row: base 4 (0.65, 0.25), fed from the capital and then from base 2.
+47 down 0.120000 0.500000
+48 up 0.650000 0.250000
+62 down 0.120000 0.500000
+63 up 0.350000 0.250000
+77 down 0.120000 0.500000
+78 up 0.650000 0.250000
+92 down 0.120000 0.500000
+93 up 0.350000 0.250000
+107 down 0.120000 0.500000
+108 up 0.650000 0.250000
+122 down 0.120000 0.500000
+123 up 0.650000 0.250000
+137 down 0.120000 0.500000
+138 up 0.650000 0.250000
+142 down 0.350000 0.250000
+143 up 0.650000 0.250000
+152 down 0.120000 0.500000
+153 up 0.350000 0.250000
+# Lower flank: bases 3 (0.35, 0.75) and 5 (0.65, 0.75).
+167 down 0.120000 0.500000
+168 up 0.350000 0.750000
+182 down 0.120000 0.500000
+183 up 0.350000 0.750000
+191 down 0.650000 0.250000
+192 up 0.650000 0.750000
+197 down 0.120000 0.500000
+198 up 0.650000 0.750000
+# Two strikes on the AI's capital (0.88, 0.50), the map's only AiStart slot - eliminating it decides
+# the match the instant the second lands.
+209 down 0.350000 0.250000
+210 up 0.880000 0.500000
+212 down 0.120000 0.500000
+213 up 0.880000 0.500000
+228 wait

@@ -1,9 +1,9 @@
-namespace MW3.Core;
+namespace MW3.Protocol;
 
 /// <summary>
-/// An axis-aligned rectangle in normalized 0..1 map units (D-50) that a <see cref="MapDefinition"/>
-/// carries. Pure data here (FR-1) - nothing in <c>MW3.Core</c> consults it yet; FR-3 makes it block
-/// movement and FR-4 draws it.
+/// An axis-aligned rectangle in normalized 0..1 map units (D-50) that a <c>MapDefinition</c>
+/// carries and a <see cref="MatchSnapshot"/> reproduces. Blocks movement (phase 7 FR-3) and is drawn
+/// (phase 7 FR-4).
 /// </summary>
 public readonly struct MapObstacle
 {

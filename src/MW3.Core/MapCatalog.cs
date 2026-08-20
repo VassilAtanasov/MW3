@@ -18,7 +18,7 @@ public static class MapCatalog
     };
 
     /// <summary>Bit-identical to the layout phases 2-5 shipped, before phase 6 FR-2 appended its two centre slots.</summary>
-    public static MapDefinition Small { get; } = new(_sharedSlots, Array.Empty<MapObstacle>());
+    public static MapDefinition Small { get; } = new(_sharedSlots, Array.Empty<MapObstacle>(), MapId.Small);
 
     /// <summary>
     /// The shared six slots plus two gate neutrals and a central obstacle spanning x 0.42..0.58,
@@ -28,7 +28,8 @@ public static class MapCatalog
         Combine(
             new MapSlot(new MapPoint(0.50, 0.15), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel),
             new MapSlot(new MapPoint(0.50, 0.85), MapSlotKind.Neutral, StartingGarrison: 5, BaseType.Producer, LevelTable.MinLevel)),
-        new[] { new MapObstacle(minX: 0.42, minY: 0.30, maxX: 0.58, maxY: 0.70) });
+        new[] { new MapObstacle(minX: 0.42, minY: 0.30, maxX: 0.58, maxY: 0.70) },
+        MapId.Medium);
 
     /// <summary>
     /// The shared six slots plus a contested neutral forge flanked by two neutral towers on the
@@ -39,7 +40,8 @@ public static class MapCatalog
             new MapSlot(new MapPoint(0.50, 0.32), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Tower, LevelTable.MinLevel),
             new MapSlot(new MapPoint(0.50, 0.68), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Tower, LevelTable.MinLevel),
             new MapSlot(new MapPoint(0.50, 0.50), MapSlotKind.Neutral, StartingGarrison: 10, BaseType.Forge, LevelTable.MinLevel)),
-        Array.Empty<MapObstacle>());
+        Array.Empty<MapObstacle>(),
+        MapId.Big);
 
     /// <summary>All three maps, in <see cref="MapId"/> declaration order.</summary>
     public static IReadOnlyList<MapId> AllIds { get; } = new[] { MapId.Small, MapId.Medium, MapId.Big };
