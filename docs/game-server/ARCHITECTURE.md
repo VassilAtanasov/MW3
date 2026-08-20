@@ -21,7 +21,8 @@ dependency graph gains a fourth library and a second executable:
 
 `MW3.Protocol` is the new engine-free, `netstandard2.1` library at the bottom: the serializable
 snapshot of a match, the event types, and the JSON contract. `MW3.Core` gains a builder that produces
-a snapshot from a live `Match`, and a differ/applier pair over snapshots. `MW3.Game` **loses** its
+a snapshot from a live `Match`, plus the loopback gateway. The differ/applier pair lives in
+`MW3.Protocol`, not here — see **D-75**, which supersedes this line's original claim. `MW3.Game` **loses** its
 reference to `MW3.Core` entirely and depends only on `MW3.Protocol` — that is the phase's headline
 structural change and the thing success criterion 3 checks mechanically.
 

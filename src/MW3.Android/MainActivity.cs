@@ -1,6 +1,7 @@
 using Android.Content.PM;
 using Android.Views;
 using Microsoft.Xna.Framework;
+using MW3.Core;
 using MW3.Game;
 
 namespace MW3.Android;
@@ -22,7 +23,10 @@ public sealed class MainActivity : AndroidGameActivity
     {
         base.OnCreate(savedInstanceState);
 
-        _game = new MW3Game();
+        // Phase 8 FR-3, D-74: this head is the composition root, exactly as MW3.Desktop is - it
+        // builds the loopback gateway factory (which needs MW3.Core) and injects it into the client,
+        // which cannot see the rules at all. A server address and the fallback to local are FR-5's.
+        _game = new MW3Game(new LoopbackMatchGatewayFactory());
         var view = _game.Services.GetService(typeof(View)) as View;
         SetContentView(view);
         _game.Run();

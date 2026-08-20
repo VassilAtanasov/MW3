@@ -49,6 +49,13 @@ namespace MW3.Protocol;
 /// (D-48, D-66) - empty for every base the local player does not own, because there is nothing for
 /// them to do to it and nothing for the client to learn from being told why.
 /// </param>
+/// <param name="RangeUnits">
+/// How far this base shoots, as a Euclidean distance in the same normalized 0..1 map units
+/// <see cref="Position"/> uses - null for a base whose type has no range at all, which is every type
+/// but a tower. Added at FR-3 because the renderer drew its range ring straight out of
+/// <c>LevelTable</c>, the last table read left on the client; FR-1's byte-identical dump could not
+/// catch it, because <c>--dump-state</c> never prints a range.
+/// </param>
 public sealed record BaseSnapshot(
     int Id,
     MapPoint Position,
@@ -67,7 +74,8 @@ public sealed record BaseSnapshot(
     long? LastOwnerChangeTick,
     int? OwnerBeforeLastChangePlayerId,
     long? LastFireTick,
-    IReadOnlyList<BaseActionSnapshot> AvailableActions)
+    IReadOnlyList<BaseActionSnapshot> AvailableActions,
+    double? RangeUnits)
 {
     /// <summary>
     /// What the local player can do to this base right now, empty for a base they do not own.
@@ -98,6 +106,7 @@ public sealed record BaseSnapshot(
         && LastOwnerChangeTick == other.LastOwnerChangeTick
         && OwnerBeforeLastChangePlayerId == other.OwnerBeforeLastChangePlayerId
         && LastFireTick == other.LastFireTick
+        && Nullable.Equals(RangeUnits, other.RangeUnits)
         && SnapshotEquality.ListEquals(AvailableActions, other.AvailableActions);
 
     /// <inheritdoc />

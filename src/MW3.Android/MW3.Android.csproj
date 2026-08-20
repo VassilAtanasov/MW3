@@ -21,8 +21,12 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
   </ItemGroup>
 
+  <!-- Phase 8 FR-3 (D-74): this head is the composition root, exactly as MW3.Desktop is. It gets
+       the same loopback factory the desktop head does and nothing else - a server address and the
+       fallback to local are FR-5's. -->
   <ItemGroup>
     <ProjectReference Include="..\MW3.Game\MW3.Game.csproj" />
+    <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

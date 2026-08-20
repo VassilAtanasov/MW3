@@ -1,6 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using MW3.Core;
 
 namespace MW3.Game;
 
@@ -16,7 +15,8 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
     private readonly string? _screenshotPath;
     private readonly string? _dumpStatePath;
     private readonly long _timeScale;
-    private readonly MapId? _bootMap;
+    private readonly IMatchGatewayFactory _gatewayFactory;
+    private readonly string? _bootMap;
     private readonly GraphicsDeviceManager _graphics;
     private readonly ScreenManager _screenManager = new();
     private readonly IInputSource _input;
@@ -28,13 +28,24 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
     /// <paramref name="bootMap"/> is <c>--map</c>'s effect (FR-2, D-56): when set, the welcome screen
     /// is still pushed first, so the stack and a <c>back</c> from the match behave exactly as a real
     /// tap would - but a match on that map is pushed immediately after, bypassing the button press.
+    /// It is a map <b>name</b> now (phase 8 FR-3, D-74), validated by whoever parsed the flag against
+    /// <paramref name="gatewayFactory"/>'s own list.
+    ///
+    /// <paramref name="gatewayFactory"/> is how this class - and every screen below it - reaches a
+    /// match without being able to see the rules (D-57). It is injected rather than constructed here
+    /// precisely because constructing one would require the reference this feature removes: the head
+    /// is the composition root (D-74).
     /// </summary>
-    public MW3Game(bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null, long timeScale = 1, MapId? bootMap = null)
+    public MW3Game(IMatchGatewayFactory gatewayFactory, bool exitAfterFirstDraw = false, string? screenshotPath = null, string? dumpStatePath = null, IReadOnlyList<ScriptDirective>? scriptDirectives = null, long timeScale = 1, string? bootMap = null)
     {
+        ArgumentNullException.ThrowIfNull(gatewayFactory);
+
         if (timeScale <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(timeScale), timeScale, "Time scale must be a positive integer.");
         }
+
+        _gatewayFactory = gatewayFactory;
 
         _exitAfterFirstDraw = exitAfterFirstDraw;
         _screenshotPath = screenshotPath;
@@ -115,10 +126,10 @@ public sealed class MW3Game : Microsoft.Xna.Framework.Game
         // CA2000 does not see that ScreenManager takes ownership and disposes pushed screens
         // (Pop and ScreenManager.Dispose both call Dispose on them).
 #pragma warning disable CA2000
-        _screenManager.Push(new WelcomeScreen());
-        if (_bootMap.HasValue)
+        _screenManager.Push(new WelcomeScreen(_gatewayFactory));
+        if (_bootMap is not null)
         {
-            _screenManager.Push(new MatchScreen(MapCatalog.Get(_bootMap.Value)));
+            _screenManager.Push(new MatchScreen(_gatewayFactory.CreateForMap(_bootMap)));
         }
 #pragma warning restore CA2000
 

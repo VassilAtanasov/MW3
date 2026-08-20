@@ -63,7 +63,7 @@ public sealed record MatchSnapshot(
     /// The version every snapshot this build produces carries. Bumped when a field is added,
     /// removed or reinterpreted - never for a value change.
     /// </summary>
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 2;
 
     /// <inheritdoc />
     public bool Equals(MatchSnapshot? other) =>

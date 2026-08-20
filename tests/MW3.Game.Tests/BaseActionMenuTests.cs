@@ -22,7 +22,8 @@ public class BaseActionMenuTests
         var match = new Match();
         var humanBase = HumanBase(match);
         var startingGarrison = humanBase.GarrisonCount;
-        var menu = new BaseActionMenu(match, match.HumanPlayer, humanBase.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, humanBase.Id);
 
         Assert.Equal(UpgradeOutcome.Accepted, match.Execute(new UpgradeCommand(match.HumanPlayer, humanBase.Id)));
         Assert.NotNull(humanBase.Construction);
@@ -33,9 +34,10 @@ public class BaseActionMenuTests
         Assert.Equal(startingGarrison, humanBase.GarrisonCount);
         Assert.Equal(LevelTable.MinLevel, humanBase.Level);
 
+        gateway.Refresh();
         menu.Refresh();
 
-        var expected = match.AvailableActions(match.HumanPlayer, humanBase.Id);
+        var expected = MatchSnapshotBuilder.Build(match, match.HumanPlayer).Bases.Single(b => b.Id == humanBase.Id).AvailableActions;
         Assert.Equal(expected, menu.Actions);
         Assert.Equal(BaseActionAvailability.UnderConstruction, menu.Actions[0].Availability);
     }
@@ -47,7 +49,8 @@ public class BaseActionMenuTests
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, LevelTable.ConversionCost + 10); // enough to afford the conversion below
         var startingGarrison = humanBase.GarrisonCount;
-        var menu = new BaseActionMenu(match, match.HumanPlayer, humanBase.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, humanBase.Id);
 
         // Already at MinLevel, so the conversion's level reset to MinLevel (D-30) is a no-op -
         // exactly the "Level and GarrisonCount both unchanged" case the issue describes.
@@ -61,9 +64,10 @@ public class BaseActionMenuTests
 
         SetGarrison(humanBase, startingGarrison);
 
+        gateway.Refresh();
         menu.Refresh();
 
-        var expected = match.AvailableActions(match.HumanPlayer, humanBase.Id);
+        var expected = MatchSnapshotBuilder.Build(match, match.HumanPlayer).Bases.Single(b => b.Id == humanBase.Id).AvailableActions;
         Assert.Equal(expected, menu.Actions);
         Assert.Equal(LevelTable.UpgradeCost(BaseType.Tower, LevelTable.MinLevel), menu.Actions[0].Cost);
     }
@@ -84,7 +88,8 @@ public class BaseActionMenuTests
         var match = new Match();
         var humanBase = HumanBase(match);
         SetGarrison(humanBase, LevelTable.ConversionCost + 10); // both converts affordable too, so every button renders live
-        var menu = new BaseActionMenu(match, match.HumanPlayer, humanBase.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, humanBase.Id);
         Assert.Equal(3, menu.Actions.Count);
 
         var viewport = new Viewport(0, 0, width, height);

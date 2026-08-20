@@ -1,5 +1,3 @@
-using MW3.Core;
-
 namespace MW3.Game;
 
 /// <summary>
@@ -32,7 +30,7 @@ internal static class WaveColumnPresentation
     /// <summary>
     /// Fills <paramref name="output"/> with one (FromIndex, ToIndex) pair per spine segment - the
     /// indices into <paramref name="armiesInFlight"/> of two consecutive, currently-in-flight waves
-    /// of the same send (grouped by <see cref="Army.SendId"/>, never by adjacency in the list, since
+    /// of the same send (grouped by <see cref="ArmySnapshot.SendId"/>, never by adjacency in the list, since
     /// a second send launched mid-column interleaves with the first). A send whose lead wave has
     /// already arrived and whose later waves are still pending draws a spine across only what is
     /// actually in <paramref name="armiesInFlight"/>, because a pending wave is simply absent from
@@ -40,7 +38,7 @@ internal static class WaveColumnPresentation
     /// allocates - callers reuse the same list every call, matching the no-per-frame-allocation rule
     /// (docs/CONVENTIONS.md) since this runs from <see cref="MatchScreen.Draw"/>.
     /// </summary>
-    public static void ComputeSpineSegments(IReadOnlyList<Army> armiesInFlight, List<(int FromIndex, int ToIndex)> output)
+    public static void ComputeSpineSegments(IReadOnlyList<ArmySnapshot> armiesInFlight, List<(int FromIndex, int ToIndex)> output)
     {
         ArgumentNullException.ThrowIfNull(armiesInFlight);
         ArgumentNullException.ThrowIfNull(output);
@@ -81,8 +79,8 @@ internal static class WaveColumnPresentation
     }
 
     /// <summary>
-    /// Whether a presentation event (a tower's <see cref="Base.LastFireTick"/>, or the tick an
-    /// in-flight army's <see cref="Army.UnitCount"/> was last observed to drop) should still read as
+    /// Whether a presentation event (a tower's <c>LastFireTick</c>, or the tick an
+    /// in-flight army's <see cref="ArmySnapshot.UnitCount"/> was last observed to drop) should still read as
     /// a flash at <paramref name="elapsedTicks"/> - true while the event is within
     /// <paramref name="durationTicks"/> ticks in the past, false if it never happened
     /// (<paramref name="eventTick"/> is null) or has aged out.
@@ -107,12 +105,29 @@ internal static class WaveColumnPresentation
     public static void ComputeSpinePoints(ArmyPath path, double fromProgress, double toProgress, List<MapPoint> output)
     {
         ArgumentNullException.ThrowIfNull(path);
+
+        ComputeSpinePoints(path.Waypoints, path.Length, fromProgress, toProgress, output);
+    }
+
+    /// <summary>
+    /// The same run, over a path's parts rather than an <see cref="ArmyPath"/> instance - what a
+    /// renderer holding an <see cref="ArmySnapshot"/> has. Building a path object per spine segment
+    /// per frame would allocate inside a draw loop (docs/CONVENTIONS.md), which is the one thing this
+    /// class exists to avoid; the <see cref="ArmyPath"/> overload above delegates here, so there is
+    /// still exactly one copy of the arithmetic.
+    /// </summary>
+    public static void ComputeSpinePoints(
+        IReadOnlyList<MapPoint> waypoints,
+        double length,
+        double fromProgress,
+        double toProgress,
+        List<MapPoint> output)
+    {
+        ArgumentNullException.ThrowIfNull(waypoints);
         ArgumentNullException.ThrowIfNull(output);
 
         output.Clear();
 
-        var waypoints = path.Waypoints;
-        var length = path.Length;
         var fromDistance = Math.Clamp(fromProgress, 0.0, 1.0) * length;
         var toDistance = Math.Clamp(toProgress, 0.0, 1.0) * length;
 

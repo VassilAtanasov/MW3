@@ -20,8 +20,13 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Phase 8 FR-3, success criterion 3: there is deliberately NO reference to MW3.Core here. The
+       client renders a MatchSnapshot and submits commands through an IMatchGateway; the rules live
+       on the far side of that seam, and the missing reference is what makes "the client contains no
+       rules" a build error rather than a review opinion (D-57). MW3.Protocol is referenced directly
+       now that it no longer arrives transitively through MW3.Core. -->
   <ItemGroup>
-    <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
+    <ProjectReference Include="..\MW3.Protocol\MW3.Protocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,7 +36,7 @@
   </ItemGroup>
 
   <!-- D-67: MapPoint, BaseType and the other pure value types live in MW3.Protocol now. A global
-       using absorbs the move; MW3.Protocol arrives transitively through MW3.Core. -->
+       using absorbs the move. -->
   <ItemGroup>
     <Using Include="MW3.Protocol" />
   </ItemGroup>

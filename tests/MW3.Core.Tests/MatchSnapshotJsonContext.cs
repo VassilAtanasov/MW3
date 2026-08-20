@@ -29,6 +29,8 @@ namespace MW3.Core.Tests;
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(MatchSnapshot))]
 [JsonSerializable(typeof(EventBatch))]
+[JsonSerializable(typeof(GatewayCommand))]
+[JsonSerializable(typeof(BaseSnapshot))]
 internal sealed partial class MatchSnapshotJsonContext : JsonSerializerContext
 {
 }
