@@ -1,0 +1,131 @@
+# FR-6 (issue #108). Run with:
+#   dotnet run --project src/MW3.Desktop -- --map medium --time-scale 20
+#     --script qa/scripts/ai-tower-detour-medium.txt --dump-state dump.txt
+#
+# WHAT THIS BUILDS. On Medium the human upgrades its start base to level 2, takes the neutral at
+# (0.35, 0.25) - base 2, the slot nearest the obstacle's lower-left routing corner - upgrades it,
+# feeds it from base 3, and CONVERTS IT TO A TOWER through the real action menu. That tower sits
+# 0.058 from the inset corner (0.40, 0.28), well inside its level-1 range of 0.20, so it covers the
+# corner every southern detour around the obstacle turns on. The human then empties base 0, and the
+# AI attacks it. Two derived expectations follow, both checkable in the dump.
+#
+# DERIVED EXPECTATION 1 - the AI prices its send along the polyline, not the line.
+# The dumped Army line reads Source=5 Target=0, and Arrival - Launch = 2061 - 2000 = 61 ticks.
+# Base 5 is (0.65, 0.75) and base 0 is (0.12, 0.50). Their straight-line separation is
+# sqrt(0.53^2 + 0.25^2) = 0.586003, which at ArmySpeedUnitsPerTick = 0.01 would be ceil(58.60) = 59
+# ticks. The route is blocked by the obstacle (x 0.42..0.58, y 0.30..0.70), so PathCalculator turns
+# it at the inset corner (0.40, 0.72): 0.251794 + 0.356090 = 0.607884, which is ceil(60.79) = 61.
+# 61, not 59, is what the dump must read. That is derived from the two coordinates and the tuning
+# constants, not read off this build, and it fails if the AI reverts to straight-line arithmetic.
+#
+# DERIVED EXPECTATION 2 - the tower's threat, hand-computed both ways.
+# The pair derived here is the AI's own start base 1 (0.88, 0.50) attacking base 0 (0.12, 0.50) -
+# one of several this tower taxes, not the only one; see the note further down on base 4.
+# A level-1 tower has RangeUnits = 0.20 and FirePeriodTicks = 6, so at speed 0.01 an
+# army covers 0.06 units between shots and the estimate is floor(chord / 0.06).
+#   STRAIGHT LINE: y = 0.50 from x 0.88 to x 0.12 runs a constant 0.25 from the tower at
+#   (0.35, 0.25) - outside 0.20 - so the chord is 0 and the OLD two-point estimate is 0. Costing
+#   nothing, straight-line scoring leaves base 0 among the joint-cheapest targets from base 1,
+#   alongside every other untaxed one - it does not single base 0 out.
+#   POLYLINE: the line is blocked, so the route is (0.88, 0.50) - (0.60, 0.28) - (0.40, 0.28) -
+#   (0.12, 0.50), length 0.356090 + 0.20 + 0.356090 = 0.912180. Segment 1 never comes closer than
+#   0.251794. Segment 2 enters range at t = 0.261314 and runs to its end: 0.738686 x 0.20 = 0.147737.
+#   Segment 3 starts inside range and leaves at t = 0.5987755: 0.5987755 x 0.3560899 = 0.213218.
+#   Summed = 0.360955, and floor(0.360955 / 0.06) = floor(6.0159) = 6. The NEW estimate is 6, so
+#   polyline scoring prices that same attack at six units lost and prefers any untaxed target.
+#   Note what the sum does: flooring PER SEGMENT would give floor(0.147737/0.06) = 2 plus
+#   floor(0.213218/0.06) = 3, i.e. 5 - one unit short. 6 is only reachable by summing the chords
+#   first and flooring once, which is the rule this feature pins.
+#
+# WHAT THIS SCRIPT DOES NOT PROVE, stated rather than left to be assumed. Only expectation 1 is
+# observable as a two-way comparison: the dumped Army line is base 5 to base 0, which turns at the
+# corner (0.40, 0.72) and never comes closer than 0.3387 to the tower, so both forms score it zero
+# and only its 61-tick flight distinguishes them.
+#
+# Nor is the tower demonstrably load-bearing on any OTHER line of this dump, and the temptation to
+# claim otherwise should be resisted. Take the pair expectation 2 derives, base 1 to base 0 (it is
+# not the only taxed pair - base 4 also routes to base 0 through the corner 0.058 from the tower,
+# for a chord of 0.363928 and the same toll of 6). Clause 4 subtracts the toll before testing
+# winnability: base 1 holds 10, so its
+# unclamped half-garrison is 5, and 5 - 6 = -1 attacking units capture nothing at any index, since
+# WouldCapture cross-multiplies and a negative left side loses to any non-negative right side. That
+# is SUFFICIENT on its own - but it is not NECESSARY, which is the part worth stating. Under the
+# retired two-point form the toll would be 0 and the pair still fails: the predicate reads
+# PredictGarrison at arrival, not the garrison now, and base 0 is a level-2 producer whose 30-tick
+# period adds three units across the 92-tick flight, so five attackers face about nine defenders and
+# lose at this state's indices too. Both forms decline that attack, for different reasons.
+# So: no line of this dump has been SHOWN TO DIFFER between the retired form and the corrected one.
+# That is deliberately narrower than "the tower changes nothing" - the pairs checked here are base 5
+# to base 0 and base 1 to base 0, not the whole board - and it is the exact claim this script is
+# entitled to make.
+#
+# Three things earlier drafts of this header asserted are struck rather than quietly edited, because
+# each was checked and none held. It claimed the tower "changes the dump by subtraction" and
+# forecloses base 1's attack: overclaimed, per the paragraph above - the toll is sufficient but not
+# necessary, so that pair reads the same under the retired form. (Note the scope: that is shown for
+# the pairs checked above, not for the whole dump.) It claimed deleting the conversion taps would
+# leave both Army
+# lines unchanged: FALSE, and tested - removing frames 230-236 hands base 0 to the AI and replaces
+# both Army lines. (That experiment does not isolate tower fire either, since it also refunds the
+# 30-unit conversion cost.) And it justified the unwinnable pair with "100/110 of half of 10", on
+# three wrong inputs: the AI's attack index here is 150, not 100 (the Forges line above reads
+# AiAtk=150), CombatResolver.WouldCapture cross-multiplies rather than flooring a ratio, and the
+# defender is PredictGarrison at arrival, not the garrison now. The third of those is the one that
+# then showed the toll to be unnecessary here, which is how the first claim above fell too.
+#
+# Making the AI CHOOSE differently needs it to hold a full-cap forward base while at least two
+# non-AI bases besides the tower are winnable, and the human cannot reach that board unattended - a
+# conversion costs 30 units, which the human's single start base cannot fund until roughly tick
+# 1400, by which time the AI owns every neutral and clause 4 has one target left to order.
+#
+# The tower half is therefore pinned headlessly, and by ONE test rather than by two halves that
+# never meet. In AiRouteAwareThreatTests, the test named
+#   TryAttack_WithBothAnObstacleAndATower_CostsTheDetourAndAvoidsTheTaxedTarget
+# is the only place in the repo carrying an obstacle and a tower at once, and it asserts
+# the decision, so it fails if AiBrain ever costs a straight line again however correct
+# TowerThreatEstimator stays in isolation. The estimator's own arithmetic
+# (EstimateUnitsLost_ATowerOnTheDetourButNotOnTheStraightLine_GoesFromZeroToSix) and the route
+# ordering (TryAttack_OnAnObstacleLayout_OrdersTargetsByRouteLengthNotStraightLine) are pinned
+# separately, and neither of those two alone covers the junction. This is the same division
+# ai-contests-forge.txt already draws: real play proves the reachable end-to-end path, headless
+# tests prove the arithmetic real play cannot cheaply exercise.
+#
+# TAP DERIVATION. Every menu coordinate below is derived against the CURRENT three-button menu, not
+# copied from an older script (follow-up #90). At 1280x720 the arc radius is 720 x 0.24 = 172.8 px
+# and the three buttons sit at 20, 90 and 160 degrees, shifted as a group to stay inside the
+# viewport. Base 0 (153.6, 360): the group shifts +105.98 px right, putting Upgrade (index 0) at
+# (421.96, 300.90) = (0.329, 0.417). Base 2 (448, 180): the group shifts +84.6 px down, putting
+# Upgrade at (610.38, 205.5) = (0.476859, 0.285417) and Convert:Tower (index 1) at (448, 91.8) =
+# (0.350, 0.1275). The 75% strength button is index 2 of the selector: (42.5, 547.5).
+#
+# Tap base 0, upgrade it to level 2 (cap 40, so it can bankroll a 30-unit conversion).
+0 down 0.120000 0.500000
+2 up 0.120000 0.500000
+4 down 0.329000 0.417000
+6 up 0.329000 0.417000
+# Select 75% strength - every send below keeps a quarter of its source's garrison at home.
+8 down 0.033203 0.760417
+10 up 0.033203 0.760417
+# Take base 2 (0.35, 0.25), then upgrade it so its cap clears the 30-unit conversion cost.
+84 down 0.120000 0.500000
+86 up 0.350000 0.250000
+100 down 0.350000 0.250000
+102 up 0.350000 0.250000
+104 down 0.476859 0.285417
+106 up 0.476859 0.285417
+# Take base 3, then ship its garrison into base 2 to clear 30.
+160 down 0.120000 0.500000
+162 up 0.350000 0.750000
+215 down 0.350000 0.750000
+217 up 0.350000 0.250000
+# Convert base 2 into the tower beside the obstacle.
+230 down 0.350000 0.250000
+232 up 0.350000 0.250000
+234 down 0.350000 0.127500
+236 up 0.350000 0.127500
+# Empty base 0 into the tower so the AI finds it winnable and attacks across the obstacle.
+298 down 0.120000 0.500000
+300 up 0.350000 0.250000
+304 down 0.120000 0.500000
+306 up 0.350000 0.250000
+310 wait

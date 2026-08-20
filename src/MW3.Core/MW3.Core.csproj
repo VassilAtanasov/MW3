@@ -5,6 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Phase 7 FR-6: TowerThreatEstimator is pure geometry with no public callers, and its
+      multi-segment arithmetic is pinned by hand-computed unit tests that need to call it directly.
+      Same seam MW3.Game already opens for MW3.Game.Tests; it widens no shipped API surface.
+    -->
+    <InternalsVisibleTo Include="MW3.Core.Tests" />
     <ProjectReference Include="..\MW3.Protocol\MW3.Protocol.csproj" />
   </ItemGroup>
 

@@ -37,8 +37,15 @@ public class NeutralForgeAndTowerTests
         var aiStart = new MapPoint(0.88, 0.50);
         var target = new MapPoint(0.50, 0.80); // the neutral tower's own position - a route ending inside its own range
 
-        var lossWithoutTower = (int)method.Invoke(new AiBrain(withoutTower.AiPlayer), new object[] { withoutTower, aiStart, target, Match.ArmySpeedUnitsPerTick })!;
-        var lossWithTower = (int)method.Invoke(new AiBrain(withTower.AiPlayer), new object[] { withTower, aiStart, target, Match.ArmySpeedUnitsPerTick })!;
+        // Phase 7 FR-6 changed TotalExpectedTowerLoss to take the ArmyPath the evaluating clause
+        // already computed, so this reflective call passes one. The route asserted is unchanged:
+        // both fixtures are obstacle-free, so ComputePath returns exactly the two-waypoint straight
+        // path aiStart-target this test always measured. The expectations below did not move.
+        var pathWithoutTower = PathCalculator.ComputePath(aiStart, target, withoutTower.Obstacles);
+        var pathWithTower = PathCalculator.ComputePath(aiStart, target, withTower.Obstacles);
+
+        var lossWithoutTower = (int)method.Invoke(new AiBrain(withoutTower.AiPlayer), new object[] { withoutTower, pathWithoutTower, Match.ArmySpeedUnitsPerTick })!;
+        var lossWithTower = (int)method.Invoke(new AiBrain(withTower.AiPlayer), new object[] { withTower, pathWithTower, Match.ArmySpeedUnitsPerTick })!;
 
         Assert.Equal(0, lossWithoutTower);
         Assert.True(lossWithTower > 0);
