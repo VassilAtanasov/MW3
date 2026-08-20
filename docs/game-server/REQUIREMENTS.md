@@ -62,8 +62,12 @@ curve is caught rather than discovered.
 1. **The game is indistinguishable to play.** With the server running, a full match against the AI on
    any of the three maps plays identically to `main` — same production, same combat, same morale,
    same victory and defeat.
-2. **All 55 committed `qa/scripts/` pass unedited** after FR-3, on the loopback path. A script
+2. **All 56 committed `qa/scripts/` pass unedited** after FR-3, on the loopback path. A script
    weakened to pass rather than re-authored is a defect (the standing rule since phase 3 FR-3a).
+   The count was 55 when this phase was discovered and became 56 when phase 7 FR-6 (#108) merged
+   between FR-2 and FR-3, adding `ai-tower-detour-medium.txt`. FR-1's and FR-2's acceptance records
+   below say 55 and were correct as written; FR-3's says 55 and was already stale. Corrected here
+   rather than by rewriting shipped records — **56 is the number a future feature checks against.**
 3. **The client contains no rules.** After FR-3, `MW3.Game` has no reference to `Match`,
    `MatchRunner`, `CombatResolver`, `AiBrain`, or any `*Table` type. This is mechanically checkable
    and should be checked mechanically.
@@ -264,6 +268,51 @@ Many concurrent matches **from the start**, not as a later feature: a `Dictionar
 MatchSession>` plus a timer that walks it is the same code as a single session, so restricting it
 would be artificial work. `Match` has no statics and no ambient clock, which is what makes this true.
 
+*Settled at kickoff, 20-08-2026 (issue #118).* FR-3 had already done the architectural work — the
+seam exists, `MatchScreen` holds no rules, and `LoopbackMatchGateway` runs diff/apply every frame —
+so this is **a second implementation of a seam that already fits**, plus the process behind it. Four
+decisions were settled, each forced by a finding in the shipped code rather than chosen freely, and
+each of them passes review if skimmed.
+
+**`IMatchGateway.Submit` is synchronous and returns the verdict**, called on the render thread at
+`MatchScreen.cs:344` and `BaseActionMenu.cs:160`/`:164`. A WebSocket verdict is not synchronous, and
+this is the one place where FR-3's seam genuinely pushes back. **D-78** settles it by *blocking on
+the round trip with a bounded timeout*: the seam is not reopened days after it shipped, one rejection
+channel survives, and the result stays honest — it really is the server's verdict, which is what D-66
+requires. On localhost that is ~0.1–1 ms against a 16 ms frame, and localhost is this phase's only
+target (§6). A WAN deployment revisits it, exactly as D-59 reopens in the Multiplayer project.
+
+**`--time-scale` is applied in the wrong process.** `MW3Game.cs:159` multiplies elapsed milliseconds
+*before* they reach the gateway, so under `--server` — where D-62 gives the server the clock — the
+flag would silently become a no-op rather than fail. **D-79** sends the scale in `CreateSession`;
+notably this needs **no `IMatchGatewayFactory` change**, because the head constructs
+`RemoteMatchGatewayFactory(url, timeScale)`.
+
+**D-72's `JsonSerializerContext` is still in `tests/MW3.Core.Tests/`**, deferred to whichever feature
+first shipped a serialized snapshot — this one. Both sides of the wire need it and neither can
+reference the other (`MW3.Game` cannot see `MW3.Core`; `MW3.Server` cannot see `MW3.Game`), so
+**D-77** adds a shared `MW3.Transport`. That amends §3's project table, which named only
+`MW3.Protocol` and `MW3.Server` as new; the alternative was two hand-maintained contexts over one set
+of types, which is the drift class #68, phase 5 and D-45 each closed once.
+
+**No `qa/scripts/` file can be deterministic against `--server`.** The scripts count *client frames*
+and derive tick numbers from them — `victory.txt` documents the model literally ("a release on frame
+f commands at tick 8*(f+1)") — and once the server ticks on its own wall clock that mapping is gone.
+**D-80** therefore makes this the third phase-8 feature to add no script, but unlike FR-1 and FR-3 it
+*does* add a command-line flag, so it is emphatically not a feature without a QA mechanism: the
+mechanism is a new `MW3.Server.Tests` driving the real WebSocket endpoint, a headless many-sessions
+test, and a live screenshotted `--server` run.
+
+Two more things build mode will get wrong if it skims. **Threading is nearly free, and that is not an
+accident**: `MatchSnapshot` is immutable and `CurrentSnapshot` is replaced wholesale, so a receive
+loop assigning it while the render thread reads it is a single reference write — the interface's own
+doc comment already promises this, and a lock added around it is not safety. And **D-71's snapshot
+hash is taken up here as the desync detector it predicted**: every event batch carries it, the
+gateway compares it against its own applied snapshot, and a mismatch closes the connection naming
+both hashes rather than letting the client keep drawing a diverged board.
+
+Full acceptance criteria are on issue #118.
+
 **FR-5 (wf: `38ffe9924312`): the Android head plays against a server and still plays without one.**
 
 Android network security config permitting cleartext to a development host; somewhere to enter or
@@ -286,10 +335,32 @@ kickoff of the feature that first needs it.
 | Name | Value | Feature | Source |
 |---|---|---|---|
 | Server tick period | 50 ms | FR-4 | `Match.TickDurationMilliseconds`, phase 3 D-27 — the server does not get its own tick rate |
-| Snapshot/event send rate | *settled at FR-4 kickoff* | FR-4 | MW3's own; MW2 publishes nothing |
-| Session idle eviction | *settled at FR-4 kickoff* | FR-4 | MW3's own |
-| Disconnect grace before AI substitution | *settled at FR-4 kickoff* | FR-4 | MW3's own |
-| Max concurrent sessions per process | *settled at FR-4 kickoff* | FR-4 | MW3's own |
+| Snapshot/event send rate | 100 ms (every 2 ticks) | FR-4 | MW3's own; MW2 publishes nothing |
+| Session idle eviction | 5 minutes with no connection | FR-4 | MW3's own |
+| Disconnect grace before AI substitution | 10 seconds | FR-4 | MW3's own |
+| Max concurrent sessions per process | 64 | FR-4 | MW3's own |
+| Snapshot hash interval | every batch | FR-4 | MW3's own; D-71's detector, taken |
+
+Settled at FR-4's kickoff, 20-08-2026. MW2's netcode is entirely unpublished (`MW2-RULES.md` §9 is
+engine and release facts only), so every one of these is MW3's own and none may be described as a
+port. The reasoning, since none of it is derivable from a reference:
+
+- **Send rate 100 ms rather than 50.** An army renders from launch data alone, so motion is unchanged
+  at any rate and only counters, rings and meters step. The reason for 2 ticks rather than 1 is that
+  at 60 fps a frame yields 0 or 1 tick, so **loopback is always adjacent** except under
+  `--time-scale` — sending every other tick is what makes FR-2's non-adjacent diff exercised on the
+  wire in ordinary play rather than only by FR-2's own tests.
+- **Idle eviction 5 minutes.** Long enough to survive a debugger pause or a developer switching
+  windows; short enough that abandoned QA runs do not accumulate.
+- **Disconnect grace 10 seconds.** Worth naming what D-65's substitution actually buys here:
+  reconnecting into a running match is out of scope (§6), so the AI takes over not to preserve a game
+  someone returns to, but so an abandoned match reaches a real conclusion — which is what gives FR-6
+  a complete log and lets the session evict itself.
+- **64 concurrent sessions.** D-63's argument is that a nine-slot tick is microseconds against a
+  50 ms budget, so 64 is far below where that binds; the cap exists to turn a runaway client loop
+  into a clean refusal instead of an OOM.
+- **Hash every batch.** The cheapest form of D-71's promised desync detector. If profiling ever
+  disagrees this becomes an interval rather than disappearing.
 
 ## 5. Non-functional requirements
 
@@ -303,7 +374,7 @@ build-mode calls:
    server at all — and makes any future non-determinism a desync bug).
 2. **Local in-process mode survives.** One gateway interface, two implementations, loopback the
    default. Requiring a server for single-player would be a product regression for an Android-first
-   game and would invalidate all 55 `qa/scripts/`.
+   game and would invalidate all 56 `qa/scripts/`.
 3. **WebSocket + JSON.** `System.Text.Json` is in-box, so no NuGet and no cost to **S-5**;
    `ClientWebSocket` works on both heads; payloads stay readable in logs and QA diffs, which matters
    when `qa-verifier` and `code-reviewer` diagnose failures unattended. The codec sits behind an

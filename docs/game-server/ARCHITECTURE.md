@@ -11,13 +11,19 @@ Phase 8 splits the running game into two processes and puts the simulation in th
 dependency graph gains a fourth library and a second executable:
 
 ```
-                    MW3.Desktop ---+
+                    MW3.Desktop ---+---> MW3.Transport --+
                                    +--> MW3.Game --------+
                     MW3.Android ---+    (renderer only)  |
                                                          +--> MW3.Protocol
-                    MW3.Server ------> MW3.Core ---------+    (snapshot, events, JSON)
-                    (ASP.NET Core)     (rules + AI)
+                    MW3.Server ---+--> MW3.Core ---------+    (snapshot, events, diff/apply)
+                    (ASP.NET Core)+--> MW3.Transport          MW3.Transport = codec + WebSocket
 ```
+
+`MW3.Transport` joined this diagram at FR-4 (**D-77**) and is the phase's one unplanned project: the
+codec has to be shared by a client that cannot see `MW3.Core` and a server that cannot see
+`MW3.Game`, and D-72 had already ruled out putting `System.Text.Json` in `MW3.Protocol`. Note that
+`MW3.Game` does **not** reference it — the remote gateway is a gateway implementation, so the heads
+inject it exactly as they inject the loopback one (D-74), and the client keeps its single reference.
 
 `MW3.Protocol` is the new engine-free, `netstandard2.1` library at the bottom: the serializable
 snapshot of a match, the event types, and the JSON contract. `MW3.Core` gains a builder that produces
@@ -29,8 +35,8 @@ structural change and the thing success criterion 3 checks mechanically.
 A client reaches a match through one interface with two implementations:
 
 ```
-MatchScreen ──> IMatchGateway ──┬── LoopbackMatchGateway  (in-process; owns Match + MatchRunner + AiBrain)
-                                └── RemoteMatchGateway    (WebSocket + JSON to MW3.Server)
+MatchScreen ──> IMatchGateway ──┬── LoopbackMatchGateway  (MW3.Core; owns Match + MatchRunner + AiBrain)
+                                └── RemoteMatchGateway    (MW3.Transport; WebSocket + JSON to MW3.Server)
 ```
 
 Loopback is the default and is what every `qa/scripts/` run and every offline Android session uses.
@@ -71,7 +77,7 @@ follows this section literally.
 **This phase is the first where a feature may need two processes.** The default remains one.
 
 Local play — unchanged, and still the default with no flags. This is the loopback path, and it is
-what all 55 committed `qa/scripts/` exercise:
+what all 56 committed `qa/scripts/` exercise:
 
 ```powershell
 dotnet run --project src/MW3.Desktop -- --map small
@@ -91,7 +97,25 @@ dotnet run --project src/MW3.Desktop -- --server http://localhost:5180 --map sma
 ```
 
 An unreachable or malformed `--server` value writes the offending value to stderr and exits 1 before
-any graphics device is created, mirroring how `--map` and `--time-scale` already behave.
+any graphics device is created, mirroring how `--map` and `--time-scale` already behave. Reachability
+can only be known by connecting, so the head performs a **pre-flight handshake at startup**, before
+`MW3Game` is constructed — the check cannot be deferred to the first match without breaking this
+contract. That handshake is also where the client learns the map names it offers, so the client still
+hardcodes no map identity (D-74).
+
+Two processes, in order, as `qa-verifier` must run them:
+
+1. Start the server and wait for it to print its listening URL. It exits non-zero on a port clash
+   rather than binding elsewhere, so a non-zero exit here is a real failure and not a retry.
+2. Start the desktop head with `--server <that url>`, plus whatever other flags the check needs.
+3. Stop the server when the check finishes. Sessions also evict themselves on idle, so a leaked
+   server does not accumulate matches indefinitely — but do not rely on that instead of stopping it.
+
+**`--dump-state` is not a regression baseline on the remote path** (D-80). The committed
+`qa/scripts/` derive tick numbers from client frame counts, and under `--server` the server owns the
+clock, so a scripted remote run is not byte-deterministic. The flags still compose — nothing rejects
+the combination — but no committed script uses it, and a remote dump must never be diffed against a
+loopback one. All 56 committed scripts stay on the loopback path, where they remain byte-exact.
 
 Android connects to a development host by address rather than by flag (the Android head accepts no
 command-line arguments — phase 7 `docs/maps/ARCHITECTURE.md` §2a); FR-5 settles where that address is
@@ -107,7 +131,8 @@ Two new projects; existing ones keep their roles.
 
 | Project | Target | Role | Changes this phase |
 |---|---|---|---|
-| `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, diff/apply, JSON contract | FR-1, FR-2, FR-3 |
+| `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, diff/apply, wire-shaped types | FR-1, FR-2, FR-3 |
+| `MW3.Transport` | `net10.0;net10.0-android` | **New at FR-4 (D-77).** JSON codec, WebSocket framing, `RemoteMatchGateway` | FR-4 |
 | `MW3.Core` | `netstandard2.1` | Rules, AI. Gains snapshot building and the loopback gateway | FR-1, FR-3 |
 | `MW3.Game` | `net10.0;net10.0-android` | **Renderer only.** Loses its `MW3.Core` reference | FR-3, FR-5 |
 | `MW3.Server` | `net10.0` | **New.** ASP.NET Core host, sessions, scheduler, log | FR-4, FR-6 |
@@ -115,9 +140,11 @@ Two new projects; existing ones keep their roles.
 | `MW3.Android` | `net10.0-android` | Head, and composition root from FR-3 (D-74). Gains network config and an address | FR-3, FR-5 |
 
 Tests follow the existing convention: `MW3.Core.Tests` keeps snapshot/diff coverage, and a new
-`MW3.Server.Tests` covers sessions, the scheduler and the wire. `MW3.Core.Tests` also holds the
-source-generated `JsonSerializerContext` and the one converter the snapshot needs, until FR-4 gives
-the codec a shipped home — see **D-72** for why they cannot live in `MW3.Protocol` itself.
+`MW3.Server.Tests` covers sessions, the scheduler and the wire. `MW3.Core.Tests` held the
+source-generated `JsonSerializerContext` and the one converter the snapshot needs from FR-1 until
+FR-4, which gave the codec its shipped home in `MW3.Transport` (**D-77**) and **deleted** the test
+copy rather than leaving a second context alive — see **D-72** for why neither can live in
+`MW3.Protocol` itself.
 
 ## 4. Key decisions
 
@@ -340,6 +367,69 @@ And it carries a **`SendStrength`**, not a unit count, because `MatchScreen.cs:3
 count and having the server re-validate it, which preserves Core's command shape but leaves the
 arithmetic duplicated on both sides of the seam — the drift shape this repo has paid to close three
 times. Resolving the strength inside the gateway leaves `AiBrain` and `SendArmyCommand` untouched.
+
+**D-77: the JSON codec lives in a shared `MW3.Transport`, referenced by the server and by both
+heads.** Settled at FR-4's kickoff on the collision D-72 predicted but left unresolved: the
+source-generated `JsonSerializerContext` was parked in `MW3.Core.Tests` "until FR-4 gives the codec a
+shipped home", and when FR-4 arrived it turned out **both sides need it and neither can reference the
+other** — `MW3.Game` cannot see `MW3.Core` (D-57), and `MW3.Server` cannot see `MW3.Game`.
+`MW3.Transport` targets `net10.0;net10.0-android` (so `System.Text.Json` is in-box, which is exactly
+what `MW3.Protocol` at `netstandard2.1` cannot have) and references `MW3.Protocol` and nothing else.
+It holds the context, the `MapObstacle` converter D-72 foresaw, the message envelope, D-64's codec
+seam, the WebSocket framing, and `RemoteMatchGateway`/`RemoteMatchGatewayFactory`. Considered: a
+codec in `MW3.Server` plus a second copy in `MW3.Game`, which needs no new project and fits §3's
+table as it was written — rejected because it is two hand-maintained serializer contexts over one set
+of types, so every future snapshot field must be added twice, which is precisely the drift class
+follow-up #68, phase 5's morale patch and D-45 each had to close. Also considered: giving
+`MW3.Protocol` the `System.Text.Json` package, which reverses D-72, retires the no-`PackageReference`
+rule that is currently the cheapest proof of D-57's boundary, and puts a trimming dependency in the
+Android head's transitive graph. One consequence worth stating because it is easy to get backwards:
+**`MW3.Game` does not reference `MW3.Transport`.** The remote gateway is a gateway implementation, so
+the composition root injects it exactly as it injects the loopback one (D-74), and the client keeps
+its single `MW3.Protocol` reference — success criterion 3's shape is untouched.
+
+**D-78: the remote gateway blocks on a command's round trip, with a bounded timeout.**
+`IMatchGateway.Submit` is synchronous and returns the verdict, called on the render thread at
+`MatchScreen.cs:344` and `BaseActionMenu.cs:160`/`:164`. A WebSocket verdict does not arrive
+synchronously, and this is the one point where the seam FR-3 shipped genuinely pushes back. Chosen
+because it keeps that seam untouched days after it shipped, keeps **one** rejection channel rather
+than two, and keeps the returned result honest — it really is the server's verdict, which is what
+D-66 requires of a client that "must render a rejection rather than assume success". A timeout is a
+`Rejected` with a reason naming it, so a dead server produces a rejection and not a hang. The cost is
+real and bounded: a localhost WebSocket round trip is ~0.1–1 ms against a 16 ms frame, and localhost
+is this phase's only target (§6). Considered: returning `Ok()` immediately and surfacing server
+rejections on a second asynchronous channel, which never stalls a frame but makes "Accepted" a lie
+about the verdict and splits one concept across two channels; and making `Submit` asynchronous, which
+is the right answer for a real network but reopens a just-shipped interface and edits `MatchScreen`
+and `BaseActionMenu` for a latency this phase's only target cannot produce. **This reopens in the
+Multiplayer project**, on the same footing as D-59 — the gateway interface is where it would land.
+
+**D-79: `--time-scale` travels to the server at session creation.** `MW3Game.cs:159` multiplies
+elapsed milliseconds by the scale *before* handing them to the gateway. Under `--server` the gateway
+ignores elapsed time entirely (D-62 gives the server the clock), so the flag would silently become a
+no-op — a failure that looks like the server being slow rather than like a bug. The scale therefore
+travels in `CreateSession` and becomes a per-session server-side property, which is what D-62 already
+said it would be. Worth noting what this did **not** cost: no `IMatchGatewayFactory` change, because
+the head constructs `RemoteMatchGatewayFactory(url, timeScale)` and the interface never sees it.
+
+**D-80: the remote path is verified headlessly and by a live run, not by a `qa/scripts/` file.** A
+committed script counts *client frames* and derives tick numbers from them — `victory.txt` states the
+model literally, "a release on frame f commands at tick 8*(f+1)" — and once the server ticks on its
+own wall clock (D-62) that mapping is gone, so no scripted remote run can be byte-deterministic. FR-4
+therefore adds no script, which makes it the third phase-8 feature to do so; but unlike FR-1 and FR-3
+it **does** add a command-line flag, so this is explicitly not a claim that the feature needs no QA
+mechanism. The mechanism is three things: a new `MW3.Server.Tests` driving the **real** WebSocket
+endpoint through complete matches on all three maps and asserting the client-reconstructed snapshot
+equals the server's (never that a message was sent, which §5 and `docs/CONVENTIONS.md` both call
+hollow); a headless many-sessions test on the single scheduler, the approach phase 6 FR-3 took for
+the forge cap and what success criterion 5 asks for; and a live screenshotted `--server` desktop run
+on each map. Considered: a client-stepped session mode so a script *could* be deterministic, which
+buys a committed regression artefact at the price of a test-only path through the server that
+contradicts D-62; and a script asserting only outcome-stable facts, which needs a dump-tolerance
+mechanism the harness does not have and is weaker than every other script in the suite. One
+consequence for the banned-API scan: it extends to `MW3.Transport`, which is on the deterministic
+side of the seam, and deliberately **not** to `MW3.Server`, which owns the wall clock — a scan
+forbidding it a timer would forbid the scheduler D-63 requires.
 
 ## 5. Cross-cutting conventions
 
