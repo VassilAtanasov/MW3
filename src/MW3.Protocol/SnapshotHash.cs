@@ -104,6 +104,7 @@ public static class SnapshotHash
         hash = HashNullableLong(hash, b.LastOwnerChangeTick);
         hash = HashNullableInt(hash, b.OwnerBeforeLastChangePlayerId);
         hash = HashNullableLong(hash, b.LastFireTick);
+        hash = HashNullableDouble(hash, b.RangeUnits);
 
         hash = HashInt(hash, b.AvailableActions.Count);
         foreach (var action in b.AvailableActions)
@@ -176,6 +177,12 @@ public static class SnapshotHash
     {
         hash = HashBool(hash, value.HasValue);
         return value.HasValue ? HashInt(hash, value.Value) : hash;
+    }
+
+    private static ulong HashNullableDouble(ulong hash, double? value)
+    {
+        hash = HashBool(hash, value.HasValue);
+        return value.HasValue ? HashDouble(hash, value.Value) : hash;
     }
 
     private static ulong HashNullableLong(ulong hash, long? value)

@@ -1,15 +1,19 @@
 using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using MW3.Core;
 
 namespace MW3.Game;
 
 /// <summary>
 /// Lays out, draws, and hit-tests the action menu anchored above one base - decides nothing itself
-/// (D-25). Buttons are placed on an arc above the anchor, clamped to stay fully inside the viewport,
-/// and re-queries <see cref="Match.AvailableActions"/> only when the anchored base's garrison,
-/// level, construction, or type actually changes, so it allocates nothing per frame while idle.
+/// (D-25). Buttons are placed on an arc above the anchor, clamped to stay fully inside the viewport.
+///
+/// Phase 8 FR-3: the actions come from <see cref="BaseSnapshot.AvailableActions"/> rather than from
+/// a live call into the rules, and activating a button submits a <see cref="GatewayCommand"/>. The
+/// change-detection cache stays, but only as what it always really was - a guard against
+/// re-formatting button labels every frame. It now compares the action list itself rather than the
+/// four fields the answer was known to depend on, so the menu cannot be stale for a reason nobody
+/// enumerated: what is drawn is what the current snapshot says, always.
 /// </summary>
 internal sealed class BaseActionMenu
 {
@@ -35,27 +39,24 @@ internal sealed class BaseActionMenu
     private static readonly Color _greyedColor = Color.DimGray;
     private static readonly Color _headerColor = Color.SlateGray;
 
-    private readonly Match _match;
-    private readonly Player _owner;
+    private readonly IMatchGateway _gateway;
 
+    private MatchSnapshot _snapshot;
     private int _lastGarrisonCount = -1;
-    private int _lastLevel = -1;
-    private bool _lastUnderConstruction;
-    private BaseType _lastType;
-    private IReadOnlyList<BaseAction> _actions = Array.Empty<BaseAction>();
+    private int? _lastGarrisonCap = -1;
+    private IReadOnlyList<BaseActionSnapshot> _actions = Array.Empty<BaseActionSnapshot>();
     private string[] _labels = Array.Empty<string>();
 
     // "<garrison> / <cap>" - the only place the cap is legible to the player (the map draws the
     // bare garrison count alone). Formatted only on refresh, not per frame.
     private string _garrisonLabel = string.Empty;
 
-    public BaseActionMenu(Match match, Player owner, int baseId)
+    public BaseActionMenu(IMatchGateway gateway, int baseId)
     {
-        ArgumentNullException.ThrowIfNull(match);
-        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(gateway);
 
-        _match = match;
-        _owner = owner;
+        _gateway = gateway;
+        _snapshot = gateway.CurrentSnapshot;
         BaseId = baseId;
 
         Refresh();
@@ -66,35 +67,42 @@ internal sealed class BaseActionMenu
     public int ButtonCount => _actions.Count;
 
     /// <summary>Exposed only for <c>--dump-state</c>, which is presentation state (D-26).</summary>
-    public IReadOnlyList<BaseAction> Actions => _actions;
+    public IReadOnlyList<BaseActionSnapshot> Actions => _actions;
 
     /// <summary>
-    /// Re-queries Core only if the anchored base's garrison, level, construction, or type has
-    /// actually changed - all four feed <see cref="Match.AvailableActions"/>'s answer, and a
-    /// conversion or construction can complete without moving garrison or level at all.
+    /// What the gateway made of the last command this menu submitted, or null if it has submitted
+    /// none. Carried, not drawn - a rejection indicator would change every screenshot, and FR-4 owns
+    /// making one visible.
+    /// </summary>
+    public GatewayCommandResult? LastCommandResult { get; private set; }
+
+    /// <summary>
+    /// Re-reads the current snapshot, and re-formats the labels only if what they render has
+    /// actually changed. The comparison is against the action list itself plus the two values the
+    /// header renders, so no change to the rules' answer can slip through a cache key that did not
+    /// know to watch for it.
     /// </summary>
     public void Refresh()
     {
+        _snapshot = _gateway.CurrentSnapshot;
+
         var b = FindAnchorBase();
         if (b is null)
         {
             return;
         }
 
-        var underConstruction = b.Construction is not null;
-        if (b.GarrisonCount == _lastGarrisonCount && b.Level == _lastLevel
-            && underConstruction == _lastUnderConstruction && b.Type == _lastType)
+        if (b.GarrisonCount == _lastGarrisonCount && b.GarrisonCap == _lastGarrisonCap
+            && ActionsEqual(_actions, b.AvailableActions))
         {
             return;
         }
 
         _lastGarrisonCount = b.GarrisonCount;
-        _lastLevel = b.Level;
-        _lastUnderConstruction = underConstruction;
-        _lastType = b.Type;
+        _lastGarrisonCap = b.GarrisonCap;
         var cap = b.GarrisonCap is int capValue ? capValue.ToString(CultureInfo.InvariantCulture) : "none";
         _garrisonLabel = FormattableString.Invariant($"{b.GarrisonCount} / {cap}");
-        _actions = _match.AvailableActions(_owner, BaseId);
+        _actions = b.AvailableActions;
 
         if (_labels.Length != _actions.Count)
         {
@@ -130,19 +138,17 @@ internal sealed class BaseActionMenu
     /// <summary>
     /// Submits the command for <paramref name="buttonIndex"/> unconditionally - the caller only
     /// calls this once, for a press that began on a button this menu showed as affordable, and
-    /// dismisses the menu regardless of what <see cref="Match.Execute(UpgradeCommand)"/> or
-    /// <see cref="Match.Execute(ConvertCommand)"/> returns. For Convert, the target type is read
-    /// from the action itself (<see cref="BaseAction.ConvertTargetType"/>) - this widget never
-    /// decides which type to convert to (D-25, FR-5). Core's outcome is authoritative: even a
-    /// rejection (the garrison fell between opening and release) leaves match state untouched on its
-    /// own and simply closes the menu, the same as an acceptance would (phase 2 #24's finding,
+    /// dismisses the menu regardless of what comes back. For Convert, the target type is read from
+    /// the action itself (<see cref="BaseActionSnapshot.ConvertTargetType"/>) - this widget never
+    /// decides which type to convert to (D-25, FR-5). The far side's outcome is authoritative: even
+    /// a rejection (the garrison fell between opening and release) leaves match state untouched on
+    /// its own and simply closes the menu, the same as an acceptance would (phase 2 #24's finding,
     /// standing in `docs/CONVENTIONS.md`). This method does not itself compare a cost to a garrison -
-    /// that would repeat D-25's mistake one call up.
+    /// that would repeat D-25's mistake one call up. The command names no player: the gateway
+    /// attributes it to its own session's local player (D-76).
     /// </summary>
-    public void Activate(int buttonIndex, MatchRunner runner)
+    public void Activate(int buttonIndex)
     {
-        ArgumentNullException.ThrowIfNull(runner);
-
         if (buttonIndex < 0 || buttonIndex >= _actions.Count)
         {
             return;
@@ -151,11 +157,11 @@ internal sealed class BaseActionMenu
         var action = _actions[buttonIndex];
         if (action.Kind == BaseActionKind.Upgrade)
         {
-            runner.Execute(new UpgradeCommand(_owner, BaseId));
+            LastCommandResult = _gateway.Submit(GatewayCommand.Upgrade(BaseId));
         }
         else if (action.Kind == BaseActionKind.Convert && action.ConvertTargetType is BaseType targetType)
         {
-            runner.Execute(new ConvertCommand(_owner, BaseId, targetType));
+            LastCommandResult = _gateway.Submit(GatewayCommand.Convert(BaseId, targetType));
         }
     }
 
@@ -335,9 +341,9 @@ internal sealed class BaseActionMenu
         return new Rectangle(left, top, buttonWidth, buttonHeight);
     }
 
-    private Base? FindAnchorBase()
+    private BaseSnapshot? FindAnchorBase()
     {
-        var bases = _match.Bases;
+        var bases = _snapshot.Bases;
         for (var i = 0; i < bases.Count; i++)
         {
             if (bases[i].Id == BaseId)
@@ -350,11 +356,34 @@ internal sealed class BaseActionMenu
     }
 
     /// <summary>
+    /// Element-wise action comparison, indexed rather than LINQ: this runs once per frame while a
+    /// menu is open and must allocate nothing (docs/CONVENTIONS.md). The protocol's own list helper
+    /// is internal to that assembly, so the comparison is written out here rather than reached for.
+    /// </summary>
+    private static bool ActionsEqual(IReadOnlyList<BaseActionSnapshot> left, IReadOnlyList<BaseActionSnapshot> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// A button's text. A convert button reads its <b>target type</b> and cost - <c>Producer: 30</c>,
     /// <c>Tower: 30</c>, <c>Forge: 30</c> - rather than the bare <c>Convert: 30</c> every convert
     /// button carried before phase 6 FR-5. With three base types a menu shows two convert buttons at
     /// once (D-48), and two buttons a player cannot tell apart before pressing one is the defect this
-    /// fixes. The type name comes from <see cref="BaseAction.ConvertTargetType"/>, which the action
+    /// fixes. The type name comes from <see cref="BaseActionSnapshot.ConvertTargetType"/>, which the action
     /// already carries so this widget never decides a target itself (D-25).
     /// <para>
     /// Only the text changes: button order, geometry, and the availability colouring are untouched
@@ -362,7 +391,7 @@ internal sealed class BaseActionMenu
     /// The upgrade arm below is byte-identical to what it has always emitted.
     /// </para>
     /// </summary>
-    private static string FormatLabel(BaseAction action) => action.Kind switch
+    private static string FormatLabel(BaseActionSnapshot action) => action.Kind switch
     {
         // ConvertTargetType is non-null for every Convert action by BaseAction's own contract; the
         // fallback keeps a malformed action rendering as *something* rather than throwing inside a
@@ -381,6 +410,6 @@ internal sealed class BaseActionMenu
         },
     };
 
-    private static string ConvertTargetName(BaseAction action) =>
+    private static string ConvertTargetName(BaseActionSnapshot action) =>
         action.ConvertTargetType is BaseType target ? target.ToString() : "Convert";
 }

@@ -59,7 +59,12 @@ public class SnapshotHashTests
 
         var hash = SnapshotHash.Compute(snapshot);
 
-        Assert.Equal(0x6a57c3b7b4217377UL, hash);
+        // Re-baselined at phase 8 FR-3, which added BaseSnapshot.RangeUnits and bumped
+        // CurrentProtocolVersion to 2 - both are hashed, so the golden value necessarily moves. That
+        // is this test working, not this test being worked around: the value changes only when the
+        // snapshot's shape or content does, and a deliberate shape change is the one case where
+        // re-recording it is the correct response.
+        Assert.Equal(0x35fe064059c0a750UL, hash);
     }
 
     [Fact]

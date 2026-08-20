@@ -1,21 +1,20 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using MW3.Core;
 
 namespace MW3.Game;
 
 /// <summary>
 /// Draws one player's morale as a fixed-position row of 5 sun indicators, filled left-to-right up
-/// to <see cref="MoraleState.Level"/> (0-5) - whole-level display only, no partial-progress fill
+/// to a player snapshot's morale level (0-5) - whole-level display only, no partial-progress fill
 /// (FR-5, REQUIREMENTS.md §6 leaves that optional and this feature does not claim it). Stateless
-/// and static, the same shape as <see cref="WaveColumnPresentation"/>'s helpers: <see cref="Match"/>
-/// is read fresh every <see cref="MatchScreen.Draw"/> call, never cached at screen entry, so a
+/// and static, the same shape as <see cref="WaveColumnPresentation"/>'s helpers: the
+/// snapshot is read fresh every <see cref="MatchScreen.Draw"/> call, never cached at screen entry, so a
 /// morale change lands in the same frame it takes effect.
 ///
 /// The human meter anchors bottom-left and the AI meter top-right (matching the owner colors
 /// <see cref="MatchScreen"/> already uses), but neither literally touches its corner: both rows
 /// are inset far enough to clear <see cref="SendStrengthSelector"/>'s bottom-left button column and
-/// every base slot on every <see cref="MapCatalog"/> map, none of which sit closer than 0.12 to any
+/// every base slot on every shipped map, none of which sit closer than 0.12 to any
 /// edge.
 /// </summary>
 internal static class MoraleMeter

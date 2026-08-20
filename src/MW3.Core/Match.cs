@@ -690,7 +690,7 @@ public sealed class Match
     /// rather than accumulated - clamped to 0..1 so a tick outside its flight still resolves to an
     /// endpoint rather than extrapolating past it. Walks the polyline at uniform speed: at elapsed
     /// fraction <c>f</c> of the flight, the army sits at arc-length <c>f * Path.Length</c> along the
-    /// waypoints - all of which is <see cref="ArmyPathMath.PositionAt"/>'s to compute (D-68). What is
+    /// waypoints - all of which is <see cref="ArmyPathMath.PositionAt(ArmyPath, long, long, long)"/>'s to compute (D-68). What is
     /// left here is the guard: an army whose source base is somehow unknown resolves to the default
     /// point rather than to its path, which cannot happen for a live army on any shipped map.
     /// </summary>

@@ -3,7 +3,7 @@ namespace MW3.Protocol;
 /// <summary>
 /// One army in flight as the wire sees it - and deliberately <em>not</em> its position. Every field
 /// here except <see cref="UnitCount"/> is fixed at launch (D-39, D-51), and
-/// <see cref="ArmyPathMath.PositionAt"/> turns them plus the current tick into a position, so launch
+/// <see cref="ArmyPathMath.PositionAt(ArmyPath, long, long, long)"/> turns them plus the current tick into a position, so launch
 /// data alone renders an army forever: at any frame rate, and however rarely the server sends. An
 /// army's strength is the one thing that changes mid-flight, and only tower fire changes it.
 ///

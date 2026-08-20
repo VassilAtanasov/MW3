@@ -16,6 +16,9 @@ public class WaveColumnPresentationTests
 
     private static Base HumanBase(Match match) => match.Bases.Single(b => b.Owner == match.HumanPlayer);
 
+    private static IReadOnlyList<ArmySnapshot> SnapshotArmies(Match match) =>
+        MatchSnapshotBuilder.Build(match, match.HumanPlayer).Armies;
+
     private static void SetGarrison(Base b, int garrison) =>
         typeof(Base).GetProperty(nameof(Base.GarrisonCount))!.GetSetMethod(nonPublic: true)!.Invoke(b, new object?[] { garrison });
 
@@ -82,7 +85,7 @@ public class WaveColumnPresentationTests
         Assert.Equal(SendArmyOutcome.Accepted, match.Execute(new SendArmyCommand(match.HumanPlayer, human.Id, neutral.Id, 1)));
 
         var output = new List<(int FromIndex, int ToIndex)>();
-        WaveColumnPresentation.ComputeSpineSegments(match.ArmiesInFlight, output);
+        WaveColumnPresentation.ComputeSpineSegments(SnapshotArmies(match), output);
 
         Assert.Empty(output);
     }
@@ -113,7 +116,7 @@ public class WaveColumnPresentationTests
         // interleaving of a two-member group and a one-member group.
         match.Advance(4);
 
-        var armies = match.ArmiesInFlight;
+        var armies = SnapshotArmies(match);
         Assert.Equal(3, armies.Count);
         Assert.Equal(2, armies.Count(a => a.SendId == sendAId));
         Assert.Single(armies, a => a.SendId == sendBId);
@@ -147,7 +150,7 @@ public class WaveColumnPresentationTests
         var wave1 = match.ArmiesInFlight.Single(a => a.WaveIndex == 1);
         match.Advance(wave1.ArrivalTick - match.ElapsedTicks); // wave 1 arrives and leaves ArmiesInFlight
 
-        var armies = match.ArmiesInFlight;
+        var armies = SnapshotArmies(match);
         Assert.Equal(2, armies.Count); // only waves 2 and 3 remain in flight
 
         var output = new List<(int FromIndex, int ToIndex)>();

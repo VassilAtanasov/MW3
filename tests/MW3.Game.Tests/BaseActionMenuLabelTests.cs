@@ -23,7 +23,8 @@ public class BaseActionMenuLabelTests
     {
         var match = new Match();
         var human = HumanBase(match);
-        var menu = new BaseActionMenu(match, match.HumanPlayer, human.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, human.Id);
 
         var actions = menu.Actions;
         var labels = GetLabels(menu);
@@ -50,7 +51,8 @@ public class BaseActionMenuLabelTests
     {
         var match = new Match();
         var human = HumanBase(match);
-        var menu = new BaseActionMenu(match, match.HumanPlayer, human.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, human.Id);
 
         var labels = GetLabels(menu);
 
@@ -64,9 +66,11 @@ public class BaseActionMenuLabelTests
         var match = new Match();
         var human = HumanBase(match);
         SetGarrison(human, LevelTable.ConversionCost + 10);
-        var menu = new BaseActionMenu(match, match.HumanPlayer, human.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, human.Id);
 
         Assert.Equal(ConvertOutcome.Accepted, match.Execute(new ConvertCommand(match.HumanPlayer, human.Id, BaseType.Tower)));
+        gateway.Refresh();
         menu.Refresh();
 
         var labels = GetLabels(menu);
@@ -82,7 +86,8 @@ public class BaseActionMenuLabelTests
     {
         var match = new Match();
         var human = HumanBase(match);
-        var menu = new BaseActionMenu(match, match.HumanPlayer, human.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, human.Id);
 
         var labels = GetLabels(menu);
 
@@ -95,7 +100,8 @@ public class BaseActionMenuLabelTests
         var match = new Match();
         var human = HumanBase(match);
         SetGarrison(human, 999);
-        var menu = new BaseActionMenu(match, match.HumanPlayer, human.Id);
+        using var gateway = new TestMatchGateway(match);
+        var menu = new BaseActionMenu(gateway, human.Id);
 
         for (var level = LevelTable.MinLevel; level < LevelTable.Village.MaxUpgradableLevel; level++)
         {
@@ -103,6 +109,7 @@ public class BaseActionMenuLabelTests
             match.Advance(LevelTable.UpgradeBuildDurationTicks(level));
         }
 
+        gateway.Refresh();
         menu.Refresh();
         var labels = GetLabels(menu);
 

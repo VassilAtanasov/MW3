@@ -41,7 +41,28 @@ public static class ArmyPathMath
             throw new ArgumentNullException(nameof(path));
         }
 
-        var waypoints = path.Waypoints;
+        return PositionAtProgress(path.Waypoints, path.Length, fraction);
+    }
+
+    /// <summary>
+    /// The same walk, over a path's parts rather than an <see cref="ArmyPath"/> instance. A renderer
+    /// holding an <see cref="ArmySnapshot"/> has the waypoints and the length but no path object, and
+    /// building one per army per frame would allocate inside a draw loop
+    /// (<c>docs/CONVENTIONS.md</c>). One implementation, reached two ways - never a second copy of
+    /// the arithmetic.
+    /// </summary>
+    public static MapPoint PositionAtProgress(IReadOnlyList<MapPoint> waypoints, double length, double fraction)
+    {
+        if (waypoints is null)
+        {
+            throw new ArgumentNullException(nameof(waypoints));
+        }
+
+        if (waypoints.Count < 2)
+        {
+            throw new ArgumentException("A path must have at least two waypoints.", nameof(waypoints));
+        }
+
         if (fraction <= 0.0)
         {
             return waypoints[0];
@@ -52,7 +73,7 @@ public static class ArmyPathMath
             return waypoints[waypoints.Count - 1];
         }
 
-        var targetDistance = fraction * path.Length;
+        var targetDistance = fraction * length;
         var accumulated = 0.0;
 
         for (var i = 1; i < waypoints.Count; i++)
@@ -90,4 +111,16 @@ public static class ArmyPathMath
     /// </summary>
     public static MapPoint PositionAt(ArmyPath path, long launchTick, long arrivalTick, long currentTick) =>
         PositionAtProgress(path, ProgressAt(launchTick, arrivalTick, currentTick));
+
+    /// <summary>
+    /// The same answer for a caller holding a path's parts rather than an <see cref="ArmyPath"/> -
+    /// which is every renderer working from an <see cref="ArmySnapshot"/>.
+    /// </summary>
+    public static MapPoint PositionAt(
+        IReadOnlyList<MapPoint> waypoints,
+        double length,
+        long launchTick,
+        long arrivalTick,
+        long currentTick) =>
+        PositionAtProgress(waypoints, length, ProgressAt(launchTick, arrivalTick, currentTick));
 }

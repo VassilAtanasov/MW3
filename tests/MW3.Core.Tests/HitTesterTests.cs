@@ -2,15 +2,32 @@ using System.Reflection;
 
 namespace MW3.Core.Tests;
 
+/// <summary>
+/// Phase 8 FR-3 re-pointed these at <c>MW3.Protocol</c>'s <see cref="HitTester"/>, which answers over
+/// <see cref="BaseSnapshot"/> now that the renderer holds snapshots and not bases. The claims are
+/// unchanged - the same threshold, the same nearest-wins rule, the same geometry assertion about the
+/// shipped map - because the hit-test itself did not change; only the shape it reads did. They are
+/// re-pointed rather than duplicated: two copies of a hit-test's expectations is exactly the drift
+/// D-67 refuses.
+/// </summary>
 public class HitTesterTests
 {
+    private static IReadOnlyList<BaseSnapshot> Bases(Match match) =>
+        MatchSnapshotBuilder.Build(match, match.HumanPlayer).Bases;
+
+    private static BaseSnapshot HumanBase(Match match)
+    {
+        var snapshot = MatchSnapshotBuilder.Build(match, match.HumanPlayer);
+        return snapshot.Bases.Single(b => b.OwnerPlayerId == snapshot.LocalPlayerId);
+    }
+
     [Fact]
     public void FindBaseAt_ExactCentreOfABase_ReturnsThatBase()
     {
         var match = new Match();
-        var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
+        var human = HumanBase(match);
 
-        var result = HitTester.FindBaseAt(human.Position, match.Bases);
+        var result = HitTester.FindBaseAt(human.Position, Bases(match));
 
         Assert.Equal(human.Id, result);
     }
@@ -19,11 +36,11 @@ public class HitTesterTests
     public void FindBaseAt_JustInsideTheThreshold_ReturnsTheNearestBase()
     {
         var match = new Match();
-        var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
+        var human = HumanBase(match);
         var offset = HitTester.SelectionThresholdUnits - 0.01;
         var point = new MapPoint(human.Position.X + offset, human.Position.Y);
 
-        var result = HitTester.FindBaseAt(point, match.Bases);
+        var result = HitTester.FindBaseAt(point, Bases(match));
 
         Assert.Equal(human.Id, result);
     }
@@ -32,11 +49,11 @@ public class HitTesterTests
     public void FindBaseAt_JustOutsideTheThreshold_ReturnsNoBase()
     {
         var match = new Match();
-        var human = match.Bases.Single(b => b.Owner == match.HumanPlayer);
+        var human = HumanBase(match);
         var offset = HitTester.SelectionThresholdUnits + 0.01;
         var point = new MapPoint(human.Position.X + offset, human.Position.Y);
 
-        var result = HitTester.FindBaseAt(point, match.Bases);
+        var result = HitTester.FindBaseAt(point, Bases(match));
 
         Assert.Null(result);
     }
@@ -50,7 +67,7 @@ public class HitTesterTests
     {
         var match = new Match();
 
-        var result = HitTester.FindBaseAt(new MapPoint(x, y), match.Bases);
+        var result = HitTester.FindBaseAt(new MapPoint(x, y), Bases(match));
 
         Assert.Null(result);
     }
@@ -59,14 +76,15 @@ public class HitTesterTests
     public void FindNearestBaseId_PointBetweenTwoBases_ResolvesToTheGenuinelyNearerOne()
     {
         var match = new Match();
-        var nearer = match.Bases.Single(b => b.Position == new MapPoint(0.35, 0.25));
-        var farther = match.Bases.Single(b => b.Position == new MapPoint(0.65, 0.25));
+        var bases = Bases(match);
+        var nearer = bases.Single(b => b.Position == new MapPoint(0.35, 0.25));
+        var farther = bases.Single(b => b.Position == new MapPoint(0.65, 0.25));
 
         // Between the two (0.30 apart), but noticeably closer to `nearer`.
         var point = new MapPoint(0.40, 0.25);
 
         var method = typeof(HitTester).GetMethod("FindNearestBaseId", BindingFlags.NonPublic | BindingFlags.Static)!;
-        var parameters = new object?[] { point, match.Bases, null };
+        var parameters = new object?[] { point, bases, null };
         var result = (int?)method.Invoke(null, parameters);
 
         Assert.Equal(nearer.Id, result);
@@ -85,7 +103,7 @@ public class HitTesterTests
     public void HardcodedMap_NoTwoBasesLieWithinTwiceTheThreshold_ExceptTheFourKnownCentreLinePairs()
     {
         var match = new Match();
-        var bases = match.Bases;
+        var bases = Bases(match);
 
         var knownClosePairs = new HashSet<(int, int)>
         {

@@ -4,11 +4,16 @@ using MW3.Game;
 
 var smokeTest = args.Contains("--smoke");
 
+// Phase 8 FR-3, D-74: this head is the composition root. It is the only thing in the desktop build
+// that can see MW3.Core, so it is where the loopback gateway factory is constructed and from where
+// it is injected into the client - which is typed against MW3.Protocol alone.
+var gatewayFactory = new LoopbackMatchGatewayFactory();
+
 string? screenshotPath = null;
 string? scriptPath = null;
 string? dumpStatePath = null;
 long timeScale = 1;
-MapId? bootMap = null;
+string? bootMap = null;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--screenshot" && i + 1 < args.Length)
@@ -34,7 +39,10 @@ for (var i = 0; i < args.Length; i++)
     }
     else if (args[i] == "--map")
     {
-        if (i + 1 >= args.Length || !TryParseMapId(args[i + 1], out var parsedMap))
+        // Validated against the factory's own list rather than against a map enum this head no
+        // longer needs to know (D-74) - and still before any graphics device exists, so a bad value
+        // exits 1 without ever opening a window.
+        if (i + 1 >= args.Length || !TryResolveMapName(gatewayFactory, args[i + 1], out var parsedMap))
         {
             var offending = i + 1 < args.Length ? args[i + 1] : "<missing>";
             Console.Error.WriteLine($"--map value '{offending}' must be one of: small, medium, big.");
@@ -47,23 +55,19 @@ for (var i = 0; i < args.Length; i++)
     }
 }
 
-static bool TryParseMapId(string raw, out MapId mapId)
+static bool TryResolveMapName(IMatchGatewayFactory factory, string raw, out string? mapName)
 {
-    switch (raw.ToLowerInvariant())
+    foreach (var name in factory.MapNames)
     {
-        case "small":
-            mapId = MapId.Small;
+        if (string.Equals(name, raw, StringComparison.OrdinalIgnoreCase))
+        {
+            mapName = name;
             return true;
-        case "medium":
-            mapId = MapId.Medium;
-            return true;
-        case "big":
-            mapId = MapId.Big;
-            return true;
-        default:
-            mapId = default;
-            return false;
+        }
     }
+
+    mapName = null;
+    return false;
 }
 
 IReadOnlyList<ScriptDirective>? scriptDirectives = null;
@@ -80,5 +84,5 @@ if (scriptPath is not null)
     }
 }
 
-using var game = new MW3Game(exitAfterFirstDraw: smokeTest, screenshotPath: screenshotPath, dumpStatePath: dumpStatePath, scriptDirectives: scriptDirectives, timeScale: timeScale, bootMap: bootMap);
+using var game = new MW3Game(gatewayFactory, exitAfterFirstDraw: smokeTest, screenshotPath: screenshotPath, dumpStatePath: dumpStatePath, scriptDirectives: scriptDirectives, timeScale: timeScale, bootMap: bootMap);
 game.Run();

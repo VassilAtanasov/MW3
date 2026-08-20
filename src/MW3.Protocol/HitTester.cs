@@ -1,16 +1,20 @@
-namespace MW3.Core;
+namespace MW3.Protocol;
 
 /// <summary>
 /// Answers "which base, if any, is at this normalized point" (D-18) - the one part of the
 /// send-army drag that must be testable without a graphics device. Reads only each base's id and
 /// position; never touches garrison or owner.
+///
+/// It lives here rather than with the rules for the same reason the position math does (D-68): it
+/// is geometry over data a client already holds, not a rule. Its only caller is the renderer, and
+/// after FR-3 the renderer cannot see the rules at all.
 /// </summary>
 public static class HitTester
 {
     /// <summary>
     /// Normalized-space distance within which a point resolves to its nearest base. Named so a test
-    /// can assert no two bases in the hardcoded map lie within twice this of each other - the
-    /// constant that keeps the nearest match from ever being ambiguous.
+    /// can assert no two bases in a shipped map lie within twice this of each other - the constant
+    /// that keeps the nearest match from ever being ambiguous.
     /// </summary>
     public const double SelectionThresholdUnits = 0.1;
 
@@ -18,7 +22,7 @@ public static class HitTester
     /// The nearest base to <paramref name="point"/>, or null if even the nearest one is farther than
     /// <see cref="SelectionThresholdUnits"/>.
     /// </summary>
-    public static int? FindBaseAt(MapPoint point, IReadOnlyList<Base> bases)
+    public static int? FindBaseAt(MapPoint point, IReadOnlyList<BaseSnapshot> bases)
     {
         if (bases is null)
         {
@@ -34,14 +38,14 @@ public static class HitTester
     /// and reached by reflection in tests (mirroring <c>Match.ComputeTravelTicks</c>) so the
     /// "resolves to the nearer one" case can be asserted independently of the threshold gate.
     /// </summary>
-    private static int? FindNearestBaseId(MapPoint point, IReadOnlyList<Base> bases, out double nearestDistance)
+    private static int? FindNearestBaseId(MapPoint point, IReadOnlyList<BaseSnapshot> bases, out double nearestDistance)
     {
         int? nearestId = null;
         nearestDistance = double.MaxValue;
 
-        // Indexed rather than foreach: `bases` is IReadOnlyList<Base>, and enumerating a List<T>
-        // through that interface boxes its struct enumerator on every call - not acceptable in a
-        // hit-test reached from every drag press and release (docs/CONVENTIONS.md).
+        // Indexed rather than foreach: `bases` is IReadOnlyList<BaseSnapshot>, and enumerating a
+        // List<T> through that interface boxes its struct enumerator on every call - not acceptable
+        // in a hit-test reached from every drag press and release (docs/CONVENTIONS.md).
         for (var i = 0; i < bases.Count; i++)
         {
             var b = bases[i];

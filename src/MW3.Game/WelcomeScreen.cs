@@ -1,14 +1,18 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using MW3.Core;
 
 namespace MW3.Game;
 
 /// <summary>
-/// The welcome screen: the game title and three map buttons - Small, Medium, Big - each pushing a
-/// match on that map (FR-2). Positions and sizes are derived from the current viewport, so layout
-/// stays centred at any window size or device aspect ratio.
+/// The welcome screen: the game title and one button per map the gateway factory offers - Small,
+/// Medium, Big - each pushing a match on that map (FR-2). Positions and sizes are derived from the
+/// current viewport, so layout stays centred at any window size or device aspect ratio.
+///
+/// Phase 8 FR-3: the map list is no longer hardcoded here. It comes from
+/// <see cref="IMatchGatewayFactory.MapNames"/>, in that order, and each name is both the button's
+/// label and the identity the screen asks a match for - so the client holds no map identity of its
+/// own (D-74) and a map added later needs no change to this file.
 /// </summary>
 internal sealed class WelcomeScreen : IScreen
 {
@@ -17,17 +21,21 @@ internal sealed class WelcomeScreen : IScreen
 
     // Stacked from today's single-button y (0.55 * viewport height) with a 24-unit reference gap
     // between buttons (D-56's kickoff). Small therefore occupies exactly the position Play occupied.
-    private static readonly (MapId Id, string Label)[] _buttons =
-    {
-        (MapId.Small, "Small"),
-        (MapId.Medium, "Medium"),
-        (MapId.Big, "Big"),
-    };
+    private readonly IMatchGatewayFactory _gatewayFactory;
+    private readonly IReadOnlyList<string> _mapNames;
 
     private SpriteFont? _font;
     private Texture2D? _buttonTexture;
     private bool _wasPointerPressed;
     private int _pressStartedInsideButtonIndex = -1;
+
+    public WelcomeScreen(IMatchGatewayFactory gatewayFactory)
+    {
+        ArgumentNullException.ThrowIfNull(gatewayFactory);
+
+        _gatewayFactory = gatewayFactory;
+        _mapNames = gatewayFactory.MapNames;
+    }
 
     public Color BackgroundColor => Color.CornflowerBlue;
 
@@ -69,7 +77,7 @@ internal sealed class WelcomeScreen : IScreen
                 // CA2000 does not see that ScreenManager (the navigator) takes ownership and
                 // disposes pushed screens (Pop and ScreenManager.Dispose both call Dispose).
 #pragma warning disable CA2000
-                navigator.Push(new MatchScreen(MapCatalog.Get(_buttons[_pressStartedInsideButtonIndex].Id)));
+                navigator.Push(new MatchScreen(_gatewayFactory.CreateForMap(_mapNames[_pressStartedInsideButtonIndex])));
 #pragma warning restore CA2000
             }
 
@@ -96,12 +104,12 @@ internal sealed class WelcomeScreen : IScreen
             (viewport.Height * 0.3f) - (titleSize.Y / 2f));
         spriteBatch.DrawString(_font, _title, titlePosition, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
 
-        for (var i = 0; i < _buttons.Length; i++)
+        for (var i = 0; i < _mapNames.Count; i++)
         {
             var buttonBounds = GetButtonBounds(viewport, i);
             spriteBatch.Draw(_buttonTexture, buttonBounds, Color.White);
 
-            var label = _buttons[i].Label;
+            var label = _mapNames[i];
             var labelSize = _font.MeasureString(label) * scale;
             var labelPosition = new Vector2(
                 buttonBounds.X + ((buttonBounds.Width - labelSize.X) / 2f),
@@ -115,9 +123,9 @@ internal sealed class WelcomeScreen : IScreen
         _buttonTexture?.Dispose();
     }
 
-    private static int IndexOfButtonContaining(Viewport viewport, Point position)
+    private int IndexOfButtonContaining(Viewport viewport, Point position)
     {
-        for (var i = 0; i < _buttons.Length; i++)
+        for (var i = 0; i < _mapNames.Count; i++)
         {
             if (GetButtonBounds(viewport, i).Contains(position))
             {

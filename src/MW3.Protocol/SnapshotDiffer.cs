@@ -109,6 +109,7 @@ public static class SnapshotDiffer
             && oldBase.MaxLevel == newBase.MaxLevel
             && oldBase.MaxUpgradableLevel == newBase.MaxUpgradableLevel
             && oldBase.ProductionProgressTicks == newBase.ProductionProgressTicks
+            && Nullable.Equals(oldBase.RangeUnits, newBase.RangeUnits)
             && oldBase.LastFireTick == newBase.LastFireTick
             && oldBase.LastOwnerChangeTick == newBase.LastOwnerChangeTick
             && oldBase.OwnerBeforeLastChangePlayerId == newBase.OwnerBeforeLastChangePlayerId;

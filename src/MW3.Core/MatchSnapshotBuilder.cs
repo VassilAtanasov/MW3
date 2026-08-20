@@ -125,8 +125,17 @@ public static class MatchSnapshotBuilder
             b.LastOwnerChangeTick,
             b.OwnerBeforeLastChange?.Id,
             b.LastFireTick,
-            actionSnapshots);
+            actionSnapshots,
+            RangeUnitsOrNull(b));
     }
+
+    /// <summary>
+    /// A base's firing range at its current level, or null where its type has none. Only a tower
+    /// shoots, so only a tower has a range - and the renderer draws its ring from this rather than
+    /// from <see cref="LevelTable"/>, which after FR-3 it cannot reach.
+    /// </summary>
+    private static double? RangeUnitsOrNull(Base b) =>
+        b.Type == BaseType.Tower ? LevelTable.Tower.RangeUnits(b.Level) : null;
 
     /// <summary>
     /// A base's next-level price, or null where the ladder does not define one. <c>Base.UpgradeCost</c>
