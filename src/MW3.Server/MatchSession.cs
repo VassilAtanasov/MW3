@@ -102,29 +102,51 @@ internal sealed class MatchSession : IDisposable
             }
         }
 
-        var ticksBefore = Match.ElapsedTicks;
-        Runner.Advance(TimeScale);
-        ExecuteSubstituteDecisionsIfAny(ticksBefore, Match.ElapsedTicks);
+        AdvanceInterleavingSubstitute(TimeScale);
 
         await FlushEventsIfDueAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Mirrors <see cref="MatchRunner.Advance"/>'s own decision-tick cadence for the human
-    /// substitute, which <see cref="MatchRunner"/> itself does not know about - it was built for
-    /// exactly one AI brain. Runs after <see cref="MatchRunner.Advance"/> so the opponent AI's own
-    /// decision at the same boundary is unaffected.
+    /// Advances the match by <paramref name="ticks"/>, consulting the human substitute (when active)
+    /// at exactly the same decision boundaries <see cref="MatchRunner.Advance"/> already stops the
+    /// opponent AI at - never against state <see cref="MatchRunner.Advance"/> has already carried
+    /// past that boundary. A first cut delegated the whole beat to one <c>Runner.Advance(ticks)</c>
+    /// call and replayed the substitute's decisions afterward by tick range; that reads the same but
+    /// is wrong whenever a beat crosses more than one boundary (any time scale above
+    /// <see cref="MatchRunner.DecisionIntervalTicks"/>, which is what every multi-session test in
+    /// this suite uses) - every replayed decision would see the match already advanced to the beat's
+    /// end rather than to its own boundary. Stepping to each boundary one at a time, exactly as
+    /// <see cref="MatchRunner.Advance"/>'s own internal loop does, keeps both brains looking at the
+    /// same tick they would in a single-boundary beat.
     /// </summary>
-    private void ExecuteSubstituteDecisionsIfAny(long ticksBefore, long ticksAfter)
+    private void AdvanceInterleavingSubstitute(long ticks)
     {
         if (_humanSubstituteBrain is null)
         {
+            Runner.Advance(ticks);
             return;
         }
 
-        var firstBoundary = ((ticksBefore / MatchRunner.DecisionIntervalTicks) + 1) * MatchRunner.DecisionIntervalTicks;
-        for (var boundary = firstBoundary; boundary <= ticksAfter; boundary += MatchRunner.DecisionIntervalTicks)
+        var targetElapsedTicks = Match.ElapsedTicks + ticks;
+        while (true)
         {
+            if (Match.Outcome != MatchOutcome.InProgress)
+            {
+                return;
+            }
+
+            var nextDecisionTick = ((Match.ElapsedTicks / MatchRunner.DecisionIntervalTicks) + 1) * MatchRunner.DecisionIntervalTicks;
+            if (nextDecisionTick > targetElapsedTicks)
+            {
+                Runner.Advance(targetElapsedTicks - Match.ElapsedTicks);
+                return;
+            }
+
+            // Carries the match to exactly one boundary - the opponent AI decides inside this call,
+            // at that same tick, the same way it always has.
+            Runner.Advance(nextDecisionTick - Match.ElapsedTicks);
+
             if (Match.Outcome != MatchOutcome.InProgress)
             {
                 return;

@@ -44,6 +44,11 @@ internal static class ConnectionHandler
         {
             // Server shutting down.
         }
+        catch (InvalidOperationException)
+        {
+            // A single message exceeded WebSocketFraming's size guard - the connection is a lost
+            // cause; the session it belonged to (if any) is still cleaned up below.
+        }
         finally
         {
             session?.Disconnect();

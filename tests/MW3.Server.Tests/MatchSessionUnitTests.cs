@@ -38,6 +38,28 @@ public sealed class MatchSessionUnitTests
     }
 
     [Fact]
+    public async Task ADisconnectedSession_AtATimeScaleCrossingManyDecisionBoundariesPerBeat_SubstitutesCorrectly()
+    {
+        // 200 ticks/beat crosses five of MatchRunner.DecisionIntervalTicks's 40-tick boundaries in a
+        // single TickAsync call - exactly the shape a first cut of the substitute logic got wrong
+        // (it advanced the whole beat first and only afterward replayed decisions per boundary,
+        // so every replayed decision saw the beat's end state rather than its own boundary's). This
+        // asserts the fixed, boundary-by-boundary interleaving reaches a sane, decided outcome
+        // without throwing under that exact shape.
+        using var stub = new ClientWebSocket();
+        using var session = new MatchSession("test-match", MapCatalog.Get(MapId.Small), timeScale: 200, stub);
+        session.Disconnect();
+
+        for (var beat = 0; beat < 5000 && session.Match.Outcome == MatchOutcome.InProgress; beat++)
+        {
+            await session.TickAsync(CancellationToken.None);
+        }
+
+        Assert.True(session.DisconnectedBeats >= ServerTuning.DisconnectGraceTicks);
+        Assert.NotEqual(MatchOutcome.InProgress, session.Match.Outcome);
+    }
+
+    [Fact]
     public async Task ADecidedMatch_WithNoConnection_IsEvictable()
     {
         using var stub = new ClientWebSocket();

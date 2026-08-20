@@ -168,6 +168,11 @@ public sealed class RemoteMatchGateway : IMatchGateway
             {
                 return;
             }
+            catch (InvalidOperationException ex)
+            {
+                await Console.Error.WriteLineAsync(FormattableString.Invariant($"RemoteMatchGateway: {ex.Message}")).ConfigureAwait(false);
+                return;
+            }
 
             if (bytes is null)
             {

@@ -11,6 +11,11 @@ public static class WebSocketFraming
 {
     private const int _receiveBufferBytes = 8192;
 
+    // A snapshot for the largest shipped map is nowhere near this; it exists so a peer that never
+    // sets EndOfMessage (malformed client, or a buggy retry loop) cannot grow this process's memory
+    // unboundedly one frame at a time.
+    private const int _maxMessageBytes = 4 * 1024 * 1024;
+
     /// <summary>Sends <paramref name="payload"/> as one complete text message.</summary>
     public static async Task SendAsync(WebSocket socket, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
     {
