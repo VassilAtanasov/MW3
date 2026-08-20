@@ -320,6 +320,40 @@ configure the server address, given the Android head accepts no command-line arg
 `docs/maps/ARCHITECTURE.md` §2a); and a clean fallback to loopback when no server is reachable, so
 success criterion 4 holds.
 
+*Settled at kickoff, 21-08-2026 (issue #119), as **D-81..D-85**.* The feature's shape is one
+deliberate **asymmetry with the desktop head**: `--server` is an explicit, unattended-QA flag, so an
+unreachable value exits 1 — while Android's address is a developer convenience on a product that is
+Android-first and must play offline, so an unreachable address **falls back to loopback and the game
+plays**. That is exactly what keeps §3's success criterion 4 true, and it is a policy difference
+rather than two implementations: **D-81** puts one probe-and-decide resolver in `MW3.Transport`
+(already `net10.0;net10.0-android`), returning either a ready remote factory or a typed failure
+reason, and moves the desktop head onto it too — writing Android's own probe beside FR-4's would
+duplicate the handshake, the validation and the timeout, which is the drift shape #68, D-45 and D-77
+each closed once.
+
+The address arrives as an **Intent extra** (`-e server ws://host:port`) — the Android analogue of a
+command-line flag, needing no UI — and is **persisted only after a successful handshake** (**D-83**),
+so the stored file is a cache of a known-good address rather than a config a typo can poison;
+`-e server local` clears it, without which there would be no way back to offline once one is stored.
+Cleartext is permitted **in Debug builds only** (**D-84**), and the chosen mode is reported to
+**logcat and never drawn** (**D-85**) — `WelcomeScreen` is shared with the desktop head, so any
+indicator there would change every desktop welcome screenshot across the 56 committed `qa/scripts/`.
+
+Two things build mode will get wrong if it skims. **The naive blocking pre-flight deadlocks**:
+`OnCreate` runs on the main looper, which carries a `SynchronizationContext`, so
+`ConnectAsync().GetAwaiter().GetResult()` waits on its own continuation forever — **D-82** runs the
+probe on a thread-pool thread and blocks on *that*, staying synchronous rather than reopening the
+seam FR-3 shipped and D-78 declined to reopen days earlier. And **the Android head's
+`MW3.Transport` reference is this feature's, not FR-4's**: #118's criteria say "both heads reference
+it" while its Out of scope says it touches no Android file, and FR-5 owns
+`src/MW3.Android/MW3.Android.csproj`.
+
+This feature adds **no `qa/scripts/` file** — those are executed only by the desktop head's
+`--script` flag and the Android head runs none — but it is emphatically not a feature without a QA
+mechanism: it adds a configuration surface, and the mechanism is the resolver's tests in
+`MW3.Server.Tests` (the success case needs a live endpoint, which that project already stands up)
+plus six blocking device checks on the MI PAD 4. Full acceptance criteria are on issue #119.
+
 **FR-6 (wf: `30450bdd69ee`): a finished match leaves a record of what happened.**
 
 The server appends every accepted command with its tick, and the resulting events, to a per-match
@@ -340,8 +374,14 @@ kickoff of the feature that first needs it.
 | Disconnect grace before AI substitution | 10 seconds | FR-4 | MW3's own |
 | Max concurrent sessions per process | 64 | FR-4 | MW3's own |
 | Snapshot hash interval | every batch | FR-4 | MW3's own; D-71's detector, taken |
+| Android pre-flight probe timeout | 2000 ms | FR-5 | MW3's own; settled at FR-5's kickoff, 21-08-2026 |
 
-Settled at FR-4's kickoff, 20-08-2026. MW2's netcode is entirely unpublished (`MW2-RULES.md` §9 is
+**Android pre-flight probe timeout, 2000 ms.** A localhost or development-LAN handshake completes in
+milliseconds; 2 s survives a server still cold-starting, and is short enough that someone launching
+with a stale address barely notices before the game starts locally. It is also the bound that keeps
+D-82's blocking `OnCreate` far below Android's ANR threshold.
+
+The FR-4 rows were settled at that feature's kickoff, 20-08-2026. MW2's netcode is entirely unpublished (`MW2-RULES.md` §9 is
 engine and release facts only), so every one of these is MW3's own and none may be described as a
 port. The reasoning, since none of it is derivable from a reference:
 
@@ -415,6 +455,13 @@ itself.
   the server (D-59). One human against a local server cannot feel the latency that would justify
   them.
 - **Reconnecting into a running match**, and match persistence across a server restart.
+- **Switching a running Android match from remote to local.** FR-5's fallback is a **startup**
+  decision only (D-81); swapping a live match for a fresh local one would jump the board, which the
+  last bullet of this section makes a defect. A connection lost mid-match behaves on Android exactly
+  as it does on the desktop head.
+- **On-screen entry of a server address, or any settings surface.** Rejected at FR-5's kickoff: the
+  welcome screen is shared with the desktop head (D-85) and MonoGame soft-keyboard text entry is a
+  feature in its own right. The address is a launch extra (D-83).
 - **Replay playback, seeking, or a viewer** — the **Game logs, game replays** project.
 - **Binary wire encoding.** The seam is built (§5.3); the codec is not.
 - **Game modes** — Domination and King of the Hill, parity **G-15**.

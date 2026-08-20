@@ -117,9 +117,43 @@ clock, so a scripted remote run is not byte-deterministic. The flags still compo
 the combination — but no committed script uses it, and a remote dump must never be diffed against a
 loopback one. All 56 committed scripts stay on the loopback path, where they remain byte-exact.
 
-Android connects to a development host by address rather than by flag (the Android head accepts no
-command-line arguments — phase 7 `docs/maps/ARCHITECTURE.md` §2a); FR-5 settles where that address is
-entered. With no server reachable it falls back to loopback and plays offline.
+**Android** connects to a development host by address rather than by flag, because the head accepts
+no command-line arguments (phase 7 `docs/maps/ARCHITECTURE.md` §2a). FR-5 settles that the address
+arrives as an **Intent extra** and is cached after a successful handshake (D-83). With no server
+reachable it falls back to loopback and plays offline — it never refuses to start, which is the one
+deliberate difference from the desktop head's `--server` (D-81).
+
+Build, install and launch locally — the default, no server involved:
+
+```powershell
+dotnet build src/MW3.Android/MW3.Android.csproj -c Debug -m:1
+adb install -r src/MW3.Android/bin/Debug/net10.0-android/com.vassilatanasov.mw3-Signed.apk
+adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity
+```
+
+Point it at a server. The device cannot reach the host's `localhost`, so use the host's LAN address
+(`ipconfig`) and start the server bound to it, not to loopback only:
+
+```powershell
+adb shell am start -n com.vassilatanasov.mw3/com.vassilatanasov.mw3.MainActivity -e server ws://192.168.1.10:5180
+```
+
+The address is remembered only if the handshake succeeded, so a later launcher tap with no extra
+reaches the same server. `-e server local` clears it and returns to offline play.
+
+Which mode it chose is in logcat, never on screen (D-85):
+
+```powershell
+adb logcat -d -s MW3:I
+```
+
+**Before trusting any on-device result**, confirm the installed build is newer than the code under
+test — a silently stale APK produced a false-positive defect once already (issue #29, closed as
+not-a-bug):
+
+```powershell
+adb shell dumpsys package com.vassilatanasov.mw3 | Select-String lastUpdateTime
+```
 
 Many concurrent matches are verified **headlessly**, not by launching many clients — the same
 approach phase 6 FR-3 took for the forge cap. `MW3.Server`'s session registry and scheduler are
@@ -132,12 +166,12 @@ Two new projects; existing ones keep their roles.
 | Project | Target | Role | Changes this phase |
 |---|---|---|---|
 | `MW3.Protocol` | `netstandard2.1` | **New.** Snapshot, events, diff/apply, wire-shaped types | FR-1, FR-2, FR-3 |
-| `MW3.Transport` | `net10.0;net10.0-android` | **New at FR-4 (D-77).** JSON codec, WebSocket framing, `RemoteMatchGateway` | FR-4 |
+| `MW3.Transport` | `net10.0;net10.0-android` | **New at FR-4 (D-77).** JSON codec, WebSocket framing, `RemoteMatchGateway`; gains the shared probe-and-decide resolver at FR-5 (D-81) | FR-4, FR-5 |
 | `MW3.Core` | `netstandard2.1` | Rules, AI. Gains snapshot building and the loopback gateway | FR-1, FR-3 |
 | `MW3.Game` | `net10.0;net10.0-android` | **Renderer only.** Loses its `MW3.Core` reference | FR-3, FR-5 |
 | `MW3.Server` | `net10.0` | **New.** ASP.NET Core host, sessions, scheduler, log | FR-4, FR-6 |
-| `MW3.Desktop` | `net10.0` | Head, and composition root from FR-3 (D-74). Gains `--server` | FR-3, FR-4 |
-| `MW3.Android` | `net10.0-android` | Head, and composition root from FR-3 (D-74). Gains network config and an address | FR-3, FR-5 |
+| `MW3.Desktop` | `net10.0` | Head, and composition root from FR-3 (D-74). Gains `--server`, then moves onto the shared resolver | FR-3, FR-4, FR-5 |
+| `MW3.Android` | `net10.0-android` | Head, and composition root from FR-3 (D-74). Gains its `MW3.Transport` reference, the network security config and an address | FR-3, FR-5 |
 
 Tests follow the existing convention: `MW3.Core.Tests` keeps snapshot/diff coverage, and a new
 `MW3.Server.Tests` covers sessions, the scheduler and the wire. `MW3.Core.Tests` held the
@@ -430,6 +464,75 @@ mechanism the harness does not have and is weaker than every other script in the
 consequence for the banned-API scan: it extends to `MW3.Transport`, which is on the deterministic
 side of the seam, and deliberately **not** to `MW3.Server`, which owns the wall clock — a scan
 forbidding it a timer would forbid the scheduler D-63 requires.
+
+**D-81: one probe-and-decide resolver in `MW3.Transport`; the heads differ only in policy.** Settled
+at FR-5's kickoff. FR-4 puts desktop's pre-flight inside `Program.cs`, where it decides three things
+at once: whether the address parses, whether the server answers within a bound, and what to do when
+it does not. Only the third differs between the heads — desktop exits 1 because `--server` is an
+explicit flag on the unattended QA surface and a silent downgrade to loopback would let a whole
+verification run pass while testing the wrong path; Android falls back because the address there is a
+developer convenience on a product that must play offline (success criterion 4). So the resolver
+takes an address and a timeout and returns either a ready remote `IMatchGatewayFactory` or a **typed
+failure reason** — at least *malformed* versus *not reachable within the timeout* — and each head
+applies its own policy to that reason. It lives in `MW3.Transport`, which already targets
+`net10.0;net10.0-android`, contains no Android and no MonoGame type, and is therefore unit-testable
+without a device. Considered: leaving FR-4's desktop probe where it is and writing a second one for
+Android, which is less churn on freshly-shipped code but duplicates the handshake, the address
+validation and the timeout across two files that must agree — the drift shape #68, D-45 and D-77 each
+closed once, and the reason this feature moves the desktop head onto the resolver rather than only
+adding to it. Its tests live in `MW3.Server.Tests` rather than a new project, because the success
+case needs a live endpoint to probe and that project already stands one up.
+
+**D-82: the Android pre-flight blocks in `OnCreate`, bounded, and off the main looper.** Two things
+force this. `OnCreate` runs on the main looper, which carries a `SynchronizationContext`, so the
+obvious `ConnectAsync().GetAwaiter().GetResult()` waits forever on a continuation that can only run
+on the thread already blocked — the probe therefore runs on a thread-pool thread and `OnCreate`
+blocks on *that*, within the 2000 ms timeout §4 records. And it stays **synchronous**: an async
+gateway factory would reopen the synchronous seam FR-3 shipped and D-78 declined to reopen days
+earlier, propagating `async` from a startup convenience all the way back into `IMatchGateway`.
+Considered: pushing a loading screen and resolving in the background, which is the right answer once
+an address can be typed on the device and there is something to wait *on* — with the address arriving
+as a launch extra there is nothing to show, and a bounded 2 s at cold start sits far below Android's
+ANR threshold. The bound is what makes that safe, so it is a correctness constant rather than a
+comfort one.
+
+**D-83: the address arrives as an Intent extra and is cached only after a successful handshake.**
+The Android head accepts no command-line arguments (phase 7 `docs/maps/ARCHITECTURE.md` §2a), and an
+Intent extra — `adb shell am start … -e server ws://host:port` — is the platform's own analogue of
+one: no UI, no soft keyboard, and a launcher tap with no extra means local play, so **offline stays
+the default by construction**. Persistence is what an extra alone cannot give, since a launcher tap
+carries none; the address is therefore written to the app's private files dir, but **only after the
+handshake succeeds**, which makes the file a cache of a known-good address rather than a
+configuration a typo can poison. Precedence is extra, else stored, else none. `-e server local`
+clears it — without an explicit clear there is no way back to offline once an address is stored, and
+a reserved word beats an empty extra, which `adb` makes awkward to pass. A malformed extra is logged
+and falls back and leaves the stored value untouched; an unreadable or malformed stored file is
+treated as absent, which is the boundary validation `docs/CONVENTIONS.md` requires of anything read
+off disk. Considered: an on-screen address field, rejected because `WelcomeScreen` is shared with the
+desktop head (see D-85) and MonoGame soft-keyboard text entry is a feature in its own right; and a
+pushed config file with no extra, which survives launcher launches but costs every QA run a push and
+offers no per-run override.
+
+**D-84: cleartext is permitted in Debug builds only.** `ws://` to a development host is cleartext,
+which Android has blocked by default since API 28. The manifest declares
+`android:networkSecurityConfig` and the referenced resource is selected by an MSBuild condition on
+`$(Configuration)`: Debug permits cleartext, Release denies it. Considered: one unconditional config
+permitting cleartext, which is simpler and always exercised — CI publishes only the Debug APK — but
+ships a permanently weakened posture for a phase whose own §6 puts TLS out of scope, and reads to any
+reviewer as exactly the kind of blanket relaxation `docs/CONVENTIONS.md` forbids without a named
+constraint; and an allowlist of `localhost`, `10.0.2.2` and one dev host, which is tightest but goes
+stale the moment the developer's LAN address changes and then fails confusingly. The cost of the
+chosen option is a Release path CI never builds, so both configurations are built at verification.
+
+**D-85: the chosen mode is reported to logcat and never drawn.** A player — or a verifier — needs to
+know whether the app went remote or fell back, and the tempting place to say so is the welcome
+screen. But `WelcomeScreen` lives in `MW3.Game` and is shared with the desktop head, so an indicator
+there changes every desktop welcome screenshot across the 56 committed `qa/scripts/`, for information
+no desktop run needs. One logcat line at startup naming the mode, the address and, on fallback, the
+reason is findable with a single `adb logcat` filter, costs no pixels, and keeps this feature's
+regression criterion — byte-identical `--dump-state` and unchanged screenshots — reachable.
+Considered: an Android-only overlay drawn by the head, which avoids the desktop impact but puts
+drawing code into a composition root that has none today.
 
 ## 5. Cross-cutting conventions
 
