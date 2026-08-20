@@ -16,6 +16,9 @@
   <ItemGroup>
     <ProjectReference Include="..\MW3.Game\MW3.Game.csproj" />
     <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
+    <!-- FR-4, D-77: the remote gateway is injected here exactly as the loopback one is - MW3.Game
+         gains no reference to it. -->
+    <ProjectReference Include="..\MW3.Transport\MW3.Transport.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,14 +16,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MW3.Core\MW3.Core.csproj" />
-    <!-- FR-4: the round-trip tests point at the shipped codec context rather than keeping a second
-         one alive (D-77). -->
-    <ProjectReference Include="..\..\src\MW3.Transport\MW3.Transport.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!-- D-67: MapPoint, BaseType and the other pure value types live in MW3.Protocol now. A global
-       using absorbs the move; MW3.Protocol arrives transitively through MW3.Core. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MW3.Core\MW3.Core.csproj" />
+    <ProjectReference Include="..\..\src\MW3.Transport\MW3.Transport.csproj" />
+    <ProjectReference Include="..\..\src\MW3.Server\MW3.Server.csproj" />
+  </ItemGroup>
+
+  <!-- D-67: the pure value types live in MW3.Protocol. -->
   <ItemGroup>
     <Using Include="MW3.Protocol" />
   </ItemGroup>

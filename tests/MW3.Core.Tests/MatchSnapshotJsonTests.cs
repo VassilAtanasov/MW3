@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MW3.Transport;
 
 namespace MW3.Core.Tests;
 
@@ -45,8 +46,8 @@ public class MatchSnapshotJsonTests
 
     private static MatchSnapshot RoundTrip(MatchSnapshot snapshot)
     {
-        var json = JsonSerializer.Serialize(snapshot, MatchSnapshotJsonContext.Default.MatchSnapshot);
-        return JsonSerializer.Deserialize(json, MatchSnapshotJsonContext.Default.MatchSnapshot)!;
+        var json = JsonSerializer.Serialize(snapshot, WireJsonContext.Default.MatchSnapshot);
+        return JsonSerializer.Deserialize(json, WireJsonContext.Default.MatchSnapshot)!;
     }
 
     [Fact]
@@ -113,7 +114,7 @@ public class MatchSnapshotJsonTests
     [Fact]
     public void TheSerializedForm_CarriesTheProtocolVersion()
     {
-        var json = JsonSerializer.Serialize(BuildRichSnapshot(), MatchSnapshotJsonContext.Default.MatchSnapshot);
+        var json = JsonSerializer.Serialize(BuildRichSnapshot(), WireJsonContext.Default.MatchSnapshot);
 
         using var document = JsonDocument.Parse(json);
         Assert.Equal(
@@ -128,7 +129,7 @@ public class MatchSnapshotJsonTests
         // property - a gettable property would be serialized, putting a second copy of one player's
         // record on the wire that the deserializer then drops. Two encodings of one fact is how a
         // payload starts being able to contradict itself.
-        var json = JsonSerializer.Serialize(BuildRichSnapshot(), MatchSnapshotJsonContext.Default.MatchSnapshot);
+        var json = JsonSerializer.Serialize(BuildRichSnapshot(), WireJsonContext.Default.MatchSnapshot);
 
         using var document = JsonDocument.Parse(json);
         Assert.Equal(2, document.RootElement.GetProperty(nameof(MatchSnapshot.Players)).GetArrayLength());
@@ -142,7 +143,7 @@ public class MatchSnapshotJsonTests
     {
         // Not a style preference: a position on the wire would be a second answer to "where is this
         // army", and the whole point of D-68 is that there is only one (see ArmyPathMath).
-        var json = JsonSerializer.Serialize(BuildRichSnapshot(), MatchSnapshotJsonContext.Default.MatchSnapshot);
+        var json = JsonSerializer.Serialize(BuildRichSnapshot(), WireJsonContext.Default.MatchSnapshot);
 
         using var document = JsonDocument.Parse(json);
         foreach (var army in document.RootElement.GetProperty(nameof(MatchSnapshot.Armies)).EnumerateArray())

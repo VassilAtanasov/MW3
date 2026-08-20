@@ -59,12 +59,12 @@ public class SnapshotHashTests
 
         var hash = SnapshotHash.Compute(snapshot);
 
-        // Re-baselined at phase 8 FR-3, which added BaseSnapshot.RangeUnits and bumped
-        // CurrentProtocolVersion to 2 - both are hashed, so the golden value necessarily moves. That
-        // is this test working, not this test being worked around: the value changes only when the
-        // snapshot's shape or content does, and a deliberate shape change is the one case where
-        // re-recording it is the correct response.
-        Assert.Equal(0x35fe064059c0a750UL, hash);
+        // Re-baselined at phase 8 FR-4, which bumped CurrentProtocolVersion to 3 for the message
+        // vocabulary this feature adds (ProtocolVersion is hashed), following the same re-baseline
+        // FR-3 did for BaseSnapshot.RangeUnits. That is this test working, not this test being
+        // worked around: the value changes only when the snapshot's shape or content does, and a
+        // deliberate shape change is the one case where re-recording it is the correct response.
+        Assert.Equal(0x73bd3db03dd3c9f7UL, hash);
     }
 
     [Fact]
