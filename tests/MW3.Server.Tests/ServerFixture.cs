@@ -19,14 +19,20 @@ namespace MW3.Server.Tests;
 public sealed class ServerFixture : IAsyncLifetime
 {
     private WebApplication? _app;
+    private string? _logDirectory;
 
     internal Uri WebSocketUri { get; private set; } = null!;
+
+    /// <summary>Every match this fixture's server hosts logs here - a fresh temp directory per fixture instance.</summary>
+    internal string LogDirectory => _logDirectory!;
 
     public async Task InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
+
+        _logDirectory = Path.Combine(Path.GetTempPath(), "mw3-server-tests-" + Guid.NewGuid().ToString("n"));
 
         builder.Services.AddSingleton<MatchSessionRegistry>();
         builder.Services.AddHostedService<TickScheduler>();
@@ -43,7 +49,7 @@ public sealed class ServerFixture : IAsyncLifetime
 
             var registry = context.RequestServices.GetRequiredService<MatchSessionRegistry>();
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await ConnectionHandler.HandleAsync(socket, registry, context.RequestAborted);
+            await ConnectionHandler.HandleAsync(socket, registry, _logDirectory, context.RequestAborted);
         });
 
         await app.StartAsync();
@@ -58,6 +64,20 @@ public sealed class ServerFixture : IAsyncLifetime
         if (_app is not null)
         {
             await _app.DisposeAsync();
+        }
+
+        if (_logDirectory is not null && Directory.Exists(_logDirectory))
+        {
+            try
+            {
+                Directory.Delete(_logDirectory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A session left running past this fixture's own lifetime (a test that never drove
+                // it to eviction) can still hold its log file open - cleanup is best-effort, not a
+                // correctness requirement of the tests using this fixture.
+            }
         }
     }
 

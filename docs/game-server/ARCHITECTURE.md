@@ -134,6 +134,82 @@ are a **derived** narrative and are never replay input (D-88). A file with no `t
 match whose server died — read it as truncated rather than as corrupt. **Loopback writes no log**, so
 no head run without `--server` produces one.
 
+### FR-6 log format
+
+The file is JSON Lines: one self-contained JSON object per line, UTF-8, no BOM, LF endings,
+append-only, never rewritten in place, flushed after every write. Every record's own JSON uses
+camelCase property names (an independent choice from the wire's PascalCase — this is `MW3.Server`'s
+own on-disk format, not a wire message, and D-86 settled JSON Lines for readability, not for byte
+compatibility with anything else). Every record's first property is `kind`; every record except
+`header` carries `tick` second. Six `kind` values exist: `header`, `command`, `event`, `hash`,
+`trailer`, and `truncated` (written at most once, when the size cap trips).
+
+**`header`** — written before the session's first tick, so a log that exists at all always has a
+complete header. Fields: `logFormatVersion` (this document's version, bumped on a shape change, never
+on a value change), `protocolVersion` (`MatchSnapshot.CurrentProtocolVersion`), `matchId`, `mapName`,
+`timeScale`, `localPlayerId` (always the human's id), `snapshot` (the full initial `MatchSnapshot`),
+`snapshotHash` (that snapshot's `SnapshotHash`), and `timestampUtc` — one of exactly two wall-clock
+timestamps in the whole file (D-91).
+
+**`command`** — `tick` is the tick it applied at. `source` is `"client"` or `"brain"`. `playerId`
+names who issued it. `command` is the `GatewayCommand` itself (`kind`, `fromBaseId`, `toBaseId`,
+`strength`, `targetType` — whichever apply to that kind). `sendUnitCount` is the exact unit count a
+`SendArmy` actually committed, present only for that kind, and is what a replay must apply — never
+recompute it from `strength` against the replay's own garrison, which two otherwise-identical
+matches are proven to agree on only at hash-checked ticks, not at every tick along the way (D-89). A
+`source: "client"` record additionally carries `accepted` (bool) and `rejectionReason` (string, only
+when not accepted) — D-90: a rejected command is logged, not skipped, and a replay skips it instead. A
+`source: "brain"` record carries neither: `MatchRunner.Advance` and
+`MatchSession.AdvanceInterleavingSubstitute` both execute a brain's decision directly and hand its
+outcome to nobody the logging decorator can observe, so absence is modelled rather than a verdict
+guessed (D-87).
+
+**`event`** — `tick` plus one `MatchEvent`, restricted to `BaseCaptured`, `ArmyLaunched`,
+`ArmyRemoved`, `ConstructionStarted`, `ConstructionCompleted`, `ForgeCountChanged`, `MatchEnded`, and
+`MoraleChanged` only when the level actually changed. `BaseChanged`, `ArmyChanged` and
+`AvailableActionsChanged` are never logged (D-88). **Derived, not authoritative**: an event is a pure
+function of two snapshots and is never replay input — replaying it would create a second source of
+truth that can disagree with the commands that produced it, the desync class #68, phase 5, and D-45
+each closed once already.
+
+**`hash`** — `tick` plus the `SnapshotHash` of the snapshot at that tick, written every
+`ServerTuning.LogHashIntervalTicks` (100 ticks / 5 s) — coarser than the wire's per-batch hash (every
+`SendIntervalTicks`) because this one exists to localise a build-mode session's own bisection, not to
+catch a live desync as cheaply as possible.
+
+**`trailer`** — written synchronously without awaiting when the session is disposed (eviction is a
+plain `IDisposable.Dispose()` call), and closes the file. Fields: `tick` (final), `outcome`
+(`MatchOutcome`), `finalHash` (`SnapshotHash`), `commandsAccepted`, `commandsRejected`,
+`brainCommands`, `eventsRecorded` (counts), and `timestampUtc` — the log's second and last wall-clock
+timestamp (D-91). No trailer is written once the size cap has already truncated the log — truncation
+means logging stopped, and the trailer is part of what stopped.
+
+**`truncated`** — written at most once, when appending would exceed the per-match size cap
+(`ServerTuning.LogSizeCapBytes`, 8 MB). Fields: `tick` (of the record that would have exceeded the
+cap) and `capBytes`. Logging is disabled for the rest of the session afterward — no trailer follows.
+This never fails the match; play continues untouched (§6's last bullet).
+
+**Ordering guarantees.** Records for one session appear in the exact order they were produced: the
+header first; then, for each scheduler beat, that beat's client commands (in `DrainInboxAsync`'s
+dequeue order) before that beat's brain commands (the opponent's, decided inside
+`MatchRunner.Advance`, before the disconnect substitute's, decided afterward — see
+`MatchSession.AdvanceInterleavingSubstitute`), before that beat's events and hash (built once, after
+every command for the beat has applied); and the trailer last, if the log was not truncated first. Two
+sessions never share a file and never share a writer, so no interleaving between matches is possible
+even under `TickScheduler`'s single-threaded walk of every live session.
+
+**Derived vs. authoritative, restated.** `command` records (accepted client, plus every brain record)
+are the log's only replay input. `hash` records verify a replay, they do not drive one. `event`
+records are a read-only narrative. `header` and `trailer` bracket the file and carry the two
+timestamps D-91 allows. A reader that consumes anything else as if it changed the match is reading the
+format wrong.
+
+**Reading a possibly-incomplete log.** A file with no trailing `trailer` line is a match whose server
+died mid-write — treat it as truncated (not corrupt) and read every complete line up to the last one
+that parses; a cut-off final line has no closing brace and fails `JsonDocument.Parse`, which is the
+signal to stop. `tests/MW3.Server.Tests/MatchLogReader.cs` is the minimal test-only version of this;
+the **Game logs, game replays** project is where a shipped one belongs (D-89).
+
 **Android** connects to a development host by address rather than by flag, because the head accepts
 no command-line arguments (phase 7 `docs/maps/ARCHITECTURE.md` §2a). FR-5 settles that the address
 arrives as an **Intent extra** and is cached after a successful handshake (D-83). With no server
@@ -625,6 +701,23 @@ possible because D-60/D-71 made determinism an enforced property rather than an 
 lives in `tests/MW3.Server.Tests/` and not in a shipped project: shipping a reader is the **Game
 logs, game replays** project's content, and a test-only one is sufficient evidence that the format
 carries everything a shipped one will need.
+
+Building the reader surfaced two things the naive version gets wrong, both found because the
+replay-equivalence test itself caught them rather than being weakened to pass. First: a `SendArmy`
+must replay at the **exact `sendUnitCount` the log recorded**, never recomputed from `strength`
+against the replay's own garrison — two matches are proven identical only at hash-checked ticks, not
+at every intervening one, so recomputing risks a different rounding on a base that received a
+different number of not-yet-arrived reinforcements by that instant. Second, and less obvious: the
+reader's own tick-stepping must end every advance with one **zero-length `Match.Advance(0)` call**,
+matching `MatchRunner.Advance`'s own loop, which always makes a trailing call even when nothing
+remains in its budget — true on every beat once `TimeScale` is a multiple of
+`MatchRunner.DecisionIntervalTicks`, which every timescale this suite uses is. Skipping that
+zero-length call when the target tick is already reached measurably changes the result on the Big
+map, where a freshly-launched army's own tower-fire evaluation happens on exactly that trailing call;
+without it, the reader jumps straight to the next logged tick and evaluates it too late, so the same
+army launches with the wrong number of survivors from that point on while every base's own state stays
+bit-identical — an easy divergence to miss because nothing about it looks wrong until a `hash` record
+disagrees.
 
 **D-90: rejected commands are logged, marked, and skipped on replay.** The discovery-era wording said
 "every accepted command". Widened at FR-6's kickoff because a rejection is often the entire content of
