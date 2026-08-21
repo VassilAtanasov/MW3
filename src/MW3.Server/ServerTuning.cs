@@ -21,4 +21,10 @@ internal static class ServerTuning
 
     /// <summary>The most concurrent sessions one process holds; a further <c>CreateSession</c> is refused with a reason.</summary>
     internal const int MaxConcurrentSessions = 64;
+
+    /// <summary>Every 100 ticks (5 s): how often the per-match log's <c>hash</c> record is written (FR-6).</summary>
+    internal const long LogHashIntervalTicks = 100;
+
+    /// <summary>8 MB: the per-match log size cap, past which logging stops and a single <c>truncated</c> record is written (FR-6).</summary>
+    internal const long LogSizeCapBytes = 8L * 1024 * 1024;
 }

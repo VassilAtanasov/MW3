@@ -16,7 +16,7 @@ internal static class ConnectionHandler
 {
     private static readonly string[] _mapNames = BuildMapNames();
 
-    internal static async Task HandleAsync(WebSocket socket, MatchSessionRegistry registry, CancellationToken cancellationToken)
+    internal static async Task HandleAsync(WebSocket socket, MatchSessionRegistry registry, string logDirectory, CancellationToken cancellationToken)
     {
         var codec = new JsonWireCodec();
         MatchSession? session = null;
@@ -28,7 +28,7 @@ internal static class ConnectionHandler
                 return;
             }
 
-            session = await CreateSessionAsync(socket, codec, registry, cancellationToken).ConfigureAwait(false);
+            session = await CreateSessionAsync(socket, codec, registry, logDirectory, cancellationToken).ConfigureAwait(false);
             if (session is null)
             {
                 return;
@@ -96,7 +96,7 @@ internal static class ConnectionHandler
     }
 
     private static async Task<MatchSession?> CreateSessionAsync(
-        WebSocket socket, JsonWireCodec codec, MatchSessionRegistry registry, CancellationToken cancellationToken)
+        WebSocket socket, JsonWireCodec codec, MatchSessionRegistry registry, string logDirectory, CancellationToken cancellationToken)
     {
         var bytes = await WebSocketFraming.ReceiveAsync(socket, cancellationToken).ConfigureAwait(false);
         if (bytes is null)
@@ -150,7 +150,7 @@ internal static class ConnectionHandler
         }
 
         var matchId = Guid.NewGuid().ToString("n");
-        var session = new MatchSession(matchId, MapCatalog.Get(mapId), create.TimeScale.Value, socket);
+        var session = new MatchSession(matchId, MapCatalog.Get(mapId), create.TimeScale.Value, socket, logDirectory);
         if (!registry.TryAdd(session))
         {
             await CloseWithErrorAsync(socket, codec, "could not register the session", cancellationToken).ConfigureAwait(false);

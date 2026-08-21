@@ -16,6 +16,9 @@ TestResults/
 # Coverage output written by the gate's test step
 .coverage/
 
+# MW3.Server's per-match FR-6 logs (default logs/ under its content root, or wherever --log-dir points)
+logs/
+
 # Editors / OS
 .idea/
 *.swp

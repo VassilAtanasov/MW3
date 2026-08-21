@@ -13,7 +13,7 @@ namespace MW3.Server;
 /// </summary>
 internal sealed class MatchSession : IDisposable
 {
-    private readonly AiBrain _aiOpponentBrain;
+    private readonly MatchLogWriter _logWriter;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
 
     // Written by the WebSocket receive loop's thread (Disconnect()), read by the TickScheduler's
@@ -23,11 +23,32 @@ internal sealed class MatchSession : IDisposable
     private volatile WebSocket? _connection;
 
     /// <summary>Active only after the disconnect grace period expires (D-65) - null while the human is connected or before the grace has elapsed.</summary>
-    private AiBrain? _humanSubstituteBrain;
+    private LoggingPlayerBrain? _humanSubstituteBrain;
 
     private long _lastSentTick;
+    private long _lastLoggedHashTick;
 
-    internal MatchSession(string matchId, MapDefinition definition, long timeScale, WebSocket connection)
+    /// <param name="matchId">This match's id, and the base name of its log file.</param>
+    /// <param name="definition">The map this match is played on.</param>
+    /// <param name="timeScale">Simulation ticks advanced per scheduler beat.</param>
+    /// <param name="connection">The connected client's socket.</param>
+    /// <param name="logDirectory">
+    /// Where this session's <c>&lt;matchId&gt;.jsonl</c> log is written (FR-6, D-86), or null to log
+    /// nothing - the shape most of this suite's pre-existing lifecycle tests use, since they are not
+    /// exercising logging.
+    /// </param>
+    /// <param name="logSizeCapBytesOverride">
+    /// A non-default per-match log size cap, for the FR-6 test that proves the cap's behaviour
+    /// without writing <see cref="ServerTuning.LogSizeCapBytes"/> worth of records. Production never
+    /// passes this (D-22).
+    /// </param>
+    internal MatchSession(
+        string matchId,
+        MapDefinition definition,
+        long timeScale,
+        WebSocket connection,
+        string? logDirectory = null,
+        long? logSizeCapBytesOverride = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(connection);
@@ -39,12 +60,19 @@ internal sealed class MatchSession : IDisposable
         MatchId = matchId;
         TimeScale = timeScale;
         Match = new Match(definition);
-        _aiOpponentBrain = new AiBrain(Match.AiPlayer);
-        Runner = new MatchRunner(Match, _aiOpponentBrain);
         _connection = connection;
 
         LastSentSnapshot = MatchSnapshotBuilder.Build(Match, Match.HumanPlayer);
         _lastSentTick = LastSentSnapshot.ElapsedTicks;
+
+        // Opened and the header written before this session's first tick, so a log that exists at
+        // all always starts with a complete header (§"Format").
+        _logWriter = MatchLogWriter.Create(logDirectory, matchId, logSizeCapBytesOverride);
+        _logWriter.WriteHeader(matchId, LastSentSnapshot.MapId, timeScale, Match.HumanPlayer.Id, LastSentSnapshot, SnapshotHash.Compute(LastSentSnapshot));
+
+        // D-87: the opponent AI's commands go straight to Match.Execute inside MatchRunner.Advance,
+        // so this is the only way to observe them.
+        Runner = new MatchRunner(Match, new LoggingPlayerBrain(new AiBrain(Match.AiPlayer), _logWriter));
     }
 
     internal string MatchId { get; }
@@ -79,7 +107,27 @@ internal sealed class MatchSession : IDisposable
     internal void Disconnect() => _connection = null;
 
     /// <inheritdoc />
-    public void Dispose() => _sendGate.Dispose();
+    public void Dispose()
+    {
+        try
+        {
+            // Synchronous and without awaiting (D-87a: MatchSessionRegistry.Remove calls this
+            // synchronous IDisposable). A failure building the final snapshot must not stop the
+            // session from being disposed - the writer's own methods already guard their own I/O,
+            // but building the snapshot happens out here.
+            var finalSnapshot = MatchSnapshotBuilder.Build(Match, Match.HumanPlayer);
+            _logWriter.WriteTrailerAndClose(Match.ElapsedTicks, Match.Outcome, SnapshotHash.Compute(finalSnapshot));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // D-87a: a logging failure must never prevent a session from being disposed.
+            _logWriter.Dispose();
+        }
+        finally
+        {
+            _sendGate.Dispose();
+        }
+    }
 
     /// <summary>
     /// One scheduler beat (D-63): drain the inbox, advance the match, substitute the AI for a player
@@ -103,8 +151,11 @@ internal sealed class MatchSession : IDisposable
             {
                 // D-65: the AI runs server-side and MatchRunner already consults an IPlayerBrain, so
                 // substituting one for the missing human is swapping an implementation, not new
-                // machinery - this AiBrain just happens to decide for Match.HumanPlayer.
-                _humanSubstituteBrain = new AiBrain(Match.HumanPlayer);
+                // machinery - this AiBrain just happens to decide for Match.HumanPlayer. Wrapped here,
+                // at the point it is constructed - D-87a: the substitute is lazy, so wrapping only in
+                // the constructor would miss exactly the abandoned-match stretch this feature exists
+                // to record.
+                _humanSubstituteBrain = new LoggingPlayerBrain(new AiBrain(Match.HumanPlayer), _logWriter);
             }
         }
 
@@ -183,83 +234,39 @@ internal sealed class MatchSession : IDisposable
     {
         while (Inbox.TryDequeue(out var pending))
         {
-            var result = ApplyCommand(pending.Command);
+            var applied = ApplyCommand(pending.Command);
+
+            // D-89, D-90: the one clean hook for the client half of the log - the verdict is already
+            // in hand, on this thread, before it is sent. The exact unit count a SendArmy actually
+            // committed is logged alongside it (D-89) rather than left for the replay reader to
+            // recompute from Strength against whatever garrison its own replayed Match happens to
+            // hold at that instant - the two are only proven to agree at hash-checked ticks, not at
+            // every tick along the way.
+            _logWriter.WriteClientCommand(Match.ElapsedTicks, Match.HumanPlayer.Id, pending.Command, applied.Result, applied.SendUnitCount);
+
             await SendAsync(
-                WireMessage.CommandResultFor(MatchSnapshot.CurrentProtocolVersion, pending.CommandId, result),
+                WireMessage.CommandResultFor(MatchSnapshot.CurrentProtocolVersion, pending.CommandId, applied.Result),
                 cancellationToken).ConfigureAwait(false);
         }
     }
 
     /// <summary>
     /// Applies one command on behalf of the connected client's local player - always
-    /// <see cref="Match.HumanPlayer"/> (D-76: a gateway command carries no issuing player). Mirrors
-    /// <c>LoopbackMatchGateway.Submit</c> field for field: same command shape, same outcome mapping,
-    /// which is what makes this "the same predicate the snapshot builder uses" (D-66) rather than a
-    /// second copy of the rule.
+    /// <see cref="Match.HumanPlayer"/> (D-76: a gateway command carries no issuing player). Delegates
+    /// to <see cref="GatewayCommandApplier"/>, the one translation from the wire shape to the rules'
+    /// own commands shared with the FR-6 replay-equivalence test's reader.
     /// </summary>
-    private GatewayCommandResult ApplyCommand(GatewayCommand command)
-    {
-        switch (command.Kind)
-        {
-            case GatewayCommandKind.SendArmy:
-                var source = FindBase(command.FromBaseId);
-                if (source is null)
-                {
-                    return GatewayCommandResult.Rejected(SendArmyOutcome.BaseNotFound.ToString());
-                }
-
-                var unitCount = SendStrengthCalculator.Compute(source.GarrisonCount, command.Strength!.Value);
-                return Describe(
-                    Runner.Execute(new SendArmyCommand(Match.HumanPlayer, command.FromBaseId, command.ToBaseId!.Value, unitCount)),
-                    SendArmyOutcome.Accepted);
-
-            case GatewayCommandKind.Upgrade:
-                return Describe(Runner.Execute(new UpgradeCommand(Match.HumanPlayer, command.FromBaseId)), UpgradeOutcome.Accepted);
-
-            case GatewayCommandKind.Convert:
-                return Describe(
-                    Runner.Execute(new ConvertCommand(Match.HumanPlayer, command.FromBaseId, command.TargetType!.Value)),
-                    ConvertOutcome.Accepted);
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unknown gateway command kind.");
-        }
-    }
-
-    private static GatewayCommandResult Describe<TOutcome>(TOutcome outcome, TOutcome accepted)
-        where TOutcome : struct, Enum =>
-        EqualityComparer<TOutcome>.Default.Equals(outcome, accepted)
-            ? GatewayCommandResult.Ok()
-            : GatewayCommandResult.Rejected(outcome.ToString()!);
-
-    private Base? FindBase(int id)
-    {
-        var bases = Match.Bases;
-        for (var i = 0; i < bases.Count; i++)
-        {
-            if (bases[i].Id == id)
-            {
-                return bases[i];
-            }
-        }
-
-        return null;
-    }
+    private GatewayCommandApplier.ApplyResult ApplyCommand(GatewayCommand command) => GatewayCommandApplier.Apply(Match, Match.HumanPlayer, command);
 
     /// <summary>
     /// True if <paramref name="baseId"/> names a base in this match - the boundary check a
     /// <c>Command</c> message's base ids are validated against before the command ever
     /// reaches the inbox (§"Every inbound message is validated where it is deserialized").
     /// </summary>
-    internal bool BaseExists(int baseId) => FindBase(baseId) is not null;
+    internal bool BaseExists(int baseId) => GatewayCommandApplier.FindBase(Match, baseId) is not null;
 
     private async Task FlushEventsIfDueAsync(CancellationToken cancellationToken)
     {
-        if (Connection is null)
-        {
-            return;
-        }
-
         var due = Match.ElapsedTicks - _lastSentTick >= ServerTuning.SendIntervalTicks;
         var justConcluded = Match.Outcome != MatchOutcome.InProgress && LastSentSnapshot.Outcome == MatchOutcome.InProgress;
         if (!due && !justConcluded)
@@ -267,15 +274,44 @@ internal sealed class MatchSession : IDisposable
             return;
         }
 
+        var previous = LastSentSnapshot;
         var built = MatchSnapshotBuilder.Build(Match, Match.HumanPlayer);
-        var batch = SnapshotDiffer.Diff(LastSentSnapshot, built);
-        var applied = SnapshotApplier.Apply(batch, LastSentSnapshot);
+        var batch = SnapshotDiffer.Diff(previous, built);
+        var applied = SnapshotApplier.Apply(batch, previous);
         var hash = SnapshotHash.Compute(applied);
 
         LastSentSnapshot = applied;
         _lastSentTick = applied.ElapsedTicks;
 
+        // D-87a: recording is unconditional - sending, below, is gated on a connection; recording is
+        // not, or the log would go silent from the moment a client disconnects.
+        LogEventsAndHash(previous, batch, hash);
+
+        if (Connection is null)
+        {
+            return;
+        }
+
         await SendAsync(WireMessage.EventsFor(MatchSnapshot.CurrentProtocolVersion, batch, hash), cancellationToken).ConfigureAwait(false);
+    }
+
+    private void LogEventsAndHash(MatchSnapshot before, EventBatch batch, ulong hash)
+    {
+        var events = batch.Events;
+        for (var i = 0; i < events.Count; i++)
+        {
+            var matchEvent = events[i];
+            if (LoggedEventFilter.ShouldLog(matchEvent, before))
+            {
+                _logWriter.WriteEvent(batch.ToTick, matchEvent);
+            }
+        }
+
+        if (batch.ToTick - _lastLoggedHashTick >= ServerTuning.LogHashIntervalTicks)
+        {
+            _logWriter.WriteHash(batch.ToTick, hash);
+            _lastLoggedHashTick = batch.ToTick;
+        }
     }
 
     /// <summary>Sends one message, serialized against concurrent sends from a command result and an events flush landing in the same beat.</summary>
