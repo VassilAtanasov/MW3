@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FR-5, D-84: Release denies cleartext - see network_security_config_debug.xml for why Debug differs.
+  This matches Android's own platform default for targetSdk >= 28, stated explicitly here rather than
+  left implicit, so a reviewer sees the posture instead of having to know the default.
+-->
+<network-security-config xmlns:android="http://schemas.android.com/apk/res/android">
+  <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

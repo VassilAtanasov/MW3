@@ -40,30 +40,22 @@ if (serverUrl is null)
 }
 else
 {
-    // The startup pre-flight handshake (docs/game-server/ARCHITECTURE.md §2a): validates
-    // reachability and learns the map catalogue before any graphics device is created, exactly as
-    // --map and --time-scale already validate before one exists.
-    if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var serverUri) || (serverUri.Scheme != "ws" && serverUri.Scheme != "wss" && serverUri.Scheme != "http" && serverUri.Scheme != "https"))
+    // FR-5, D-81: the pre-flight handshake now runs through the one resolver MW3.Transport shares
+    // with the Android head, rather than a second copy of it here. --server is an explicit,
+    // unattended-QA flag, so this head's policy on either failure kind is unchanged from before the
+    // move: write the offending value to stderr and exit 1 before any graphics device is created,
+    // exactly as --map and --time-scale already validate before one exists. Infinite timeout
+    // preserves this head's historical behaviour of waiting for the OS-level connection outcome
+    // rather than an artificial bound - only Android (D-82) needs one.
+    var result = ServerPreflightResolver.Resolve(serverUrl, timeScale, Timeout.InfiniteTimeSpan);
+    if (!result.Succeeded)
     {
-        Console.Error.WriteLine($"--server value '{serverUrl}' is not a valid server URL.");
+        Console.Error.WriteLine($"--server value '{serverUrl}' {(result.FailureKind == ServerPreflightFailureKind.Malformed ? "is not a valid server URL" : "could not be reached")}: {result.FailureDetail}");
         Environment.Exit(1);
         return;
     }
 
-    var webSocketUri = ToWebSocketUri(serverUri);
-    try
-    {
-        gatewayFactory = new RemoteMatchGatewayFactory(webSocketUri, timeScale);
-    }
-    catch (Exception ex) when (ex is not OutOfMemoryException)
-    {
-        // Reachability can only be known by connecting (docs/game-server/ARCHITECTURE.md §2a), so
-        // this is a boundary that legitimately turns "whatever went wrong reaching the server" into
-        // the same clean stderr-and-exit-1 contract --map and --time-scale already give a bad value.
-        Console.Error.WriteLine($"--server value '{serverUrl}' could not be reached: {ex.Message}");
-        Environment.Exit(1);
-        return;
-    }
+    gatewayFactory = result.Factory!;
 }
 
 string? screenshotPath = null;
@@ -115,19 +107,6 @@ static bool TryResolveMapName(IMatchGatewayFactory factory, string raw, out stri
 
     mapName = null;
     return false;
-}
-
-// ws:// / wss:// for the actual WebSocket handshake, from whatever scheme --server was given in
-// (http/https compose the same way a browser's ws upgrade does).
-static Uri ToWebSocketUri(Uri serverUri)
-{
-    var scheme = serverUri.Scheme switch
-    {
-        "https" or "wss" => "wss",
-        _ => "ws",
-    };
-
-    return new UriBuilder(serverUri) { Scheme = scheme, Port = serverUri.Port }.Uri;
 }
 
 IReadOnlyList<ScriptDirective>? scriptDirectives = null;

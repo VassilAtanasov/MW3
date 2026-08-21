@@ -21,16 +21,29 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
   </ItemGroup>
 
-  <!-- Phase 8 FR-3 (D-74): this head is the composition root, exactly as MW3.Desktop is. It gets
-       the same loopback factory the desktop head does and nothing else - a server address and the
-       fallback to local are FR-5's. -->
+  <!-- Phase 8 FR-3 (D-74): this head is the composition root, exactly as MW3.Desktop is. FR-5 adds
+       the MW3.Transport reference and nothing else (§5: ClientWebSocket and System.Text.Json are
+       in-box on net10.0-android, so no NuGet package) - this is FR-5's own reference; #118's
+       "both heads reference it" is satisfied by the desktop head alone. -->
   <ItemGroup>
     <ProjectReference Include="..\MW3.Game\MW3.Game.csproj" />
     <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
+    <ProjectReference Include="..\MW3.Transport\MW3.Transport.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <MonoGameContentReference Include="..\MW3.Game\Content\Content.mgcb" />
+  </ItemGroup>
+
+  <!-- FR-5, D-84: same logical resource name at every configuration, different content selected by
+       $(Configuration) - AndroidManifest.xml references @xml/network_security_config unconditionally.
+       The two source files live outside Resources\ so the SDK's default AndroidResource glob never
+       picks up both of them; only the one Linked in for this $(Configuration) reaches the APK. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <AndroidResource Include="NetworkSecurityConfigSources\network_security_config_debug.xml" Link="Resources\xml\network_security_config.xml" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <AndroidResource Include="NetworkSecurityConfigSources\network_security_config_release.xml" Link="Resources\xml\network_security_config.xml" />
   </ItemGroup>
 
   <!-- D-67: MapPoint, BaseType and the other pure value types live in MW3.Protocol now. A global
