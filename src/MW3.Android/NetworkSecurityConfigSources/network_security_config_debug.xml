@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FR-5, D-84: Debug builds permit cleartext ws:// to a development host - localhost or a developer's
+  LAN address running MW3.Server, neither of which carry TLS. TLS and a deployment target are
+  explicitly out of scope this phase (docs/game-server/REQUIREMENTS.md §6); a deployment target is the
+  Multiplayer project's problem. Selected by an MSBuild condition on $(Configuration) in
+  MW3.Android.csproj - Release builds get network_security_config_release.xml instead, which denies
+  cleartext, and CI continues to publish only the Debug APK.
+-->
+<network-security-config xmlns:android="http://schemas.android.com/apk/res/android">
+  <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

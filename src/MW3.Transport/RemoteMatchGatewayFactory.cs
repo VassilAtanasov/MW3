@@ -21,12 +21,14 @@ public sealed class RemoteMatchGatewayFactory : IMatchGatewayFactory
 
     /// <summary>
     /// Connects to <paramref name="serverUri"/> and validates it. Throws
-    /// <see cref="WebSocketException"/> if the server is unreachable, or
-    /// <see cref="InvalidOperationException"/> if it answers with something other than a matching
-    /// <see cref="WireMessageKind.Welcome"/> - both are the caller's cue to write the offending
-    /// value to stderr and exit before constructing anything that needs a graphics device.
+    /// <see cref="WebSocketException"/> if the server is unreachable,
+    /// <see cref="OperationCanceledException"/> if <paramref name="cancellationToken"/> fires first
+    /// (FR-5, D-81/D-82's bounded probe), or <see cref="InvalidOperationException"/> if it answers
+    /// with something other than a matching <see cref="WireMessageKind.Welcome"/> - all are the
+    /// caller's cue to treat the address as not reachable, before constructing anything that needs a
+    /// graphics device.
     /// </summary>
-    public RemoteMatchGatewayFactory(Uri serverUri, long timeScale)
+    public RemoteMatchGatewayFactory(Uri serverUri, long timeScale, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverUri);
         if (timeScale <= 0)
@@ -37,7 +39,7 @@ public sealed class RemoteMatchGatewayFactory : IMatchGatewayFactory
         _serverUri = serverUri;
         _timeScale = timeScale;
         _codec = new JsonWireCodec();
-        MapNames = FetchMapNames();
+        MapNames = FetchMapNames(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -46,17 +48,17 @@ public sealed class RemoteMatchGatewayFactory : IMatchGatewayFactory
     /// <inheritdoc />
     public IMatchGateway CreateForMap(string mapName) => new RemoteMatchGateway(_serverUri, mapName, _timeScale, _codec);
 
-    private IReadOnlyList<string> FetchMapNames()
+    private IReadOnlyList<string> FetchMapNames(CancellationToken cancellationToken)
     {
         using var socket = new ClientWebSocket();
-        socket.ConnectAsync(_serverUri, CancellationToken.None).GetAwaiter().GetResult();
+        socket.ConnectAsync(_serverUri, cancellationToken).GetAwaiter().GetResult();
 
         try
         {
             var helloBytes = _codec.Encode(WireMessage.Hello(MatchSnapshot.CurrentProtocolVersion));
-            WebSocketFraming.SendAsync(socket, helloBytes, CancellationToken.None).GetAwaiter().GetResult();
+            WebSocketFraming.SendAsync(socket, helloBytes, cancellationToken).GetAwaiter().GetResult();
 
-            var replyBytes = WebSocketFraming.ReceiveAsync(socket, CancellationToken.None).GetAwaiter().GetResult()
+            var replyBytes = WebSocketFraming.ReceiveAsync(socket, cancellationToken).GetAwaiter().GetResult()
                 ?? throw new InvalidOperationException("The server closed the connection instead of sending Welcome.");
 
             var reply = _codec.Decode(replyBytes);
@@ -88,6 +90,10 @@ public sealed class RemoteMatchGatewayFactory : IMatchGatewayFactory
             catch (WebSocketException)
             {
                 // Best-effort: the socket is being discarded either way.
+            }
+            catch (OperationCanceledException)
+            {
+                // The probe was cancelled (timed out) - nothing to gracefully close.
             }
         }
     }
