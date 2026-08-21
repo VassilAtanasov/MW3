@@ -16,6 +16,12 @@ internal sealed class MatchSession : IDisposable
     private readonly AiBrain _aiOpponentBrain;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
 
+    // Written by the WebSocket receive loop's thread (Disconnect()), read by the TickScheduler's
+    // thread (TickAsync, FlushEventsIfDueAsync, SendAsync) - volatile for the same reason
+    // RemoteMatchGateway's CurrentSnapshot is: a single reference write needs no lock to be safe
+    // from a torn or stale read, but it does need the JIT/CPU barred from reordering or caching it.
+    private volatile WebSocket? _connection;
+
     /// <summary>Active only after the disconnect grace period expires (D-65) - null while the human is connected or before the grace has elapsed.</summary>
     private AiBrain? _humanSubstituteBrain;
 
@@ -35,7 +41,7 @@ internal sealed class MatchSession : IDisposable
         Match = new Match(definition);
         _aiOpponentBrain = new AiBrain(Match.AiPlayer);
         Runner = new MatchRunner(Match, _aiOpponentBrain);
-        Connection = connection;
+        _connection = connection;
 
         LastSentSnapshot = MatchSnapshotBuilder.Build(Match, Match.HumanPlayer);
         _lastSentTick = LastSentSnapshot.ElapsedTicks;
@@ -50,7 +56,7 @@ internal sealed class MatchSession : IDisposable
     internal MatchRunner Runner { get; }
 
     /// <summary>The current connection, or null once it has closed. There is no reconnect (§6 - out of scope).</summary>
-    internal WebSocket? Connection { get; private set; }
+    internal WebSocket? Connection => _connection;
 
     /// <summary>The snapshot as of the last <see cref="WireMessageKind.Events"/> sent - what the client is assumed to hold.</summary>
     internal MatchSnapshot LastSentSnapshot { get; private set; }
@@ -70,7 +76,7 @@ internal sealed class MatchSession : IDisposable
         || DisconnectedBeats >= ServerTuning.IdleEvictionTicks;
 
     /// <summary>Marks the connection closed. Idempotent.</summary>
-    internal void Disconnect() => Connection = null;
+    internal void Disconnect() => _connection = null;
 
     /// <inheritdoc />
     public void Dispose() => _sendGate.Dispose();
