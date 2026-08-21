@@ -50,7 +50,7 @@ else
     var result = ServerPreflightResolver.Resolve(serverUrl, timeScale, Timeout.InfiniteTimeSpan);
     if (!result.Succeeded)
     {
-        Console.Error.WriteLine($"--server value '{serverUrl}' {(result.FailureKind == ServerPreflightFailureKind.Malformed ? "is not a valid server URL" : "could not be reached")}: {result.FailureDetail}");
+        Console.Error.WriteLine($"--server value {result.FailureDetail}");
         Environment.Exit(1);
         return;
     }
