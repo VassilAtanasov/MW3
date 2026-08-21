@@ -117,6 +117,23 @@ clock, so a scripted remote run is not byte-deterministic. The flags still compo
 the combination — but no committed script uses it, and a remote dump must never be diffed against a
 loopback one. All 56 committed scripts stay on the loopback path, where they remain byte-exact.
 
+**Every match played on the server leaves a log** (FR-6, D-86). The server prints the resolved log
+directory beside its listening URL; it defaults to `logs/` under the content root and `--log-dir
+<path>` overrides it. One JSON Lines file per match, named `<matchId>.jsonl`, complete at every line
+boundary:
+
+```powershell
+dotnet run --project src/MW3.Server -- --log-dir C:\temp\mw3-logs
+Get-Content C:\temp\mw3-logs\<matchId>.jsonl -TotalCount 1 | ConvertFrom-Json   # the header
+Select-String -Path C:\temp\mw3-logs\<matchId>.jsonl -Pattern '"kind":"command"'
+Get-Content C:\temp\mw3-logs\<matchId>.jsonl -Tail 1 | ConvertFrom-Json         # the trailer
+```
+
+`command` records are the **authoritative** content and are what a replay consumes; `event` records
+are a **derived** narrative and are never replay input (D-88). A file with no `trailer` line is a
+match whose server died — read it as truncated rather than as corrupt. **Loopback writes no log**, so
+no head run without `--server` produces one.
+
 **Android** connects to a development host by address rather than by flag, because the head accepts
 no command-line arguments (phase 7 `docs/maps/ARCHITECTURE.md` §2a). FR-5 settles that the address
 arrives as an **Intent extra** and is cached after a successful handshake (D-83). With no server
@@ -533,6 +550,97 @@ reason is findable with a single `adb logcat` filter, costs no pixels, and keeps
 regression criterion — byte-identical `--dump-state` and unchanged screenshots — reachable.
 Considered: an Android-only overlay drawn by the head, which avoids the desktop impact but puts
 drawing code into a composition root that has none today.
+
+**D-86: the per-match log is JSON Lines, append-only, one file per match.** Settled at FR-6's
+kickoff. Considered: one JSON document per match (a natural object graph, but it cannot be written
+incrementally, so a server killed mid-match leaves an unparseable file — exactly the case a
+post-mortem artifact exists for); a binary format (compact, but unreadable without a tool this phase
+does not ship, and D-64 already chose readability over compactness for the same reason); and a single
+shared log across all sessions (one writer, but then every read is a filter and two concurrent
+sessions contend on one file, which D-63's registry design deliberately avoids elsewhere). JSON Lines
+gives an append-only file that is complete at every line boundary, is greppable, reuses the
+serialization `MW3.Transport` already generates, and needs no writer shared between sessions. Records
+are `header`, `command`, `event`, `hash`, `trailer` and `truncated`; the file is `<matchId>.jsonl`
+under a `--log-dir` directory defaulting to `logs/`, whose resolved absolute path is printed beside
+the listening URL so no verifier has to guess it.
+
+**D-87: brain commands are logged by decorating `IPlayerBrain`, not by changing `MatchRunner`, and
+both brains are wrapped.** Two command paths bypass the gateway: `MatchRunner.Advance` calls
+`_match.Execute(decision…)` for the opponent AI, and `MatchSession.AdvanceInterleavingSubstitute`
+calls `Match.Execute(decision…)` for the disconnect substitute. A log hooked at the WebSocket boundary
+misses both, and the failure is silent — the log still parses, still looks complete, and a replay from
+it simply diverges from tick 40 onward. Considered: a callback or event on `MatchRunner`, the obvious
+fix, but it puts a logging concern into `MW3.Core` and reopens a type FR-3 left alone; and re-running
+`AiBrain` at replay time instead of logging its output, which works today because the brain is
+deterministic, but makes every old log's fidelity depend on the *current* AI code, so one future AI
+change would silently invalidate the whole archive. Wrapping the brains the server constructs costs
+one small decorator in `MW3.Server`, changes no shipped rules type, and makes the log self-sufficient;
+one decorator shape covers both paths only because phase 2's D-16 made `MatchRunner` the single
+command path. **The substitute brain is constructed lazily**, when the disconnect grace expires, so a
+decorator applied only in `MatchSession`'s constructor covers the opponent and misses the substitute —
+and misses it precisely across the abandoned-match endgame that D-65 exists to produce and that this
+feature's justification for D-65 rests on. A brain command is logged with its tick and its acting
+player but **no verdict**: `MatchRunner.Advance` returns its outcome to nobody the decorator can
+observe, so absence is modelled rather than a verdict guessed, and replay reproduces the real outcome
+deterministically anyway.
+
+**D-87a: recording is not gated on a connection.** `MatchSession.FlushEventsIfDueAsync` is the
+obvious hook for `event` and `hash` records — it already builds the snapshot, diffs it and hashes it
+every two ticks — but its first statement is `if (Connection is null) return;`, because there is
+nobody to send to. Hooking the log there makes it go silent from the disconnect onward, which is
+exactly the stretch D-87 is about, so the two mistakes compound into a log that looks complete and
+covers only the first half of an abandoned match. **Sending is gated on a listener; recording is
+not.** The same reasoning bounds the writer's failure behaviour: `TickScheduler.ExecuteAsync` catches
+anything thrown out of `session.TickAsync` and evicts the session, so an I/O error escaping the writer
+would silently end a running match. Disk I/O never propagates out of `TickAsync`, and because
+eviction runs `MatchSessionRegistry.Remove` → `Dispose()` — synchronous `IDisposable` — the trailer
+must be writable without awaiting.
+
+**D-88: commands are the log's authoritative content; events are curated and explicitly derived.**
+Settled at FR-6's kickoff, amending the discovery-era wording "the resulting events", on the same
+argument D-58 already won once. An event is a *pure function* of two snapshots, so writing every one
+into the log stores derived data that can disagree with the commands that produced it — the desync
+class follow-up #68 closed for building defence, phase 5 patched for morale, and D-45 guarded a third
+time for forges. The volume argument agrees independently: `BaseChanged` carries a whole
+`BaseSnapshot` and `ProductionProgressTicks` changes on nearly every tick for nearly every base, so
+the full wire record is roughly 16 MB of JSON per five-minute match — unreadable, which defeats the
+post-mortem purpose the feature exists for. Considered: the full wire record (most literal, rejected
+above) and commands only (cleanest, but a post-mortem would then require a replayer nobody has built
+yet, so `qa-verifier` and the circuit breaker would get nothing readable this phase). The log
+therefore records every command as replay input and a curated narrative of notable events —
+`BaseCaptured`, `ArmyLaunched`, `ArmyRemoved`, `ConstructionStarted`, `ConstructionCompleted`,
+`ForgeCountChanged`, `MatchEnded`, and `MoraleChanged` only when the level changed — with
+`BaseChanged`, `ArmyChanged` and `AvailableActionsChanged` never logged, and with the derived status
+stated in the format documentation so no future reader mistakes an event record for input.
+
+**D-89: the format's sufficiency is proven by replay-equivalence, and the reader is test-only.**
+Considered: asserting the file parses and that specific records appear with the right ticks. Rejected
+because nothing in that catches a systematically *missing* class of record — precisely D-87's gap,
+which every format test would have passed. The test instead plays a full match, rebuilds a fresh
+`Match` from the logged header alone, re-applies the logged accepted commands at their logged ticks,
+and asserts the final `SnapshotHash` equals the trailer's, on all three maps; every logged `hash`
+record is checked along the way, so a divergence is localised to a five-second window rather than
+reported only at the end. This is what turns "a documented format" into a proven one, and it is only
+possible because D-60/D-71 made determinism an enforced property rather than an accident. The reader
+lives in `tests/MW3.Server.Tests/` and not in a shipped project: shipping a reader is the **Game
+logs, game replays** project's content, and a test-only one is sufficient evidence that the format
+carries everything a shipped one will need.
+
+**D-90: rejected commands are logged, marked, and skipped on replay.** The discovery-era wording said
+"every accepted command". Widened at FR-6's kickoff because a rejection is often the entire content of
+a post-mortem: without it, a run in which every command bounced is indistinguishable from a run in
+which the player did nothing, and that is the exact question `qa-verifier` asks when a scripted or
+device check produces no visible effect. The cost is one boolean and a string per record, and the
+replay reader's rule stays trivially stateable — skip anything not accepted.
+
+**D-91: the log's time axis is ticks, and exactly two wall-clock timestamps exist.** `MW3.Core` and
+`MW3.Protocol` are covered by D-71's banned-API scan; `MW3.Server` deliberately is not, because a
+server needs a clock, so `DateTime` and `Guid` are available there and would drift into per-record
+fields without anyone objecting. Constraining them to the `header` and the `trailer` buys the
+strongest evidence this feature can produce: two logs of the same fixed command sequence are
+**byte-identical** once the `matchId` and those two timestamps are elided. That is the standard of
+evidence phase 7 FR-2 set and D-69 reused, applied to an artifact rather than to `--dump-state`, and
+it fails loudly the first time a machine name, a path, a duration or a `Guid` reaches a record.
 
 ## 5. Cross-cutting conventions
 

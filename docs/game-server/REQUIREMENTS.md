@@ -356,10 +356,85 @@ plus six blocking device checks on the MI PAD 4. Full acceptance criteria are on
 
 **FR-6 (wf: `30450bdd69ee`): a finished match leaves a record of what happened.**
 
-The server appends every accepted command with its tick, and the resulting events, to a per-match
-log, in a documented format. Gives `qa-verifier` and the circuit breaker a post-mortem artifact, and
+Each `MatchSession` opens an append-only per-match log, writes a header describing what the match
+*is*, appends every submitted command with its tick and its verdict, appends the semantically notable
+events, appends periodic snapshot hashes, and closes with a trailer naming the outcome, the final
+tick and the final hash. Gives `qa-verifier` and the circuit breaker a post-mortem artifact, and
 hands the **Game logs, game replays** project a finished input format. No playback, no seeking, no
-viewer — those are that project's content.
+viewer — those are that project's content. Depends entirely on FR-4, which owns `MW3.Server`,
+`MatchSession` and the `matchId` this log is keyed on.
+
+*Settled at kickoff, 21-08-2026 (issue #121), as **D-86..D-91** (plus **D-87a**).* Four findings from the shipped
+code drove the shape — re-derived against FR-4 **as merged**, not against the design that preceded
+it — and each of them passes review if skimmed.
+
+**Two command paths bypass the gateway, and one of them is created lazily mid-match.** The opponent
+AI's commands go straight to `_match.Execute(decision…)` inside `MatchRunner.Advance`, and the
+disconnect substitute's go straight to `Match.Execute(decision…)` inside
+`MatchSession.AdvanceInterleavingSubstitute`. A log hooked at the WebSocket boundary records the
+human's commands and neither of these, so a replay diverges from tick 40 onward — silently, because
+the log still parses and still looks complete. **D-87** wraps each brain in a decorating
+`IPlayerBrain` observing its `Decide` result. It must wrap **both**, and the substitute is
+constructed lazily when the grace period expires, so a decorator applied only in `MatchSession`'s
+constructor misses exactly the abandoned-match stretch this feature's own justification rests on (see
+the disconnect-grace note above: the AI takes over so an abandoned match reaches a real conclusion,
+"which is what gives FR-6 a complete log"). This needs no `MW3.Core` change, and one decorator shape
+covers both only because `MatchRunner` is already the single command path (phase 2 D-16).
+
+**`MatchSession.FlushEventsIfDueAsync` returns immediately when no connection is attached.** It is
+the obvious hook for `event` and `hash` records — it already builds the snapshot, diffs it and hashes
+it every two ticks — but its first statement is `if (Connection is null) return;`, so a log hooked
+there goes silent from the moment the client disconnects, which is precisely the stretch the finding
+above is about. **Recording must not be gated on whether anyone is listening**; sending is, recording
+is not.
+
+**`MatchSession.DrainInboxAsync` → `ApplyCommand` is the one clean hook and already holds the
+verdict**, on the scheduler thread, one session at a time — so the client half of the log needs no new
+correlation and no new locking. And **a logging failure must not be able to end a match**:
+`TickScheduler.ExecuteAsync` catches anything thrown out of `session.TickAsync` and *evicts the
+session*, so a full disk surfacing through the writer would silently kill a running game. Disk I/O
+never propagates out of `TickAsync`; and since eviction runs `Remove` → `Dispose()`, which is
+synchronous `IDisposable`, the trailer must be writable without awaiting.
+
+**Logging every event wholesale would be a second source of truth — the thing D-58 exists to
+prevent.** An event is a pure function of two snapshots, so a logged copy is derived data that can
+disagree with the commands that produced it: the desync class #68 closed for building defence,
+phase 5 patched for morale, and D-45 guarded a third time for forges. Volume points the same way —
+`BaseChanged` carries a whole `BaseSnapshot` and `ProductionProgressTicks` changes on nearly every
+tick for nearly every base, so the full wire record is roughly **16 MB of JSON per five-minute
+match**, too large to read, which defeats the post-mortem purpose the feature exists for. **D-88**
+therefore makes commands the authoritative replay input and events a **curated**, explicitly-derived
+narrative: `BaseCaptured`, `ArmyLaunched`, `ArmyRemoved`, `ConstructionStarted`,
+`ConstructionCompleted`, `ForgeCountChanged`, `MatchEnded`, and `MoraleChanged` only on a level
+change. `BaseChanged`, `ArmyChanged` and `AvailableActionsChanged` are never logged.
+
+**`MW3.Server` may use a wall clock, but the log's time axis is ticks.** `MW3.Core` and
+`MW3.Protocol` are under D-71's banned-API scan and `MW3.Server` is not, so `DateTime` and `Guid`
+would slip into per-record fields unnoticed. **D-91** allows exactly two timestamps, in the header
+and the trailer, and none anywhere else — which buys the feature's strongest evidence: two logs of
+the same fixed command sequence are **byte-identical** once the `matchId` and those two timestamps
+are elided, the standard of evidence phase 7 FR-2 set and D-69 reused.
+
+Also settled: **D-86** (JSON Lines, one self-contained object per line, one file per match named
+`<matchId>.jsonl`, a `--log-dir` server option defaulting to `logs/` whose resolved path is printed
+beside the listening URL); **D-89** (completeness is proven by a replay-equivalence test rebuilding a
+fresh `Match` from the header alone and re-applying the logged commands, asserting the final hash
+equals the trailer's on all three maps, with the minimal reader living in `MW3.Server.Tests` because
+shipping a reader is the replays project's content); and **D-90** (rejected commands are logged with
+their reason and skipped on replay — a run where every command bounced must not look identical to a
+run where the player did nothing).
+
+- Acceptance: **loopback writes no log.** No file is created by any head run without `--server`,
+  `MW3.Core` and `MW3.Protocol` gain no logging type, `gate.ps1` passes, and all 56 committed
+  `qa/scripts/` pass unedited with `--dump-state` byte-identical to `main`.
+- Acceptance: the feature adds **no `qa/scripts/` file**, stated as a decision — those are executed
+  only by the desktop head's `--script` flag on the loopback path, which this feature does not touch.
+  It is emphatically not a feature without a QA mechanism: it adds a server command-line option and a
+  new artifact, and the mechanism is the replay-equivalence test plus a **live two-process run**
+  whose log header, a command record, a `BaseCaptured` record and the trailer are quoted in the PR
+  with the file's size in bytes.
+
+Full acceptance criteria are on issue #121.
 
 ### Tuning values
 
@@ -375,6 +450,26 @@ kickoff of the feature that first needs it.
 | Max concurrent sessions per process | 64 | FR-4 | MW3's own |
 | Snapshot hash interval | every batch | FR-4 | MW3's own; D-71's detector, taken |
 | Android pre-flight probe timeout | 2000 ms | FR-5 | MW3's own; settled at FR-5's kickoff, 21-08-2026 |
+| Log hash record interval | every 100 ticks (5 s) | FR-6 | MW3's own; settled at FR-6's kickoff, 21-08-2026 |
+| Per-match log size cap | 8 MB | FR-6 | MW3's own; settled at FR-6's kickoff, 21-08-2026 |
+| Default log directory | `logs/` under the content root | FR-6 | MW3's own; settled at FR-6's kickoff, 21-08-2026 |
+
+**Log hash record interval, every 100 ticks.** Deliberately *not* FR-4's "every batch": the wire hash
+is a live desync detector where the cheapest check wins, while the log's hashes exist to **localise** a
+replay divergence for a build-mode session bisecting unaided. Every batch would be ~3000 records in a
+five-minute match, which is affordable but drowns the readable narrative D-88 is protecting; every
+100 ticks bounds a divergence to a five-second window, which is the granularity at which re-reading
+the surrounding command records actually explains it.
+
+**Per-match log size cap, 8 MB.** With D-88's curation a full match is tens of kilobytes, so this is
+three orders of magnitude of headroom and is a backstop rather than a budget: its job is to turn a
+runaway session into a `truncated` record instead of a filled disk. It is a cap and never a failure —
+the match plays on, because a logging limit must not be able to change the game (§6's last bullet).
+
+**Default log directory, `logs/` under the content root.** Alongside the process rather than in a
+temp or user directory, so `qa-verifier` finds it in the repo it is already standing in; the resolved
+absolute path is printed beside the listening URL so it never has to be guessed, and the directory is
+gitignored. `--log-dir` overrides it.
 
 **Android pre-flight probe timeout, 2000 ms.** A localhost or development-LAN handshake completes in
 milliseconds; 2 s survives a server still cold-starting, and is short enough that someone launching
@@ -462,7 +557,17 @@ itself.
 - **On-screen entry of a server address, or any settings surface.** Rejected at FR-5's kickoff: the
   welcome screen is shared with the desktop head (D-85) and MonoGame soft-keyboard text entry is a
   feature in its own right. The address is a launch extra (D-83).
-- **Replay playback, seeking, or a viewer** — the **Game logs, game replays** project.
+- **Replay playback, seeking, or a viewer** — the **Game logs, game replays** project. FR-6 ships the
+  log *format* and a test-only reader that proves the format sufficient; a shipped reader is that
+  project's content.
+- **Log retention, rotation, compression, or deletion.** Files accumulate in the log directory and
+  nothing prunes them. Localhost only, and disposing of them is the replays project's problem.
+- **Logging the full `EventBatch` wire traffic**, rejected at FR-6's kickoff as D-88, and **any log on
+  the loopback path** — there is no server there, and adding one would put an I/O side effect into
+  every `qa/scripts/` run and every offline Android match.
+- **A server-side query, search, or HTTP endpoint over logs**, and structured application logging,
+  metrics or tracing for the server process itself. FR-6's artifact is a per-match file on disk, not
+  observability.
 - **Binary wire encoding.** The seam is built (§5.3); the codec is not.
 - **Game modes** — Domination and King of the Hill, parity **G-15**.
 - **Spectators, chat, and any social surface.**
