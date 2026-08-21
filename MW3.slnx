@@ -5,10 +5,13 @@
     <Project Path="src/MW3.Desktop/MW3.Desktop.csproj" />
     <Project Path="src/MW3.Game/MW3.Game.csproj" />
     <Project Path="src/MW3.Protocol/MW3.Protocol.csproj" />
+    <Project Path="src/MW3.Server/MW3.Server.csproj" />
+    <Project Path="src/MW3.Transport/MW3.Transport.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MW3.Core.Tests/MW3.Core.Tests.csproj" />
     <Project Path="tests/MW3.Game.Tests/MW3.Game.Tests.csproj" />
+    <Project Path="tests/MW3.Server.Tests/MW3.Server.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/SnapshotHashProbe/SnapshotHashProbe.csproj" />

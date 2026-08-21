@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 8 FR-4, D-77: the shared codec. net10.0;net10.0-android so System.Text.Json is in-box
+    (D-72's collision - MW3.Protocol cannot take the package), referencing MW3.Protocol and nothing
+    else: no MW3.Core, no MW3.Game, no MonoGame package (§1/§3 of the FR-4 issue). MW3.Server and
+    both heads reference this; MW3.Game does not (D-77's stated consequence) - the remote gateway is
+    injected by the composition root exactly as the loopback one is (D-74).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MW3.Protocol\MW3.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MW3.Server.Tests" />
+  </ItemGroup>
+
+  <!-- D-67: the pure value types live in MW3.Protocol. -->
+  <ItemGroup>
+    <Using Include="MW3.Protocol" />
+  </ItemGroup>
+
+</Project>

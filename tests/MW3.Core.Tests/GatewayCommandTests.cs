@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MW3.Transport;
 
 namespace MW3.Core.Tests;
 
@@ -101,8 +102,8 @@ public class GatewayCommandTests
             _ => GatewayCommand.Convert(1, BaseType.Forge),
         };
 
-        var json = JsonSerializer.Serialize(command, MatchSnapshotJsonContext.Default.GatewayCommand);
-        var restored = JsonSerializer.Deserialize(json, MatchSnapshotJsonContext.Default.GatewayCommand);
+        var json = JsonSerializer.Serialize(command, WireJsonContext.Default.GatewayCommand);
+        var restored = JsonSerializer.Deserialize(json, WireJsonContext.Default.GatewayCommand);
 
         Assert.Equal(command, restored);
 

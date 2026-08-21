@@ -1,23 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using MW3.Protocol;
 
-namespace MW3.Core.Tests;
+namespace MW3.Transport;
 
 /// <summary>
-/// Reads and writes a <see cref="MapObstacle"/> through its validating constructor.
-///
-/// It needs one where the other snapshot types do not, and the reason is worth writing down because
-/// it will come up again at FR-4. <see cref="MapObstacle"/> is a struct whose four extents are
-/// get-only and whose constructor rejects an inverted or out-of-bounds rectangle (phase 7 D-50).
-/// <c>System.Text.Json</c> reaches for a struct's always-present parameterless constructor and then
-/// assigns settable properties - so without this converter an obstacle deserializes as four zeroes,
-/// silently, with the invariant intact and the value gone. The alternatives were to loosen the
-/// properties to <c>init</c> (which would let any caller, not just the deserializer, build an
-/// invalid obstacle) or to annotate the constructor with <c>[JsonConstructor]</c> (which
-/// <c>MW3.Protocol</c> cannot do: the attribute lives in a NuGet package on <c>netstandard2.1</c>,
-/// and that project takes no packages). Teaching the codec how to rebuild the type is the option
-/// that costs the type nothing.
+/// Reads and writes a <see cref="MapObstacle"/> through its validating constructor (D-72). Moved
+/// here unchanged from <c>tests/MW3.Core.Tests/MapObstacleJsonConverter.cs</c>, which FR-1 used as a
+/// temporary home until this feature gave the codec a permanent one.
 /// </summary>
 internal sealed class MapObstacleJsonConverter : JsonConverter<MapObstacle>
 {

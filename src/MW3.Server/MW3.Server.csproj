@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Phase 8 FR-4. ASP.NET Core on net10.0, referencing MW3.Core (the rules) and MW3.Transport (the
+    wire). No NuGet package beyond the framework (§5, S-5) - WebSockets and System.Text.Json are
+    both in-box. Deliberately NOT scanned by the D-71 determinism source scan: this is the one
+    process that owns the wall clock (D-63's scheduler), so it is allowed the timer, the Guid match
+    ids, and the disconnect-grace bookkeeping that would fail that scan elsewhere.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MW3.Core\MW3.Core.csproj" />
+    <ProjectReference Include="..\MW3.Transport\MW3.Transport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MW3.Server.Tests" />
+  </ItemGroup>
+
+  <!-- D-67: the pure value types live in MW3.Protocol. -->
+  <ItemGroup>
+    <Using Include="MW3.Protocol" />
+  </ItemGroup>
+
+</Project>

@@ -57,6 +57,12 @@ public class DeterminismSourceScanTests
     {
         yield return new object[] { "MW3.Core" };
         yield return new object[] { "MW3.Protocol" };
+
+        // FR-4 §"D-71 banned-API scan" extends this to MW3.Transport, the other project on the
+        // deterministic side of the seam. MW3.Server is deliberately NOT scanned - it is the
+        // process that owns the wall clock, and a scan that forbade it a timer would forbid the
+        // scheduler D-63 requires.
+        yield return new object[] { "MW3.Transport" };
     }
 
     [Theory]

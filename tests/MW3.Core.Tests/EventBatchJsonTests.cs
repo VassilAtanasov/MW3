@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MW3.Transport;
 
 namespace MW3.Core.Tests;
 
@@ -32,8 +33,8 @@ public class EventBatchJsonTests
     {
         var original = BuildRichBatch();
 
-        var json = JsonSerializer.Serialize(original, MatchSnapshotJsonContext.Default.EventBatch);
-        var restored = JsonSerializer.Deserialize(json, MatchSnapshotJsonContext.Default.EventBatch);
+        var json = JsonSerializer.Serialize(original, WireJsonContext.Default.EventBatch);
+        var restored = JsonSerializer.Deserialize(json, WireJsonContext.Default.EventBatch);
 
         Assert.Equal(original, restored);
     }

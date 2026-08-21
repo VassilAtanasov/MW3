@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MW3.Transport;
 
 namespace MW3.Core.Tests;
 
@@ -143,8 +144,8 @@ public class BaseSnapshotCompletenessTests
         var target = snapshot.Bases.Single(b => b.RangeUnits is not null && b.Construction is not null);
         var mutated = WithParameterPerturbed(target, index);
 
-        var json = JsonSerializer.Serialize(mutated, MatchSnapshotJsonContext.Default.BaseSnapshot);
-        var restored = JsonSerializer.Deserialize(json, MatchSnapshotJsonContext.Default.BaseSnapshot);
+        var json = JsonSerializer.Serialize(mutated, WireJsonContext.Default.BaseSnapshot);
+        var restored = JsonSerializer.Deserialize(json, WireJsonContext.Default.BaseSnapshot);
 
         Assert.True(
             mutated.Equals(restored),
@@ -174,5 +175,5 @@ public class BaseSnapshotCompletenessTests
 
     [Fact]
     public void TheProtocolVersion_WasBumpedForTheAddedField() =>
-        Assert.Equal(2, MatchSnapshot.CurrentProtocolVersion);
+        Assert.Equal(3, MatchSnapshot.CurrentProtocolVersion);
 }
