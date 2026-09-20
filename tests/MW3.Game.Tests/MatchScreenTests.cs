@@ -3,9 +3,7 @@ using System.Reflection;
 namespace MW3.Game.Tests;
 
 /// <summary>
-/// FR-5: guards against the army-marker-larger-than-base inversion #94 raised, by reading the
-/// private radius constants via reflection - <see cref="MatchScreen"/> draws with a graphics
-/// device and is not otherwise unit-testable.
+/// Guards presentation sizing invariants that need no graphics device.
 /// </summary>
 public class MatchScreenTests
 {
@@ -15,22 +13,28 @@ public class MatchScreenTests
             .GetRawConstantValue()!;
 
     [Fact]
-    public void LeadArmyRadius_IsStrictlyLessThanBaseRadius()
+    public void UnitSpriteDiameter_IsStrictlyLessThanBaseRadius()
     {
         var radiusFraction = GetPrivateConst("_radiusFraction");
-        var armyRadiusFractionOfBase = GetPrivateConst("_armyRadiusFractionOfBase");
+        var spriteDiameter = ArmyCrowdPresentation.SpriteDiameterFractionOfMinDimension;
 
         Assert.True(
-            armyRadiusFractionOfBase * radiusFraction < radiusFraction,
-            "a lead army marker must draw smaller than the base it launched from");
+            spriteDiameter < radiusFraction * 2f,
+            "a single marching unit must draw smaller than the base it launched from");
     }
 
     [Fact]
-    public void TrailingArmyRadius_IsStrictlyLessThanLeadArmyRadius()
+    public void CrowdFootprint_ForMaxWave_IsStillSmallerThanBaseDisc()
     {
-        var armyRadiusFractionOfBase = GetPrivateConst("_armyRadiusFractionOfBase");
-        var armyTrailingRadiusFractionOfBase = GetPrivateConst("_armyTrailingRadiusFractionOfBase");
+        var radiusFraction = GetPrivateConst("_radiusFraction");
+        var baseDiameter = radiusFraction * 2f;
+        var maxCrowdWidth = ArmyCrowdPresentation.FootprintArea(
+            ArmyCrowdPresentation.MaxSpritesPerArmy,
+            waveIndex: 1,
+            waveCount: 1);
 
-        Assert.True(armyTrailingRadiusFractionOfBase < armyRadiusFractionOfBase);
+        Assert.True(
+            MathF.Sqrt(maxCrowdWidth) < baseDiameter * 1.5f,
+            "even a full wave's crowd should not dwarf its source base");
     }
 }

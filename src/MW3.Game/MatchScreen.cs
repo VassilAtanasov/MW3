@@ -26,24 +26,7 @@ internal sealed class MatchScreen : IScreen
 {
     private const float _radiusFraction = 0.075f;
 
-    // FR-5: expressed as multiples of _radiusFraction rather than independent viewport fractions,
-    // so a future base-radius change can never again let an army marker draw larger than a base -
-    // the defect #94 raised. They reproduce the pre-FR-5 ratios: 0.5333 * 0.075 = 0.04 and
-    // 0.2667 * 0.075 = 0.02.
-    private const float _armyRadiusFractionOfBase = 0.5333f;
-    private const float _armyTrailingRadiusFractionOfBase = 0.2667f;
     private const float _selectionHighlightScale = 1.35f;
-
-    // FR-4, D-36: the last wave of a multi-wave send draws at half _armyRadiusFractionOfBase. At
-    // 1280x720 with the FR-5 base radius (0.075 * 720 = 54px), a tail marker's diameter
-    // (2 * 0.02 * 720 = 28.8px) is well under the horizontal wave spacing (0.05 map units * 1280px
-    // = 64px), and equally clear of it on the vertical axis. A single-wave send never reaches this
-    // - RadiusFraction returns the lead fraction unchanged whenever WaveCount <= 1 (D-36's
-    // bit-identical requirement).
-
-    // The spine (D-36) is a thin line in the owner's tint connecting in-flight waves of one send,
-    // drawn beneath their markers - thin enough it never reads as a marker itself.
-    private const float _spineThicknessFraction = 0.006f;
 
     // A tower flashes for a few ticks after it fires (Base.LastFireTick), and a hit army flashes
     // for a few ticks after its UnitCount is observed to drop (FR-4, D-36) - long enough to survive
@@ -66,6 +49,9 @@ internal sealed class MatchScreen : IScreen
     // headless rasterizer; owner is a SpriteBatch tint on the white body, never a per-frame
     // allocation or a new snapshot field.
     private BuildingSpriteAtlas? _buildingSprites;
+
+    // Marching unit sprite (match-presentation FR-3). One silhouette, owner-tinted at draw time.
+    private UnitSpriteAtlas? _unitSprites;
 
     // A tower's range is drawn as an outline (an annulus: transparent center, opaque rim) stretched
     // by a non-uniform Rectangle into an ellipse - the same stretch trick the circle texture already
@@ -90,13 +76,6 @@ internal sealed class MatchScreen : IScreen
     private string _humanForgesText = string.Empty;
     private string _aiForgesText = string.Empty;
 
-    // An army's unit count can now drop while it is in flight (FR-4, a tower shooting it down), so
-    // its text is cached alongside the count it was formatted from and only reformatted when that
-    // count has actually changed - not on every Draw call (docs/CONVENTIONS.md's no-per-frame-
-    // allocation rule), and not assuming the premise D-12 originally stated for this cache, which
-    // this feature is the one that reverses.
-    private readonly Dictionary<int, (string Text, int Count)> _armyUnitText = new();
-
     // FR-4, D-36: the UnitCount an army had the last time Update observed it, and the tick its
     // count was last seen to drop - populated only in Update (never Draw), so a hit flash is tied
     // to tick arithmetic rather than frame cadence, and two decrements in quick succession are not
@@ -105,15 +84,13 @@ internal sealed class MatchScreen : IScreen
     private readonly Dictionary<int, int> _lastArmyUnitCount = new();
     private readonly Dictionary<int, long> _armyHitTick = new();
 
-    // Reused scratch buffer for PruneResolvedArmyText, so pruning stale cache entries allocates
+    // Reused scratch buffer for PruneResolvedArmyState, so pruning stale cache entries allocates
     // nothing beyond its own one-time growth.
     private readonly List<int> _armyIdsToPrune = new();
 
-    // Reused scratch buffers for DrawArmiesInFlight's spine (FR-4, D-36) - rebuilt every Draw call
-    // via WaveColumnPresentation.ComputeSpineSegments, never allocated per frame.
-    private readonly List<Vector2> _armyCenterScratch = new();
-    private readonly List<(int FromIndex, int ToIndex)> _spineSegmentScratch = new();
-    private readonly List<MapPoint> _spinePointScratch = new();
+    // Reused scratch buffer for DrawArmiesInFlight's ranked-file layout (FR-3) - rebuilt every Draw
+    // call via ArmyCrowdPresentation.ComputeSlots, never allocated per frame.
+    private readonly List<ArmyCrowdPresentation.Slot> _crowdSlotScratch = new();
 
     private bool _wasPointerPressed;
     private int? _selectedSourceBaseId;
@@ -168,6 +145,7 @@ internal sealed class MatchScreen : IScreen
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
         _buildingSprites = BuildingSpriteAtlas.Create(graphicsDevice);
+        _unitSprites = UnitSpriteAtlas.Create(graphicsDevice);
         _rangeRingTexture = CreateRingTexture(graphicsDevice, diameter: 128, innerFraction: _rangeRingInnerFraction);
         _buttonTexture = CreateButtonTexture(graphicsDevice);
 
@@ -199,7 +177,7 @@ internal sealed class MatchScreen : IScreen
             if (snapshot.ElapsedTicks != previousElapsedTicks)
             {
                 RecordArmyHits(snapshot);
-                PruneResolvedArmyText(snapshot);
+                PruneResolvedArmyState(snapshot);
             }
         }
 
@@ -414,24 +392,24 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
-    /// Drops cached unit-count text, last-seen-count, and last-hit-tick for armies no longer in
-    /// flight, so <see cref="_armyUnitText"/>, <see cref="_lastArmyUnitCount"/>, and
-    /// <see cref="_armyHitTick"/> do not grow for the life of a match as armies resolve.
+    /// Drops last-seen-count and last-hit-tick for armies no longer in flight, so
+    /// <see cref="_lastArmyUnitCount"/> and <see cref="_armyHitTick"/> do not grow for the life of a
+    /// match as armies resolve.
     /// </summary>
-    private void PruneResolvedArmyText(MatchSnapshot snapshot)
+    private void PruneResolvedArmyState(MatchSnapshot snapshot)
     {
-        if (_armyUnitText.Count == 0 && _lastArmyUnitCount.Count == 0 && _armyHitTick.Count == 0)
+        if (_lastArmyUnitCount.Count == 0 && _armyHitTick.Count == 0)
         {
             return;
         }
 
         var armies = snapshot.Armies;
-        foreach (var id in _armyUnitText.Keys)
+        foreach (var id in _lastArmyUnitCount.Keys)
         {
             AddIfNotStillInFlight(armies, id);
         }
 
-        foreach (var id in _lastArmyUnitCount.Keys)
+        foreach (var id in _armyHitTick.Keys)
         {
             AddIfNotStillInFlight(armies, id);
         }
@@ -443,7 +421,6 @@ internal sealed class MatchScreen : IScreen
 
         foreach (var id in _armyIdsToPrune)
         {
-            _armyUnitText.Remove(id);
             _lastArmyUnitCount.Remove(id);
             _armyHitTick.Remove(id);
         }
@@ -684,74 +661,60 @@ internal sealed class MatchScreen : IScreen
     }
 
     /// <summary>
-    /// Each in-flight army is a filled circle smaller than a base, tinted by owner, positioned by
+    /// Each in-flight army is a ranked file of owner-tinted unit sprites along
     /// <see cref="ArmyPathMath.PositionAt(IReadOnlyList{MapPoint}, double, long, long, long)"/> - the
     /// same polyline walk the rules themselves resolve tower range against for the same army and
-    /// tick (D-68), so the drawn marker can never disagree with where the simulation says it is
-    /// (FR-4), and the wire still carries no position. A multi-wave send (FR-4, D-36) additionally draws a spine
-    /// beneath the markers connecting its in-flight waves along that same path, and each wave's own
-    /// radius tapers toward the tail so consecutive waves overlap less; a single-wave send draws
-    /// bit-identically to before this feature (WaveCount == 1: no taper, no spine).
+    /// tick (D-68), so the crowd's centre can never disagree with where the simulation says the army
+    /// is. Strength is the crowd's area, not a number on a disc (match-presentation FR-3). Opposing
+    /// columns pass through each other because each army is drawn independently with no interaction.
+    /// Trailing waves of a multi-wave send (FR-4, D-36) taper via
+    /// <see cref="ArmyCrowdPresentation.FormationScale"/>.
     /// </summary>
     private void DrawArmiesInFlight(SpriteBatch spriteBatch, MatchSnapshot snapshot, Viewport viewport)
     {
-        if (_font is null || _circleTexture is null || _buttonTexture is null)
+        if (_unitSprites is null)
         {
             return;
         }
 
         var minDimension = Math.Min(viewport.Width, viewport.Height);
+        var spriteDiameter = minDimension * ArmyCrowdPresentation.SpriteDiameterFractionOfMinDimension;
+        var spriteOrigin = new Vector2(UnitSpriteRasterizer.Size / 2f, UnitSpriteRasterizer.Size / 2f);
+        var spriteScale = spriteDiameter / UnitSpriteRasterizer.Size;
         var armies = snapshot.Armies;
         var elapsedTicks = snapshot.ElapsedTicks;
 
-        _armyCenterScratch.Clear();
         for (var i = 0; i < armies.Count; i++)
         {
             var army = armies[i];
-            var position = ArmyPathMath.PositionAt(army.PathWaypoints, army.PathLength, army.LaunchTick, army.ArrivalTick, elapsedTicks);
-            _armyCenterScratch.Add(new Vector2((float)(position.X * viewport.Width), (float)(position.Y * viewport.Height)));
-        }
+            var position = ArmyPathMath.PositionAt(
+                army.PathWaypoints,
+                army.PathLength,
+                army.LaunchTick,
+                army.ArrivalTick,
+                elapsedTicks);
+            var center = new Vector2((float)(position.X * viewport.Width), (float)(position.Y * viewport.Height));
 
-        WaveColumnPresentation.ComputeSpineSegments(armies, _spineSegmentScratch);
-        var spineThickness = Math.Max(1f, minDimension * _spineThicknessFraction);
-        for (var i = 0; i < _spineSegmentScratch.Count; i++)
-        {
-            var (fromIndex, toIndex) = _spineSegmentScratch[i];
-            var fromArmy = armies[fromIndex];
-            var toArmy = armies[toIndex];
-            var color = GetOwnerColor(snapshot, fromArmy.OwnerPlayerId);
-
-            WaveColumnPresentation.ComputeSpinePoints(
-                fromArmy.PathWaypoints,
-                fromArmy.PathLength,
-                ArmyPathMath.ProgressAt(fromArmy.LaunchTick, fromArmy.ArrivalTick, elapsedTicks),
-                ArmyPathMath.ProgressAt(toArmy.LaunchTick, toArmy.ArrivalTick, elapsedTicks),
-                _spinePointScratch);
-
-            var previous = _armyCenterScratch[fromIndex];
-            var lastPointIndex = _spinePointScratch.Count - 1;
-            for (var p = 1; p <= lastPointIndex; p++)
+            ArmyCrowdPresentation.ComputeMarchDirection(
+                army.PathWaypoints,
+                army.PathLength,
+                army.LaunchTick,
+                army.ArrivalTick,
+                elapsedTicks,
+                out var forwardX,
+                out var forwardY);
+            var march = new Vector2((float)forwardX * viewport.Width, (float)forwardY * viewport.Height);
+            if (march.LengthSquared() < 1e-6f)
             {
-                var current = p == lastPointIndex
-                    ? _armyCenterScratch[toIndex]
-                    : new Vector2((float)(_spinePointScratch[p].X * viewport.Width), (float)(_spinePointScratch[p].Y * viewport.Height));
-                DrawSpineSegment(spriteBatch, previous, current, spineThickness, color);
-                previous = current;
+                march = Vector2.UnitX;
             }
-        }
+            else
+            {
+                march.Normalize();
+            }
 
-        for (var i = 0; i < armies.Count; i++)
-        {
-            var army = armies[i];
-            var center = _armyCenterScratch[i];
-
-            var radiusFraction = WaveColumnPresentation.RadiusFraction(
-                army.WaveIndex,
-                army.WaveCount,
-                _armyRadiusFractionOfBase * _radiusFraction,
-                _armyTrailingRadiusFractionOfBase * _radiusFraction);
-            var armyRadius = minDimension * radiusFraction;
-            var armyDiameter = (int)(armyRadius * 2);
+            var lateral = new Vector2(-march.Y, march.X);
+            var rotation = MathF.Atan2(march.Y, march.X);
 
             var color = GetOwnerColor(snapshot, army.OwnerPlayerId);
             if (_armyHitTick.TryGetValue(army.Id, out var hitTick)
@@ -760,47 +723,20 @@ internal sealed class MatchScreen : IScreen
                 color = BrightenColor(color);
             }
 
-            var destination = new Rectangle((int)(center.X - armyRadius), (int)(center.Y - armyRadius), armyDiameter, armyDiameter);
-            spriteBatch.Draw(_circleTexture, destination, color);
+            var formationScale = ArmyCrowdPresentation.FormationScale(army.WaveIndex, army.WaveCount);
+            var spacing = spriteDiameter * formationScale;
+            var drawScale = spriteScale * formationScale;
+            ArmyCrowdPresentation.ComputeSlots(army.UnitCount, _crowdSlotScratch);
 
-            if (!_armyUnitText.TryGetValue(army.Id, out var cached) || cached.Count != army.UnitCount)
+            for (var s = 0; s < _crowdSlotScratch.Count; s++)
             {
-                cached = (army.UnitCount.ToString(CultureInfo.InvariantCulture), army.UnitCount);
-                _armyUnitText[army.Id] = cached;
+                var slot = _crowdSlotScratch[s];
+                var offset = (march * (slot.Forward * spacing)) + (lateral * (slot.Lateral * spacing));
+                var drawCenter = center + offset;
+                spriteBatch.Draw(_unitSprites.Body, drawCenter, null, color, rotation, spriteOrigin, drawScale, SpriteEffects.None, 0f);
+                spriteBatch.Draw(_unitSprites.Detail, drawCenter, null, Color.White, rotation, spriteOrigin, drawScale, SpriteEffects.None, 0f);
             }
-
-            var text = cached.Text;
-
-            var unscaledSize = _font.MeasureString(text);
-            var textScale = (armyDiameter * 0.5f) / unscaledSize.Y;
-            var textSize = unscaledSize * textScale;
-            var textPosition = new Vector2(center.X - (textSize.X / 2f), center.Y - (textSize.Y / 2f));
-            spriteBatch.DrawString(_font, text, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
         }
-    }
-
-    /// <summary>
-    /// Draws a thin line from <paramref name="from"/> to <paramref name="to"/> by stretching and
-    /// rotating the shared 1x1 <see cref="_buttonTexture"/> - the same reused-texture trick the
-    /// range ring and buttons already use, so the spine needs no texture of its own.
-    /// </summary>
-    private void DrawSpineSegment(SpriteBatch spriteBatch, Vector2 from, Vector2 to, float thickness, Color color)
-    {
-        if (_buttonTexture is null)
-        {
-            return;
-        }
-
-        var delta = to - from;
-        var length = delta.Length();
-        if (length <= 0f)
-        {
-            return;
-        }
-
-        var rotation = MathF.Atan2(delta.Y, delta.X);
-        var scale = new Vector2(length, thickness);
-        spriteBatch.Draw(_buttonTexture, from, null, color, rotation, Vector2.Zero, scale, SpriteEffects.None, 0f);
     }
 
     /// <summary>
@@ -959,6 +895,7 @@ internal sealed class MatchScreen : IScreen
 
         _circleTexture?.Dispose();
         _buildingSprites?.Dispose();
+        _unitSprites?.Dispose();
         _rangeRingTexture?.Dispose();
         _buttonTexture?.Dispose();
     }
