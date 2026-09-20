@@ -6,9 +6,9 @@ using Microsoft.Xna.Framework.Graphics;
 namespace MW3.Game;
 
 /// <summary>
-/// Draws the match live: a circle per producer base, a square per tower base, and (phase 6 FR-5) an
-/// upward-pointing triangle per forge base, tinted by owner, with its rising garrison count, plus
-/// the drag interaction that sends armies.
+/// Draws the match live: an illustrated village, tower or forge sprite per base, tinted by owner,
+/// with a white thought-cloud carrying the garrison count above it, plus the drag interaction that
+/// sends armies.
 ///
 /// Phase 8 FR-3: it holds no match. It renders a <see cref="MatchSnapshot"/> read from an
 /// <see cref="IMatchGateway"/> and submits every command back through the same gateway, so this
@@ -62,13 +62,10 @@ internal sealed class MatchScreen : IScreen
     private SpriteFont? _font;
     private Texture2D? _circleTexture;
 
-    // Towers are squares, producers stay circles (FR-5) - one extra texture, stretched by Rectangle
-    // sizing exactly like the circle already is, never allocated per frame.
-    private Texture2D? _squareTexture;
-
-    // Forges are an upward-pointing triangle (phase 6 FR-5), the third and last shape - same
-    // stretch-by-Rectangle treatment, same lifetime as the other two.
-    private Texture2D? _triangleTexture;
+    // Illustrated building family (match-presentation FR-2). Created once at load from the
+    // headless rasterizer; owner is a SpriteBatch tint on the white body, never a per-frame
+    // allocation or a new snapshot field.
+    private BuildingSpriteAtlas? _buildingSprites;
 
     // A tower's range is drawn as an outline (an annulus: transparent center, opaque rim) stretched
     // by a non-uniform Rectangle into an ellipse - the same stretch trick the circle texture already
@@ -135,11 +132,6 @@ internal sealed class MatchScreen : IScreen
 
     private Texture2D? _buttonTexture;
 
-    // A base's per-level ring is drawn as an enlarged, darker-tinted copy of its own fill circle -
-    // no second texture, and its thickness comes from LevelTable rather than a literal here (D-22).
-    private static readonly Color _ringDarkenTarget = Color.Black;
-    private const float _ringDarkenAmount = 0.4f;
-
     // A base under construction (D-30, FR-3c) draws one further ring, outside the level ring, in a
     // fixed colour distinguishable from both the owner tint and the darkened level ring at both
     // 1280x720 and 1808x1018 - the one deliberate presentation change this feature makes.
@@ -175,8 +167,7 @@ internal sealed class MatchScreen : IScreen
 
         _font = content.Load<SpriteFont>("Fonts/OpenSans");
         _circleTexture = CreateCircleTexture(graphicsDevice, diameter: 128);
-        _squareTexture = CreateSquareTexture(graphicsDevice, diameter: 128);
-        _triangleTexture = CreateTriangleTexture(graphicsDevice, diameter: 128);
+        _buildingSprites = BuildingSpriteAtlas.Create(graphicsDevice);
         _rangeRingTexture = CreateRingTexture(graphicsDevice, diameter: 128, innerFraction: _rangeRingInnerFraction);
         _buttonTexture = CreateButtonTexture(graphicsDevice);
 
@@ -485,7 +476,7 @@ internal sealed class MatchScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_font is null || _circleTexture is null || _squareTexture is null || _triangleTexture is null
+        if (_font is null || _circleTexture is null || _buildingSprites is null
             || _rangeRingTexture is null || _garrisonText is null || _lastGarrisonCount is null)
         {
             return;
@@ -498,7 +489,6 @@ internal sealed class MatchScreen : IScreen
         DrawObstacles(spriteBatch, snapshot, viewport);
 
         var radius = Math.Min(viewport.Width, viewport.Height) * _radiusFraction;
-        var diameter = (int)(radius * 2);
         var bases = snapshot.Bases;
 
         for (var i = 0; i < bases.Count; i++)
@@ -506,61 +496,15 @@ internal sealed class MatchScreen : IScreen
             var b = bases[i];
             var center = new Vector2((float)(b.Position.X * viewport.Width), (float)(b.Position.Y * viewport.Height));
 
-            // Shape follows the base's current, committed type (b.Type) - never a pending
+            // Sprite follows the base's current, committed type and level - never a pending
             // conversion's target type, which only takes effect at Advance's completion tick (D-30,
-            // FR-3c). A base converting into a tower stays a circle with no range until then; one
-            // converting into or out of a forge (phase 6 FR-1, FR-5) stays its old shape and shows
-            // only the construction ring until the same tick.
-            var shapeTexture = b.Type switch
-            {
-                BaseType.Tower => _squareTexture,
-                BaseType.Forge => _triangleTexture,
-                _ => _circleTexture,
-            };
-
-            if (b.Id == _selectedSourceBaseId)
-            {
-                var highlightRadius = radius * _selectionHighlightScale;
-                var highlightDiameter = (int)(highlightRadius * 2);
-                var highlightDestination = new Rectangle(
-                    (int)(center.X - highlightRadius), (int)(center.Y - highlightRadius), highlightDiameter, highlightDiameter);
-                spriteBatch.Draw(shapeTexture, highlightDestination, _selectionHighlightColor);
-            }
-
-            // The level ring is drawn first, as a larger copy of the same shape in a darker shade of
-            // the owner's tint, so the fill drawn on top of it leaves exactly a ring of that shade
-            // visible around the rim - three thicknesses distinguishable at both target resolutions,
-            // with no per-level literal here (the fraction lives in LevelTable, D-22).
-            var ringThickness = radius * (float)b.RingThicknessFractionOfRadius;
-            var ringRadius = radius + ringThickness;
-            var ringDiameter = (int)(ringRadius * 2);
-            var ringDestination = new Rectangle(
-                (int)(center.X - ringRadius), (int)(center.Y - ringRadius), ringDiameter, ringDiameter);
-            spriteBatch.Draw(shapeTexture, ringDestination, DarkenOwnerColor(GetOwnerColor(snapshot, b.OwnerPlayerId)));
-
-            // A base under construction (D-30, FR-3c) draws one further ring, outside the level ring,
-            // in a fixed colour - distinguishable from both its current level (the darker ring just
-            // drawn) and its completed target level (which is not drawn until completion at all).
-            if (b.Construction is not null)
-            {
-                var constructionRingThickness = radius * _constructionRingThicknessFraction;
-                var constructionRingRadius = ringRadius + constructionRingThickness;
-                var constructionRingDiameter = (int)(constructionRingRadius * 2);
-                var constructionRingDestination = new Rectangle(
-                    (int)(center.X - constructionRingRadius),
-                    (int)(center.Y - constructionRingRadius),
-                    constructionRingDiameter,
-                    constructionRingDiameter);
-                spriteBatch.Draw(shapeTexture, constructionRingDestination, _constructionRingColor);
-            }
+            // FR-3c). Level is the snapshot field that already exists; a village grows extra caps
+            // from that number, and no new wire field is added.
+            _buildingSprites.GetLayers(b.Type, b.Level, out var bodyTexture, out var detailTexture);
 
             // Every tower's range is drawn always, both owners, as an outline in the owner's tint -
-            // read from the snapshot's own RangeUnits (phase 8 FR-3) - the LevelTable lookup that
-            // stood here was the last rule this file ran, and it is now answered on the far side of
-            // the seam. A range is a Euclidean distance in normalized MapPoint units where X and Y
-            // both span 0..1, so a circle of radius R maps to an ellipse of half-width
-            // R*viewport.Width and half-height R*viewport.Height on screen - the same
-            // stretch-a-circle-into-a-Rectangle trick the base shapes already use.
+            // read from the snapshot's own RangeUnits (phase 8 FR-3). Restyling the ring itself is
+            // FR-6 of this presentation phase and is left alone here.
             if (b.RangeUnits is double rangeUnits)
             {
                 var rangeHalfWidth = (float)(rangeUnits * viewport.Width);
@@ -573,14 +517,35 @@ internal sealed class MatchScreen : IScreen
                 spriteBatch.Draw(_rangeRingTexture, rangeDestination, GetOwnerColor(snapshot, b.OwnerPlayerId));
             }
 
-            var destination = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
+            // Construction and selection are an enlarged copy of the same silhouette, so they
+            // still read as chrome on this building rather than a leftover circle/square/triangle.
+            if (b.Construction is not null)
+            {
+                var constructionRadius = radius * (1f + _constructionRingThicknessFraction + 0.12f);
+                spriteBatch.Draw(
+                    bodyTexture,
+                    DestinationAround(center, constructionRadius),
+                    _constructionRingColor);
+            }
+
+            if (b.Id == _selectedSourceBaseId)
+            {
+                var highlightRadius = radius * _selectionHighlightScale;
+                spriteBatch.Draw(
+                    bodyTexture,
+                    DestinationAround(center, highlightRadius),
+                    _selectionHighlightColor);
+            }
+
+            var destination = DestinationAround(center, radius);
             var baseFillColor = GetOwnerColor(snapshot, b.OwnerPlayerId);
             if (b.Type == BaseType.Tower && WaveColumnPresentation.IsFlashing(snapshot.ElapsedTicks, b.LastFireTick, _towerFlashDurationTicks))
             {
                 baseFillColor = BrightenColor(baseFillColor);
             }
 
-            spriteBatch.Draw(shapeTexture, destination, baseFillColor);
+            spriteBatch.Draw(bodyTexture, destination, baseFillColor);
+            spriteBatch.Draw(detailTexture, destination, Color.White);
 
             if (_lastGarrisonCount[i] != b.GarrisonCount)
             {
@@ -588,27 +553,7 @@ internal sealed class MatchScreen : IScreen
                 _lastGarrisonCount[i] = b.GarrisonCount;
             }
 
-            var garrisonText = _garrisonText[i];
-            var unscaledSize = _font.MeasureString(garrisonText);
-
-            // A triangle inscribes less area than a circle or square at the same bounding box, so
-            // the garrison digits are sized and centred against its own incircle - the true largest
-            // circle that fits inside it - rather than the bounding box's geometric centre, which
-            // would let them overhang the sloped sides (phase 6 FR-5). The circle and square glyphs
-            // are unchanged: their incircle is the same circle textScale already targeted.
-            var textCenter = center;
-            var textDiameterTarget = diameter;
-            if (b.Type == BaseType.Forge)
-            {
-                var apexY = center.Y - radius;
-                textCenter = new Vector2(center.X, apexY + (TriangleGeometry.IncenterYFraction() * diameter));
-                textDiameterTarget = (int)(TriangleGeometry.InradiusFraction() * diameter * 2f);
-            }
-
-            var textScale = (textDiameterTarget * 0.5f) / unscaledSize.Y;
-            var textSize = unscaledSize * textScale;
-            var textPosition = new Vector2(textCenter.X - (textSize.X / 2f), textCenter.Y - (textSize.Y / 2f));
-            spriteBatch.DrawString(_font, garrisonText, textPosition, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
+            DrawGarrisonCloud(spriteBatch, _buildingSprites.Cloud, _font, center, radius, _garrisonText[i]);
         }
 
         DrawArmiesInFlight(spriteBatch, snapshot, viewport);
@@ -657,13 +602,42 @@ internal sealed class MatchScreen : IScreen
         }
     }
 
-    private static Color DarkenOwnerColor(Color color) => Color.Lerp(color, _ringDarkenTarget, _ringDarkenAmount);
-
     private static Color BrightenColor(Color color) => Color.Lerp(color, _flashBrightenTarget, _flashBrightenAmount);
+
+    private static Rectangle DestinationAround(Vector2 center, float radius)
+    {
+        var diameter = (int)(radius * 2f);
+        return new Rectangle((int)(center.X - radius), (int)(center.Y - radius), diameter, diameter);
+    }
+
+    /// <summary>
+    /// White thought-cloud above the sprite, digit including 0. Sized from the same base radius the
+    /// hit-tester already uses so the cloud never becomes the thing a tap lands on.
+    /// </summary>
+    private static void DrawGarrisonCloud(
+        SpriteBatch spriteBatch,
+        Texture2D cloud,
+        SpriteFont font,
+        Vector2 buildingCenter,
+        float buildingRadius,
+        string garrisonText)
+    {
+        var cloudRadius = buildingRadius * 0.52f;
+        var cloudCenter = new Vector2(buildingCenter.X, buildingCenter.Y - buildingRadius - (cloudRadius * 0.15f));
+        spriteBatch.Draw(cloud, DestinationAround(cloudCenter, cloudRadius), Color.White);
+
+        var unscaledSize = font.MeasureString(garrisonText);
+        var textScale = (cloudRadius * 0.95f) / unscaledSize.Y;
+        var textSize = unscaledSize * textScale;
+        var textPosition = new Vector2(
+            cloudCenter.X - (textSize.X / 2f),
+            cloudCenter.Y - (textSize.Y / 2f) - (cloudRadius * 0.08f));
+        spriteBatch.DrawString(font, garrisonText, textPosition, Color.Black, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
+    }
 
     /// <summary>
     /// Victory/defeat text over the final board, sized and positioned from the viewport (D-14) - a
-    /// small band near the top clears every base's circle and garrison count at both 1280x720 and
+    /// small band near the top clears every base's sprite and garrison cloud at both 1280x720 and
     /// 1920x1200, since the nearest base row sits no higher than y=0.25 normalized (FR-7).
     /// </summary>
     private void DrawOutcomeBanner(SpriteBatch spriteBatch, MatchSnapshot snapshot, Viewport viewport)
@@ -984,8 +958,7 @@ internal sealed class MatchScreen : IScreen
         _gateway.Dispose();
 
         _circleTexture?.Dispose();
-        _squareTexture?.Dispose();
-        _triangleTexture?.Dispose();
+        _buildingSprites?.Dispose();
         _rangeRingTexture?.Dispose();
         _buttonTexture?.Dispose();
     }
@@ -1035,43 +1008,6 @@ internal sealed class MatchScreen : IScreen
             {
                 var distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
                 data[(y * diameter) + x] = distance <= radius ? Color.White : Color.Transparent;
-            }
-        }
-
-        texture.SetData(data);
-        return texture;
-    }
-
-    private static Texture2D CreateSquareTexture(GraphicsDevice graphicsDevice, int diameter)
-    {
-        var texture = new Texture2D(graphicsDevice, diameter, diameter);
-        var data = new Color[diameter * diameter];
-        for (var j = 0; j < data.Length; j++)
-        {
-            data[j] = Color.White;
-        }
-
-        texture.SetData(data);
-        return texture;
-    }
-
-    /// <summary>
-    /// An upward-pointing triangle - apex at the top-centre, base along the bottom edge - filling
-    /// the same <paramref name="diameter"/> x <paramref name="diameter"/> square the circle and
-    /// square textures fill, so a forge occupies the same footprint as any other base (phase 6
-    /// FR-5). Rasterized with <see cref="TriangleGeometry.Contains"/>, the same pure geometry
-    /// <see cref="Draw"/> uses to position the garrison digits inside it.
-    /// </summary>
-    private static Texture2D CreateTriangleTexture(GraphicsDevice graphicsDevice, int diameter)
-    {
-        var texture = new Texture2D(graphicsDevice, diameter, diameter);
-        var data = new Color[diameter * diameter];
-
-        for (var y = 0; y < diameter; y++)
-        {
-            for (var x = 0; x < diameter; x++)
-            {
-                data[(y * diameter) + x] = TriangleGeometry.Contains(x, y, diameter) ? Color.White : Color.Transparent;
             }
         }
 
