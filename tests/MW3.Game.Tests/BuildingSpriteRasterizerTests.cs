@@ -11,7 +11,7 @@ namespace MW3.Game.Tests;
 /// </summary>
 public class BuildingSpriteRasterizerTests
 {
-    private const int Size = BuildingSpriteRasterizer.Size;
+    private const int _size = BuildingSpriteRasterizer.Size;
 
     [Fact]
     public void Village_Level1_HasCapWiderThanStem_AndFeetOnBothSides()
@@ -47,8 +47,12 @@ public class BuildingSpriteRasterizerTests
         var level1RightCaps = OpaqueCount(level1, 0.80f, 1.00f, 0.12f, 0.48f);
         var level5RightCaps = OpaqueCount(level5, 0.80f, 1.00f, 0.12f, 0.48f);
 
-        Assert.True(level5LeftCaps > level1LeftCaps * 2, "level 5 adds a left-hand cap the level-1 house does not have");
-        Assert.True(level5RightCaps > level1RightCaps * 2, "level 5 adds a right-hand cap the level-1 house does not have");
+        Assert.True(
+            level5LeftCaps > level1LeftCaps * 2,
+            "level 5 adds a left-hand cap the level-1 house does not have");
+        Assert.True(
+            level5RightCaps > level1RightCaps * 2,
+            "level 5 adds a right-hand cap the level-1 house does not have");
 
         var scaledLevel1 = ScaleOccupancy(level1, 1.45f);
         var agreement = OccupancyAgreement(scaledLevel1, Occupancy(level5));
@@ -145,7 +149,7 @@ public class BuildingSpriteRasterizerTests
     [Fact]
     public void GarrisonCloud_IsAWhiteBubbleWithADownwardTail()
     {
-        var cloud = new Color[Size * Size];
+        var cloud = new Color[_size * _size];
         BuildingSpriteRasterizer.RasterizeGarrisonCloud(cloud);
 
         Assert.True(HasOpaqueIn(cloud, 0.35f, 0.65f, 0.30f, 0.55f), "cloud body");
@@ -166,17 +170,19 @@ public class BuildingSpriteRasterizerTests
     [Fact]
     public void Rasterize_RejectsABufferOfTheWrongLength()
     {
-        var body = new Color[Size * Size];
+        var body = new Color[_size * _size];
         var wrong = new Color[4];
 
-        Assert.Throws<ArgumentException>(() => BuildingSpriteRasterizer.Rasterize(BaseType.Producer, 1, body, wrong));
-        Assert.Throws<ArgumentNullException>(() => BuildingSpriteRasterizer.Rasterize(BaseType.Producer, 1, body, null!));
+        Assert.Throws<ArgumentException>(
+            () => BuildingSpriteRasterizer.Rasterize(BaseType.Producer, 1, body, wrong));
+        Assert.Throws<ArgumentNullException>(
+            () => BuildingSpriteRasterizer.Rasterize(BaseType.Producer, 1, body, null!));
     }
 
     private static (Color[] Body, Color[] Detail) Rasterize(BaseType type, int level)
     {
-        var body = new Color[Size * Size];
-        var detail = new Color[Size * Size];
+        var body = new Color[_size * _size];
+        var detail = new Color[_size * _size];
         BuildingSpriteRasterizer.Rasterize(type, level, body, detail);
         return (body, detail);
     }
@@ -190,16 +196,16 @@ public class BuildingSpriteRasterizerTests
 
     private static bool HasDarkDetailIn(Color[] detail, float x0, float x1, float y0, float y1)
     {
-        var minX = (int)(x0 * Size);
-        var maxX = (int)(x1 * Size);
-        var minY = (int)(y0 * Size);
-        var maxY = (int)(y1 * Size);
+        var minX = (int)(x0 * _size);
+        var maxX = (int)(x1 * _size);
+        var minY = (int)(y0 * _size);
+        var maxY = (int)(y1 * _size);
         var dark = 0;
         for (var y = minY; y < maxY; y++)
         {
             for (var x = minX; x < maxX; x++)
             {
-                var pixel = detail[(y * Size) + x];
+                var pixel = detail[(y * _size) + x];
                 if (pixel.A >= 128 && pixel.R < 80 && pixel.G < 80 && pixel.B < 90)
                 {
                     dark++;
@@ -213,19 +219,19 @@ public class BuildingSpriteRasterizerTests
     private static int EdgeCount(Color[] pixels)
     {
         var edges = 0;
-        for (var y = 0; y < Size; y++)
+        for (var y = 0; y < _size; y++)
         {
-            for (var x = 0; x < Size; x++)
+            for (var x = 0; x < _size; x++)
             {
-                if (!IsOpaque(pixels[(y * Size) + x]))
+                if (!IsOpaque(pixels[(y * _size) + x]))
                 {
                     continue;
                 }
 
-                var up = y == 0 || !IsOpaque(pixels[((y - 1) * Size) + x]);
-                var down = y == Size - 1 || !IsOpaque(pixels[((y + 1) * Size) + x]);
-                var left = x == 0 || !IsOpaque(pixels[(y * Size) + x - 1]);
-                var right = x == Size - 1 || !IsOpaque(pixels[(y * Size) + x + 1]);
+                var up = y == 0 || !IsOpaque(pixels[((y - 1) * _size) + x]);
+                var down = y == _size - 1 || !IsOpaque(pixels[((y + 1) * _size) + x]);
+                var left = x == 0 || !IsOpaque(pixels[(y * _size) + x - 1]);
+                var right = x == _size - 1 || !IsOpaque(pixels[(y * _size) + x + 1]);
                 if (up || down || left || right)
                 {
                     edges++;
@@ -238,16 +244,16 @@ public class BuildingSpriteRasterizerTests
 
     private static int OpaqueCount(Color[] pixels, float x0, float x1, float y0, float y1)
     {
-        var minX = Math.Clamp((int)(x0 * Size), 0, Size - 1);
-        var maxX = Math.Clamp((int)(x1 * Size), 0, Size);
-        var minY = Math.Clamp((int)(y0 * Size), 0, Size - 1);
-        var maxY = Math.Clamp((int)(y1 * Size), 0, Size);
+        var minX = Math.Clamp((int)(x0 * _size), 0, _size - 1);
+        var maxX = Math.Clamp((int)(x1 * _size), 0, _size);
+        var minY = Math.Clamp((int)(y0 * _size), 0, _size - 1);
+        var maxY = Math.Clamp((int)(y1 * _size), 0, _size);
         var count = 0;
         for (var y = minY; y < maxY; y++)
         {
             for (var x = minX; x < maxX; x++)
             {
-                if (IsOpaque(pixels[(y * Size) + x]))
+                if (IsOpaque(pixels[(y * _size) + x]))
                 {
                     count++;
                 }
@@ -259,15 +265,15 @@ public class BuildingSpriteRasterizerTests
 
     private static int MaxOpaqueWidth(Color[] pixels, float yStart, float yEnd)
     {
-        var minY = (int)(yStart * Size);
-        var maxY = (int)(yEnd * Size);
+        var minY = (int)(yStart * _size);
+        var maxY = (int)(yEnd * _size);
         var maxWidth = 0;
         for (var y = minY; y < maxY; y++)
         {
             var width = 0;
-            for (var x = 0; x < Size; x++)
+            for (var x = 0; x < _size; x++)
             {
-                if (IsOpaque(pixels[(y * Size) + x]))
+                if (IsOpaque(pixels[(y * _size) + x]))
                 {
                     width++;
                 }
@@ -284,12 +290,12 @@ public class BuildingSpriteRasterizerTests
 
     private static int CountHorizontalRuns(Color[] pixels, float y)
     {
-        var row = (int)(y * Size);
+        var row = (int)(y * _size);
         var runs = 0;
         var inside = false;
-        for (var x = 0; x < Size; x++)
+        for (var x = 0; x < _size; x++)
         {
-            var opaque = IsOpaque(pixels[(row * Size) + x]);
+            var opaque = IsOpaque(pixels[(row * _size) + x]);
             if (opaque && !inside)
             {
                 runs++;
@@ -314,20 +320,20 @@ public class BuildingSpriteRasterizerTests
 
     private static bool[] ScaleOccupancy(Color[] pixels, float scale)
     {
-        var mask = new bool[Size * Size];
-        var center = (Size - 1) / 2f;
-        for (var y = 0; y < Size; y++)
+        var mask = new bool[_size * _size];
+        var center = (_size - 1) / 2f;
+        for (var y = 0; y < _size; y++)
         {
-            for (var x = 0; x < Size; x++)
+            for (var x = 0; x < _size; x++)
             {
                 var srcX = (int)MathF.Round(center + ((x - center) / scale));
                 var srcY = (int)MathF.Round(center + ((y - center) / scale));
-                if (srcX < 0 || srcX >= Size || srcY < 0 || srcY >= Size)
+                if (srcX < 0 || srcX >= _size || srcY < 0 || srcY >= _size)
                 {
                     continue;
                 }
 
-                mask[(y * Size) + x] = IsOpaque(pixels[(srcY * Size) + srcX]);
+                mask[(y * _size) + x] = IsOpaque(pixels[(srcY * _size) + srcX]);
             }
         }
 

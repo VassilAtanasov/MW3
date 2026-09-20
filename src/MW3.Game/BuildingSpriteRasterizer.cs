@@ -351,7 +351,9 @@ internal static class BuildingSpriteRasterizer
             {
                 var dx = MathF.Abs(px + 0.5f - cx) - hx;
                 var dy = MathF.Abs(py + 0.5f - cy) - hy;
-                var outside = MathF.Sqrt((MathF.Max(dx, 0f) * MathF.Max(dx, 0f)) + (MathF.Max(dy, 0f) * MathF.Max(dy, 0f)));
+                var ox = MathF.Max(dx, 0f);
+                var oy = MathF.Max(dy, 0f);
+                var outside = MathF.Sqrt((ox * ox) + (oy * oy));
                 var inside = MathF.Min(MathF.Max(dx, dy), 0f);
                 Stamp(dest, px, py, color, CoverageFromDistance(outside + inside));
             }
